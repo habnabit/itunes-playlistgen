@@ -171,20 +171,18 @@ def unrecent_score_tracks(tracks, bias_recent_adds, unrecentness_days):
     now = datetime.datetime.now()
     unrecentness = datetime.timedelta(days=unrecentness_days)
     tracks = [
-        (t.get(typ.pPlD, datetime.datetime.min), t) for t in tracks]
+        (t.get(typ.pPlD, t[typ.pAdd]), t) for t in tracks]
     tracks.sort()
     bounding_index = bisect.bisect_left(tracks, (now - unrecentness,))
     del tracks[bounding_index:]
-    last_real_play = min(a for a, b in tracks if a != datetime.datetime.min)
 
-    def score(track):
-        last_played = track.get(typ.pPlD, last_real_play)
+    def score(last_played, track):
         score = (now - last_played).total_seconds() ** 0.5
         if bias_recent_adds:
             score /= (now - track[typ.pAdd]).total_seconds() ** 0.5
         return score
 
-    tracks = [(score(track), track) for _, track in tracks]
+    tracks = [(score(played, track), track) for played, track in tracks]
     tracks.sort()
     scale = 1 / tracks[0][0]
     return [(scale * a, b) for a, b in tracks]
