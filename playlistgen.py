@@ -168,10 +168,13 @@ def timefill_search(rng, tracks, duration, fuzz, ideal_length,
 
 
 def unrecent_score_tracks(tracks, bias_recent_adds, unrecentness_days):
+    def date_for(t):
+        return max(d for d in [t.get(typ.pPlD), t.get(typ.pSkD), t[typ.pAdd]]
+                   if d is not None)
+
     now = datetime.datetime.now()
     unrecentness = datetime.timedelta(days=unrecentness_days)
-    tracks = [
-        (t.get(typ.pPlD, t[typ.pAdd]), t) for t in tracks]
+    tracks = [(date_for(t), t) for t in tracks]
     tracks.sort()
     bounding_index = bisect.bisect_left(tracks, (now - unrecentness,))
     del tracks[bounding_index:]
