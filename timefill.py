@@ -1,18 +1,43 @@
+# -*- coding: utf-8 -*-
+
 import bisect
 import datetime
 import itertools
 import heapq
-import math
 import random
 
 from backports import statistics
 import applescript
+import attr
 import click
 
 
+@attr.s
+class TrackContext(object):
+    source_playlist = attr.ib()
+    dest_playlist = attr.ib()
+    start_playing = attr.ib()
+
+    def get_tracks(self):
+        click.echo('Pulling tracks.')
+        tracks = all_tracks(self.source_playlist)
+        click.echo('Got tracks.')
+        return tracks
+
+    def set_default_dest(self, name):
+        if self.dest_playlist is None:
+            self.dest_playlist = name
+
+    def set_tracks(self, tracks):
+        fill_tracks(
+            self.dest_playlist.splitlines(),
+            [t[typ.pPIS] for t in tracks],
+            self.start_playing)
+
+
+@attr.s
 class IDGen(object):
-    def __init__(self, cls):
-        self._cls = cls
+    _cls = attr.ib()
 
     def __getattr__(self, attr):
         r = self._cls(attr.ljust(4, ' '))
@@ -20,10 +45,10 @@ class IDGen(object):
         return r
 
 
+@attr.s
 class IDWrap(object):
-    def __init__(self, idgen, obj):
-        self._idgen = idgen
-        self._obj = obj
+    _idgen = attr.ib()
+    _obj = attr.ib()
 
     def __getattr__(self, attr):
         return self._obj[getattr(self._idgen, attr)]
@@ -32,35 +57,87 @@ class IDWrap(object):
 typ = IDGen(applescript.AEType)
 
 
-all_tracks = applescript.AppleScript("""
+@attr.s
+class LazyAppleScript(object):
+    script = attr.ib()
+    _compiled = attr.ib(default=None)
 
-on run {pl, l}
-    tell application "iTunes" to return (properties of tracks of (the first playlist whose name is pl) whose duration < l)
+    def __call__(self, *args):
+        if self._compiled is None:
+            self._compiled = applescript.AppleScript(self.script)
+        return self._compiled.run(*args)
+
+
+all_tracks = LazyAppleScript("""
+
+on run {pl}
+    tell application "iTunes" to return (properties of tracks of (the first playlist whose name is pl))
 end run
 
-""").run
+""")
 
-fill_tracks = applescript.AppleScript("""
+all_tracks_under_duration = LazyAppleScript(u"""
 
-on run {pln, tl}
+on run {pl, l}
+    tell application "iTunes" to ¬
+        return (properties of tracks of (the first playlist whose name is pl) whose duration < l)
+end run
+
+""")
+
+fill_tracks = LazyAppleScript("""
+
+on get_playlist(pln, isf, plp)
     tell application "iTunes"
-        stop
-        set pl to the first playlist whose name is pln
+        if isf then
+            try
+                return the first folder playlist whose name is pln
+            on error number -1728
+                return make new folder playlist at plp with properties {name:pln}
+            end try
+        else
+            try
+                return the first playlist whose name is pln
+            on error number -1728
+                return make new playlist at plp with properties {name:pln, parent:plp}
+            end try
+        end if
+    end tell
+end get_playlist
+
+on nested_playlist(plns)
+    tell application "iTunes"
+        set prev to null
+        repeat with n from 1 to count of plns
+            set pln to item n of plns
+            set pl to my get_playlist(pln, n < (count of plns), prev)
+            set prev to pl
+        end repeat
+    end tell
+end nested_playlist
+
+on run {plns, tl, ctrl}
+    tell application "iTunes"
+        if ctrl then stop
+        set pl to my nested_playlist(plns)
         delete tracks of pl
         repeat with t in tl
             duplicate (the first track whose persistent ID is t) to pl
         end repeat
-        play pl
+        if ctrl then play pl
     end tell
 end run
 
-""").run
+""")
 
 
-def search(rng, tracks, duration, fuzz, ideal_length,
-           tolerance=2, n_results=10, iterations=5000):
+def timefill_search(rng, tracks, duration, fuzz, ideal_length,
+                    tolerance=2, n_results=10, iterations=5000):
     results = []
     iteration = [0]
+    tracks = [
+        (t[typ.pDur], t) for t in tracks if t[typ.pDur] < duration + fuzz]
+    tracks.sort()
 
     def add(tt):
         score = -statistics.pvariance(itertools.chain(
@@ -90,8 +167,71 @@ def search(rng, tracks, duration, fuzz, ideal_length,
     return results
 
 
+def unrecent_score_tracks(tracks, bias_recent_adds, unrecentness_days):
+    now = datetime.datetime.now()
+    unrecentness = datetime.timedelta(days=unrecentness_days)
+    tracks = [
+        (t.get(typ.pPlD, datetime.datetime.min), t) for t in tracks]
+    tracks.sort()
+    bounding_index = bisect.bisect_left(tracks, (now - unrecentness,))
+    del tracks[bounding_index:]
+    last_real_play = min(a for a, b in tracks if a != datetime.datetime.min)
+
+    def score(track):
+        last_played = track.get(typ.pPlD, last_real_play)
+        score = (now - last_played).total_seconds() ** 0.5
+        if bias_recent_adds:
+            score /= (now - track[typ.pAdd]).total_seconds() ** 0.5
+        return score
+
+    tracks = [(score(track), track) for _, track in tracks]
+    tracks.sort()
+    scale = 1 / tracks[0][0]
+    return [(scale * a, b) for a, b in tracks]
+
+
+def unrecent_search(rng, tracks, bias_recent_adds, unrecentness_days,
+                    duration_secs):
+    tracks = unrecent_score_tracks(tracks, bias_recent_adds, unrecentness_days)
+    bottom_score, top_score = tracks[0][0], tracks[-1][0]
+    ret = []
+    current_duration = 0
+    seen = set()
+
+    while current_duration < duration_secs:
+        while True:
+            score = rng.uniform(bottom_score, top_score)
+            index = bisect.bisect_left(tracks, (score,))
+            if index not in seen:
+                seen.add(index)
+                break
+
+        track = tracks[index]
+        ret.append(track)
+        current_duration += track[1][typ.pDur]
+
+    return ret
+
+
 def seconds(s):
     return datetime.timedelta(seconds=int(s))
+
+
+def show_stats(ts):
+    scores = [a for a, b in ts]
+    scores.sort()
+    click.echo(
+        'len {:5d} min {:8.3f} max {:8.3f} mean {:8.3f} median {:8.3f} stdev {:8.3f} pvar {:8.3f}'.format(
+            len(scores), scores[0], scores[-1], statistics.mean(scores),
+            statistics.median(scores), statistics.stdev(scores),
+            statistics.pvariance(scores)))
+
+
+def show_playlist(playlist):
+    for f, (_, t) in enumerate(playlist, start=1):
+        click.echo(
+            u'    {2:2}. [{1}] {0.pArt} - {0.pnam} ({0.pAlb})'.format(
+                IDWrap(typ, t), seconds(t[typ.pDur]), f))
 
 
 def show_playlists(playlists):
@@ -99,20 +239,13 @@ def show_playlists(playlists):
         length = sum(l for l, _ in pl)
         click.secho(u'{:2}. {} ({:0.2f})'.format(e, seconds(length), score),
                     fg='green')
-        for f, (_, t) in enumerate(pl, start=1):
-            click.echo(
-                u'    {2:2}. [{1}] {0.pArt} - {0.pnam} ({0.pAlb})'.format(
-                    IDWrap(typ, t), seconds(t[typ.pDur]), f))
+        show_playlist(pl)
         click.echo('')
 
 
-def choose_playlist(playlists):
-    pass
-
-
-def search_and_choose(*a, **kw):
+def timefill_search_and_choose(*a, **kw):
     while True:
-        results = search(*a, **kw)
+        results = timefill_search(*a, **kw)
         while True:
             show_playlists(results)
             e = click.prompt('Pick one (0 for reroll)', type=int)
@@ -125,24 +258,65 @@ def search_and_choose(*a, **kw):
                 return results[e - 1]
 
 
-@click.command(context_settings=dict(help_option_names=('-h', '--help')))
-@click.option('--playlist', default='>8wk played', metavar='NAME',
-              help='Playlist name.')
+@click.group(context_settings=dict(help_option_names=('-h', '--help')))
+@click.pass_context
+@click.option('-i', '--source-playlist', default='Songs Worth Playing',
+              metavar='NAME', help='Playlist from which to pull tracks.')
+@click.option('-o', '--dest-playlist', metavar='NAME',
+              help='Playlist into which to push tracks.')
+@click.option('--start-playing/--no-start-playing', default=False,
+              help='Start playing the playlist after being filled.')
+def main(ctx, source_playlist, dest_playlist, start_playing):
+    """
+    Generate iTunes playlists in smarter ways than iTunes can.
+    """
+
+    ctx.obj = TrackContext(
+        source_playlist=source_playlist, dest_playlist=dest_playlist,
+        start_playing=start_playing)
+
+
+@main.command()
+@click.pass_obj
 @click.option('--ideal-length', default=300., metavar='SECONDS',
               help='Ideal length of each track.')
 @click.option('--duration', default=600, metavar='SECONDS',
               help='Total duration.')
 @click.option('--fuzz', default=10, metavar='SECONDS',
               help='How much fuzz is allowed on the duration.')
-def main(playlist, duration, fuzz, ideal_length):
-    tracks = [(t[typ.pDur], t) for t in all_tracks(playlist, duration + fuzz)]
-    click.echo('Got tracks.')
-    tracks.sort()
+def timefill(tracks, duration, fuzz, ideal_length):
+    """
+    Make a playlist close to some length.
+    """
+
     rng = random.Random()
-    click.echo('Searching tracks.')
-    _, playlist = search_and_choose(
-        rng, tracks, duration, fuzz, ideal_length, n_results=6)
-    fill_tracks('timefill', [t[typ.pPIS] for _, t in playlist])
+    _, playlist = timefill_search_and_choose(
+        rng, tracks.get_tracks(), duration, fuzz, ideal_length, n_results=6)
+    tracks.set_default_dest('timefill')
+    tracks.set_tracks(b for a, b in playlist)
 
 
-main()
+@main.command('daily-unrecent')
+@click.pass_obj
+@click.option('--bias-recent-adds/--no-bias-recent-adds', default=False,
+              help='Whether to bias toward recently added songs.')
+@click.option('--unrecentness', default=35, metavar='DAYS',
+              help='How long since the last play.')
+@click.option('--duration', default=43200, metavar='SECONDS',
+              help='Total duration.')
+def daily_unrecent(tracks, bias_recent_adds, unrecentness, duration):
+    """
+    Build a playlist of non-recently played things.
+    """
+
+    rng = random.Random()
+    playlist = unrecent_search(
+        rng, tracks.get_tracks(), bias_recent_adds, unrecentness, duration)
+    show_playlist(playlist)
+    tracks.set_default_dest(
+        u'• daily\n{:%Y-%m-%d}'.format(datetime.datetime.now()))
+    tracks.set_tracks(b for a, b in playlist)
+
+
+if __name__ == '__main__':
+    main()
