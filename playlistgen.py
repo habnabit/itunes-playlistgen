@@ -2,6 +2,7 @@
 
 import bisect
 import datetime
+import io
 import itertools
 import heapq
 import random
@@ -20,7 +21,7 @@ class TrackContext(object):
 
     def get_tracks(self):
         click.echo('Pulling tracks.')
-        tracks = all_tracks(self.source_playlist)
+        tracks = scripts.call('all_tracks', self.source_playlist)
         click.echo('Got tracks.')
         return tracks
 
@@ -29,7 +30,8 @@ class TrackContext(object):
             self.dest_playlist = name
 
     def set_tracks(self, tracks):
-        fill_tracks(
+        scripts.call(
+            'fill_tracks',
             self.dest_playlist.splitlines(),
             [t[typ.pPIS] for t in tracks],
             self.start_playing)
@@ -62,73 +64,14 @@ class LazyAppleScript(object):
     script = attr.ib()
     _compiled = attr.ib(default=None)
 
-    def __call__(self, *args):
+    def call(self, name, *args):
         if self._compiled is None:
             self._compiled = applescript.AppleScript(self.script)
-        return self._compiled.run(*args)
+        return self._compiled.call(name, *args)
 
 
-all_tracks = LazyAppleScript("""
-
-on run {pl}
-    tell application "iTunes" to return (properties of tracks of (the first playlist whose name is pl))
-end run
-
-""")
-
-all_tracks_under_duration = LazyAppleScript(u"""
-
-on run {pl, l}
-    tell application "iTunes" to ¬
-        return (properties of tracks of (the first playlist whose name is pl) whose duration < l)
-end run
-
-""")
-
-fill_tracks = LazyAppleScript("""
-
-on get_playlist(pln, isf, plp)
-    tell application "iTunes"
-        if isf then
-            try
-                return the first folder playlist whose name is pln
-            on error number -1728
-                return make new folder playlist at plp with properties {name:pln}
-            end try
-        else
-            try
-                return the first playlist whose name is pln
-            on error number -1728
-                return make new playlist at plp with properties {name:pln, parent:plp}
-            end try
-        end if
-    end tell
-end get_playlist
-
-on nested_playlist(plns)
-    tell application "iTunes"
-        set prev to null
-        repeat with n from 1 to count of plns
-            set pln to item n of plns
-            set pl to my get_playlist(pln, n < (count of plns), prev)
-            set prev to pl
-        end repeat
-    end tell
-end nested_playlist
-
-on run {plns, tl, ctrl}
-    tell application "iTunes"
-        if ctrl then stop
-        set pl to my nested_playlist(plns)
-        delete tracks of pl
-        repeat with t in tl
-            duplicate (the first track whose persistent ID is t) to pl
-        end repeat
-        if ctrl then play pl
-    end tell
-end run
-
-""")
+with io.open('functions.applescript', encoding='mac-roman') as infile:
+    scripts = LazyAppleScript(infile.read())
 
 
 def timefill_search(rng, tracks, duration, fuzz, ideal_length,
@@ -259,6 +202,19 @@ def timefill_search_and_choose(*a, **kw):
                 return results[e - 1]
 
 
+def delete_older(pattern, max_age):
+    nesting = pattern.splitlines()
+    container, pattern = nesting[:-1], nesting[-1]
+    playlists = scripts.call('contained_playlists', container)
+    min_date = datetime.datetime.now() - max_age
+    to_delete = []
+    for (name, pid) in playlists:
+        playlist_date = datetime.datetime.strptime(name, pattern)
+        if playlist_date < min_date:
+            to_delete.append(pid)
+    scripts.call('delete_playlists', to_delete)
+
+
 @click.group(context_settings=dict(help_option_names=('-h', '--help')))
 @click.pass_context
 @click.option('-i', '--source-playlist', default='Songs Worth Playing',
@@ -290,10 +246,10 @@ def timefill(tracks, duration, fuzz, ideal_length):
     Make a playlist close to some length.
     """
 
+    tracks.set_default_dest('timefill')
     rng = random.Random()
     _, playlist = timefill_search_and_choose(
         rng, tracks.get_tracks(), duration, fuzz, ideal_length, n_results=6)
-    tracks.set_default_dest('timefill')
     tracks.set_tracks(b for a, b in playlist)
 
 
@@ -305,18 +261,27 @@ def timefill(tracks, duration, fuzz, ideal_length):
               help='How long since the last play.')
 @click.option('--duration', default=43200, metavar='SECONDS',
               help='Total duration.')
-def daily_unrecent(tracks, bias_recent_adds, unrecentness, duration):
+@click.option('--playlist-pattern', default=u'• daily\n%Y-%m-%d',
+              metavar='PATTERN', help='strftime-style pattern for playlists.')
+@click.option('--delete-older-than', default=None, type=int, metavar='DAYS',
+              help='How old of playlists to delete.')
+def daily_unrecent(tracks, bias_recent_adds, unrecentness, duration,
+                   playlist_pattern, delete_older_than):
     """
     Build a playlist of non-recently played things.
     """
 
+    date_bytes = datetime.datetime.now().strftime(
+        playlist_pattern.encode('utf-8'))
+    tracks.set_default_dest(date_bytes.decode('utf-8'))
     rng = random.Random()
     playlist = unrecent_search(
         rng, tracks.get_tracks(), bias_recent_adds, unrecentness, duration)
     show_playlist(playlist)
-    tracks.set_default_dest(
-        u'• daily\n{:%Y-%m-%d}'.format(datetime.datetime.now()))
     tracks.set_tracks(b for a, b in playlist)
+    if delete_older_than is not None:
+        delete_older(
+            playlist_pattern, datetime.timedelta(days=delete_older_than))
 
 
 if __name__ == '__main__':
