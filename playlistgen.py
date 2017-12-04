@@ -19,10 +19,11 @@ class TrackContext(object):
     dest_playlist = attr.ib()
     start_playing = attr.ib()
 
+    # XXX: pull in two parts, for progress bar?
     def get_tracks(self):
-        click.echo('Pulling tracks.')
+        click.echo('Pulling tracks from {!r}.'.format(self.source_playlist))
         tracks = scripts.call('all_tracks', self.source_playlist)
-        click.echo('Got tracks.')
+        click.echo('Got {} tracks.'.format(len(tracks)))
         return tracks
 
     def set_default_dest(self, name):
@@ -30,11 +31,12 @@ class TrackContext(object):
             self.dest_playlist = name
 
     def set_tracks(self, tracks):
+        persistent_tracks = [t[typ.pPIS] for t in tracks]
+        splut = self.dest_playlist.splitlines()
+        click.echo('Putting {} tracks into {!r}.'.format(
+            len(persistent_tracks), splut[-1]))
         scripts.call(
-            'fill_tracks',
-            self.dest_playlist.splitlines(),
-            [t[typ.pPIS] for t in tracks],
-            self.start_playing)
+            'fill_tracks', splut, persistent_tracks, self.start_playing)
 
 
 @attr.s
