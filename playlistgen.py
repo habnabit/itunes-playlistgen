@@ -2,6 +2,7 @@
 
 import bisect
 import datetime
+import functools
 import io
 import itertools
 import heapq
@@ -159,6 +160,81 @@ def unrecent_search(rng, tracks, bias_recent_adds, unrecentness_days,
     return ret
 
 
+def unrecent_score_albums(tracks, bias_recent_adds):
+    tracks = [t for t in tracks if not t.get(typ.pAnt)]
+    tracks = unrecent_score_tracks(tracks, bias_recent_adds, unrecentness_days=0)
+    albums = {}
+    for score, track in tracks:
+        key = track.get(typ.pAlb), track.get(typ.pAlA) or track.get(typ.pArt)
+        if not all(key):
+            continue
+        albums.setdefault(key, []).append((score, track))
+
+    ret = []
+    for album_name, album_scores_tracks in albums.iteritems():
+        album_scores, album_tracks = zip(*album_scores_tracks)
+        album_score = statistics.mean(album_scores)
+        ret.append((album_score, album_name, album_tracks))
+
+    ret.sort()
+    return ret
+
+
+def pick_unrecent_albums(rng, albums, n_albums):
+    bottom_score, top_score = albums[0][0], albums[-1][0]
+    ret = []
+    seen = set()
+
+    for ign in range(n_albums):
+        while True:
+            score = rng.uniform(bottom_score, top_score)
+            index = bisect.bisect_left(albums, (score,))
+            if index not in seen:
+                seen.add(index)
+                break
+
+        ret.append(albums[index])
+
+    return ret
+
+
+def album_track_position(track):
+    return track.get(typ.pTrN), track.get(typ.pDsN)
+
+
+def shuffle_together_album_tracks(rng, albums_tracks):
+    albums_tracks = [
+        sorted(ts, key=album_track_position, reverse=True)
+        for ts in albums_tracks]
+
+    ret = []
+    while True:
+        weights = [len(ts) for ts in albums_tracks]
+        weight_sum = sum(weights)
+        if weight_sum == 0:
+            break
+        value = rng.randrange(weight_sum)
+        for e, weight in enumerate(weights):
+            value -= weight
+            if value < 0:
+                break
+        ret.append(albums_tracks[e].pop())
+
+    return ret
+
+
+def album_search(rng, tracks, bias_recent_adds):
+    all_albums = unrecent_score_albums(tracks, bias_recent_adds)
+    ret = []
+    for ign in range(5):
+        albums = pick_unrecent_albums(rng, all_albums, 3)
+        albums_tracks = [ts for _, _, ts in albums]
+        playlist = shuffle_together_album_tracks(rng, albums_tracks)
+        ret.append((0, [(0, t) for t in playlist]))
+
+    return ret
+
+
 def seconds(s):
     return datetime.timedelta(seconds=int(s))
 
@@ -182,16 +258,16 @@ def show_playlist(playlist):
 
 def show_playlists(playlists):
     for e, (score, pl) in enumerate(playlists, start=1):
-        length = sum(l for l, _ in pl)
+        length = sum(t[typ.pDur] for _, t in pl)
         click.secho(u'{:2}. {} ({:0.2f})'.format(e, seconds(length), score),
                     fg='green')
         show_playlist(pl)
         click.echo('')
 
 
-def timefill_search_and_choose(*a, **kw):
+def search_and_choose(f):
     while True:
-        results = timefill_search(*a, **kw)
+        results = f()
         while True:
             show_playlists(results)
             e = click.prompt('Pick one (0 for reroll)', type=int)
@@ -250,8 +326,26 @@ def timefill(tracks, duration, fuzz, ideal_length):
 
     tracks.set_default_dest('timefill')
     rng = random.Random()
-    _, playlist = timefill_search_and_choose(
-        rng, tracks.get_tracks(), duration, fuzz, ideal_length, n_results=6)
+    search = functools.partial(
+        timefill_search, rng, tracks.get_tracks(), duration, fuzz,
+        ideal_length, n_results=6)
+    _, playlist = search_and_choose(search)
+    tracks.set_tracks(b for a, b in playlist)
+
+
+@main.command('album-shuffle')
+@click.pass_obj
+@click.option('--bias-recent-adds/--no-bias-recent-adds', default=False,
+              help='Whether to bias toward recently added songs.')
+def album_shuffle(tracks, bias_recent_adds):
+    """
+    """
+
+    tracks.set_default_dest('album shuffle')
+    rng = random.Random()
+    search = functools.partial(
+        album_search, rng, tracks.get_tracks(), bias_recent_adds)
+    _, playlist = search_and_choose(search)
     tracks.set_tracks(b for a, b in playlist)
 
 
