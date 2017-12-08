@@ -231,12 +231,12 @@ def shuffle_together_album_tracks(rng, albums_tracks):
     return ret
 
 
-def album_search(rng, tracks, bias_recent_adds):
+def album_search(rng, tracks, bias_recent_adds, n_albums=3, n_choices=5):
     all_albums = unrecent_score_albums(tracks, bias_recent_adds)
     ret = []
-    for ign in range(5):
-        albums = pick_unrecent_albums(rng, all_albums, 3)
-        albums_tracks = [ts for _, _, ts in albums]
+    albums = pick_unrecent_albums(rng, all_albums, n_albums * n_choices)
+    for e in range(n_choices):
+        albums_tracks = [ts for _, _, ts in albums[e::n_choices]]
         playlist = shuffle_together_album_tracks(rng, albums_tracks)
         ret.append((0, [(0, t) for t in playlist]))
 
