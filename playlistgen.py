@@ -21,18 +21,21 @@ class TrackContext(object):
     dest_playlist = attr.ib()
     start_playing = attr.ib()
 
-    def get_tracks(self):
+    def get_tracks(self, batch_size=125):
         click.echo('Pulling tracks from {!r}.'.format(self.source_playlist))
         track_pids = scripts.call('all_track_pids', self.source_playlist)
-        track_iter = iter(track_pids)
         ret = []
         with tqdm.tqdm(total=len(track_pids), unit='track', miniters=1) as bar:
-            while True:
-                batch = list(itertools.islice(track_iter, 25))
-                if not batch:
-                    break
+            for e in range(0, len(track_pids), batch_size):
+                batch = scripts.call(
+                    'get_track_batch',
+                    self.source_playlist,
+                    e + 1,
+                    min(e + batch_size, len(track_pids)))
                 bar.update(len(batch))
-                ret.extend(scripts.call('get_track_batch', batch))
+                ret.extend(batch)
+        if len({t[typ.pPIS] for t in ret}) != len(track_pids):
+            raise RuntimeError("track fetching didn't get all tracks")
         return ret
 
     def set_default_dest(self, name):
@@ -237,8 +240,11 @@ def album_search(rng, tracks, bias_recent_adds, n_albums=3, n_choices=5):
     albums = pick_unrecent_albums(rng, all_albums, n_albums * n_choices)
     for e in range(n_choices):
         albums_tracks = [ts for _, _, ts in albums[e::n_choices]]
+        album_names = sorted(
+            album for _, (album, _), _ in albums[e::n_choices])
+        names = u' ✕ '.join(album_names)
         playlist = shuffle_together_album_tracks(rng, albums_tracks)
-        ret.append((0, [(0, t) for t in playlist]))
+        ret.append((names, [(0, t) for t in playlist]))
 
     return ret
 
@@ -267,7 +273,7 @@ def show_playlist(playlist):
 def show_playlists(playlists):
     for e, (score, pl) in enumerate(playlists, start=1):
         length = sum(t[typ.pDur] for _, t in pl)
-        click.secho(u'{:2}. {} ({:0.2f})'.format(e, seconds(length), score),
+        click.secho(u'{:2}. {} ({})'.format(e, seconds(length), score),
                     fg='green')
         show_playlist(pl)
         click.echo('')
@@ -345,15 +351,18 @@ def timefill(tracks, duration, fuzz, ideal_length):
 @click.pass_obj
 @click.option('--bias-recent-adds/--no-bias-recent-adds', default=False,
               help='Whether to bias toward recently added songs.')
-def album_shuffle(tracks, bias_recent_adds):
+@click.option('--playlist-pattern', default=u'※ Album Shuffle\n{names}',
+              metavar='PATTERN',
+              help='str.format-style pattern for playlists.')
+def album_shuffle(tracks, bias_recent_adds, playlist_pattern):
     """
     """
 
-    tracks.set_default_dest('album shuffle')
     rng = random.Random()
     search = functools.partial(
         album_search, rng, tracks.get_tracks(), bias_recent_adds)
-    _, playlist = search_and_choose(search)
+    names, playlist = search_and_choose(search)
+    tracks.set_default_dest(playlist_pattern.format(names=names))
     tracks.set_tracks(b for a, b in playlist)
 
 
@@ -365,7 +374,7 @@ def album_shuffle(tracks, bias_recent_adds):
               help='How long since the last play.')
 @click.option('--duration', default=43200, metavar='SECONDS',
               help='Total duration.')
-@click.option('--playlist-pattern', default=u'• daily\n%Y-%m-%d',
+@click.option('--playlist-pattern', default=u'※ Daily\n%Y-%m-%d',
               metavar='PATTERN', help='strftime-style pattern for playlists.')
 @click.option('--delete-older-than', default=None, type=int, metavar='DAYS',
               help='How old of playlists to delete.')
