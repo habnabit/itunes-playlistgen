@@ -29,6 +29,21 @@ on nested_playlist(plns)
 	end tell
 end nested_playlist
 
+on all_track_pids(pl)
+	tell application "iTunes" to return (the persistent ID of tracks of (the first playlist whose name is pl))
+end all_track_pids
+
+on get_track_batch(pids)
+	set ret to {}
+	tell application "iTunes"
+		repeat with n from 1 to count of pids
+			set pid to item n of pids
+			copy (properties of the first track whose persistent ID is pid) to the end of ret
+		end repeat
+	end tell
+	return ret
+end get_track_batch
+
 on all_tracks(pl)
 	tell application "iTunes" to return (properties of tracks of (the first playlist whose name is pl))
 end all_tracks

@@ -12,6 +12,7 @@ from backports import statistics
 import applescript
 import attr
 import click
+import tqdm
 
 
 @attr.s
@@ -20,12 +21,19 @@ class TrackContext(object):
     dest_playlist = attr.ib()
     start_playing = attr.ib()
 
-    # XXX: pull in two parts, for progress bar?
     def get_tracks(self):
         click.echo('Pulling tracks from {!r}.'.format(self.source_playlist))
-        tracks = scripts.call('all_tracks', self.source_playlist)
-        click.echo('Got {} tracks.'.format(len(tracks)))
-        return tracks
+        track_pids = scripts.call('all_track_pids', self.source_playlist)
+        track_iter = iter(track_pids)
+        ret = []
+        with tqdm.tqdm(total=len(track_pids), unit='track', miniters=1) as bar:
+            while True:
+                batch = list(itertools.islice(track_iter, 25))
+                if not batch:
+                    break
+                bar.update(len(batch))
+                ret.extend(scripts.call('get_track_batch', batch))
+        return ret
 
     def set_default_dest(self, name):
         if self.dest_playlist is None:

@@ -9,6 +9,7 @@ attrs = "*"
 "backports.statistics" = "*"
 click = "*"
 py-applescript = "*"
+tqdm = "*"
 
 [dev-packages.playlistgen]
 path = "."
