@@ -34,8 +34,8 @@ class TrackContext(object):
                     min(e + batch_size, len(track_pids)))
                 bar.update(len(batch))
                 ret.extend(batch)
-        if len({t[typ.pPIS] for t in ret}) != len(track_pids):
-            raise RuntimeError("track fetching didn't get all tracks")
+        if {t[typ.pPIS] for t in ret} != set(track_pids):
+            raise RuntimeError("track fetching didn't get the right tracks")
         return ret
 
     def set_default_dest(self, name):
