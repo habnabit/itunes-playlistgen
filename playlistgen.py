@@ -171,7 +171,7 @@ def unrecent_search(rng, tracks, bias_recent_adds, unrecentness_days,
     return ret
 
 
-def unrecent_score_albums(tracks, bias_recent_adds):
+def unrecent_score_albums(rng, tracks, bias_recent_adds):
     tracks = [t for t in tracks if not t.get(typ.pAnt)]
     tracks = unrecent_score_tracks(tracks, bias_recent_adds, unrecentness_days=0)
     albums = {}
@@ -184,7 +184,7 @@ def unrecent_score_albums(tracks, bias_recent_adds):
     ret = []
     for album_name, album_scores_tracks in albums.iteritems():
         album_scores, album_tracks = zip(*album_scores_tracks)
-        album_score = statistics.mean(album_scores)
+        album_score = rng.choice(album_scores)
         ret.append((album_score, album_name, album_tracks))
 
     ret.sort()
@@ -235,7 +235,7 @@ def shuffle_together_album_tracks(rng, albums_tracks):
 
 
 def album_search(rng, tracks, bias_recent_adds, n_albums=3, n_choices=5):
-    all_albums = unrecent_score_albums(tracks, bias_recent_adds)
+    all_albums = unrecent_score_albums(rng, tracks, bias_recent_adds)
     ret = []
     albums = pick_unrecent_albums(rng, all_albums, n_albums * n_choices)
     for e in range(n_choices):
