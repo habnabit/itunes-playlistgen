@@ -1,6 +1,7 @@
-import collections
+from __future__ import print_function
 
 import attr
+import collections
 
 
 def build_sets(rng, albums):
@@ -15,7 +16,7 @@ def build_sets(rng, albums):
     while albums or cur:
         add_item = (
             albums and
-            (len(cur) <= 1 or random.randrange(n_albums) > len(cur)))
+            (len(cur) <= 2 or random.randrange(n_albums) > len(cur)))
         if add_item:
             cur.add(pick())
         else:
@@ -57,14 +58,21 @@ def shuffle(rng, albums_dict):
                 pick()
 
     assert sum(pool.values()) == 0
-    return ret
+    return diffs, ret
 
 
 if __name__ == '__main__':
     import pprint
     import random
+    _symbols = list('*-=@#~')
+    random.shuffle(_symbols)
     _albums = {
-        n: [(n, m) for m in xrange(random.randint(5, 15))]
+        n: [(n, m) for m in xrange(1, random.randint(5, 15))]
         for n in range(1, 6)
     }
-    pprint.pprint(shuffle(random, _albums))
+    _counts = {a: len(b) for a, b in _albums.items()}
+    _diffs, _shuffled = shuffle(random, _albums)
+    pprint.pprint(_diffs)
+    for a, b in _shuffled:
+        _symbol = _symbols[a]
+        print('{0:5} |{1:>{2}}'.format(a * _symbol, b * _symbol, _counts[a]))
