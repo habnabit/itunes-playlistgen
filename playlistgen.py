@@ -6,6 +6,7 @@ import functools
 import io
 import itertools
 import heapq
+import math
 import random
 
 from backports import statistics
@@ -191,22 +192,41 @@ def unrecent_score_albums(rng, tracks, bias_recent_adds):
     return ret
 
 
-def pick_unrecent_albums(rng, albums, n_albums):
-    bottom_score, top_score = albums[0][0], albums[-1][0]
-    ret = []
-    seen = set()
+def pick_unrecent_albums(rng, all_albums, n_albums, n_choices, iterations=10000):
+    bottom_score, top_score = all_albums[0][0], all_albums[-1][0]
+    results = []
 
-    for ign in range(n_albums):
-        while True:
-            score = rng.uniform(bottom_score, top_score)
-            index = bisect.bisect_left(albums, (score,))
-            if index not in seen:
-                seen.add(index)
-                break
+    def maybe_add(album_indices):
+        if len(album_indices) < n_albums:
+            return False
+        elif any(not album_indices.isdisjoint(extant)
+                 for _, extant, _ in results):
+            return True
+        albums = [all_albums[i] for i in album_indices]
+        score = statistics.pvariance(
+            sum(t[typ.pDur] for t in tracks)
+            for _, _, tracks in albums)
+        score = -math.log(score)
+        t = score, album_indices, albums
+        if len(results) < n_choices:
+            heapq.heappush(results, t)
+        else:
+            heapq.heappushpop(results, t)
+        return True
 
-        ret.append(albums[index])
+    pool = [frozenset()]
+    for _ in xrange(iterations):
+        root = random.choice(pool)
+        score = rng.uniform(bottom_score, top_score)
+        index = bisect.bisect_left(all_albums, (score,))
+        if index in root:
+            continue
+        cur = root | {index}
+        if not maybe_add(cur):
+            pool.append(cur)
 
-    return ret
+    results.sort()
+    return results
 
 
 def album_track_position(track):
@@ -237,12 +257,14 @@ def shuffle_together_album_tracks(rng, albums_tracks):
 def album_search(rng, tracks, bias_recent_adds, n_albums=3, n_choices=5):
     all_albums = unrecent_score_albums(rng, tracks, bias_recent_adds)
     ret = []
-    albums = pick_unrecent_albums(rng, all_albums, n_albums * n_choices)
-    for e in range(n_choices):
-        albums_tracks = [ts for _, _, ts in albums[e::n_choices]]
+    all_choices = pick_unrecent_albums(
+        rng, all_albums, n_albums, n_choices ** 2)
+    choices = rng.sample(all_choices, n_choices)
+    for score, _, albums in choices:
+        albums_tracks = [ts for _, _, ts in albums]
         album_names = sorted(
-            album for _, (album, _), _ in albums[e::n_choices])
-        names = u' ✕ '.join(album_names)
+            album for _, (album, _), _ in albums)
+        names = u' ✕ '.join(album_names) + u' ({:.2f})'.format(score)
         playlist = shuffle_together_album_tracks(rng, albums_tracks)
         ret.append((names, [(0, t) for t in playlist]))
 
