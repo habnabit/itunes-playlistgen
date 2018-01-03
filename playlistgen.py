@@ -15,6 +15,8 @@ import attr
 import click
 import tqdm
 
+import _album_shuffle
+
 
 @attr.s
 class TrackContext(object):
@@ -233,39 +235,24 @@ def album_track_position(track):
     return track.get(typ.pTrN), track.get(typ.pDsN)
 
 
-def shuffle_together_album_tracks(rng, albums_tracks):
-    albums_tracks = [
-        sorted(ts, key=album_track_position, reverse=True)
-        for ts in albums_tracks]
-
-    ret = []
-    while True:
-        weights = [len(ts) for ts in albums_tracks]
-        weight_sum = sum(weights)
-        if weight_sum == 0:
-            break
-        value = rng.randrange(weight_sum)
-        for e, weight in enumerate(weights):
-            value -= weight
-            if value < 0:
-                break
-        ret.append(albums_tracks[e].pop())
-
-    return ret
+def shuffle_together_album_tracks(rng, albums):
+    albums_dict = {
+        name: sorted(ts, key=album_track_position)
+        for _, name, ts in albums}
+    return _album_shuffle.shuffle(rng, albums_dict)
 
 
-def album_search(rng, tracks, bias_recent_adds, n_albums=3, n_choices=5):
+def album_search(rng, tracks, bias_recent_adds, n_albums=5, n_choices=5):
     all_albums = unrecent_score_albums(rng, tracks, bias_recent_adds)
     ret = []
     all_choices = pick_unrecent_albums(
         rng, all_albums, n_albums, n_choices ** 2)
     choices = rng.sample(all_choices, n_choices)
     for score, _, albums in choices:
-        albums_tracks = [ts for _, _, ts in albums]
         album_names = sorted(
             album for _, (album, _), _ in albums)
         names = u' ✕ '.join(album_names) + u' ({:.2f})'.format(score)
-        playlist = shuffle_together_album_tracks(rng, albums_tracks)
+        playlist = shuffle_together_album_tracks(rng, albums)
         ret.append((names, [(0, t) for t in playlist]))
 
     return ret

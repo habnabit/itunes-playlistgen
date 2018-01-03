@@ -1,17 +1,15 @@
 import collections
-import random
-import pprint
 
 import attr
 
 
-def build_sets(albums):
+def build_sets(rng, albums):
     albums = list(albums)
     n_albums = len(albums)
     ret = []
 
     def pick():
-        return albums.pop(random.randrange(len(albums)))
+        return albums.pop(rng.randrange(len(albums)))
 
     cur = set()
     while albums or cur:
@@ -21,7 +19,7 @@ def build_sets(albums):
         if add_item:
             cur.add(pick())
         else:
-            cur.remove(random.sample(cur, 1)[0])
+            cur.remove(rng.sample(cur, 1)[0])
         ret.append(frozenset(cur))
 
     return ret
@@ -41,32 +39,32 @@ def stepped_difference(sets):
     ]
 
 
-def shuffle(album_dict):
-    diffs = stepped_difference(build_sets(album_dict))
-    pprint.pprint(diffs)
+def shuffle(rng, albums_dict):
+    diffs = stepped_difference(build_sets(rng, albums_dict))
     ret = []
     pool = collections.Counter()
 
     def pick():
-        album = random.choice(list(pool.elements()))
-        ret.append(album_dict[album].pop(0))
+        album = rng.choice(list(pool.elements()))
+        ret.append(albums_dict[album].pop(0))
         pool[album] -= 1
 
     for diff in diffs:
         for album in diff.added:
-            pool[album] = len(album_dict[album])
+            pool[album] = len(albums_dict[album])
         for album in diff.removed:
-            print album
             while pool[album] > 0:
                 pick()
-            print pool
 
     assert sum(pool.values()) == 0
     return ret
 
 
-_albums = {
-    n: [(n, m) for m in xrange(random.randint(5, 15))]
-    for n in range(1, 6)
-}
-pprint.pprint(shuffle(_albums))
+if __name__ == '__main__':
+    import pprint
+    import random
+    _albums = {
+        n: [(n, m) for m in xrange(random.randint(5, 15))]
+        for n in range(1, 6)
+    }
+    pprint.pprint(shuffle(random, _albums))
