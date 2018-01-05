@@ -83,3 +83,10 @@ on fill_tracks(plns, tl, ctrl)
 		if ctrl then play pl
 	end tell
 end fill_tracks
+
+on get_genius()
+	tell application "iTunes"
+		set pls to every playlist whose name is "Genius Mixes"
+		return the persistent ID of every track of the first item in pls
+	end tell
+end get_genius

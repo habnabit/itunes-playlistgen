@@ -23,6 +23,8 @@ class TrackContext(object):
     source_playlist = attr.ib()
     dest_playlist = attr.ib()
     start_playing = attr.ib()
+    score_func = attr.ib()
+    rng = attr.ib(default=attr.Factory(random.Random))
 
     def get_tracks(self, batch_size=125):
         click.echo('Pulling tracks from {!r}.'.format(self.source_playlist))
@@ -52,6 +54,9 @@ class TrackContext(object):
             len(persistent_tracks), splut[-1]))
         scripts.call(
             'fill_tracks', splut, persistent_tracks, self.start_playing)
+
+    def score_tracks(self, tracks):
+        return self.score_func(tracks)
 
 
 @attr.s
@@ -151,9 +156,48 @@ def unrecent_score_tracks(tracks, bias_recent_adds, unrecentness_days):
     return [(scale * a, b) for a, b in tracks]
 
 
-def unrecent_search(rng, tracks, bias_recent_adds, unrecentness_days,
-                    duration_secs):
-    tracks = unrecent_score_tracks(tracks, bias_recent_adds, unrecentness_days)
+@attr.s
+class ScoreUnrecent(object):
+    name = 'unrecent'
+    unrecentness = attr.ib()
+
+    def score(self, tracks):
+        return unrecent_score_tracks(tracks, False, self.unrecentness)
+
+
+@attr.s
+class ScoreUnrecentButRecentlyAdded(object):
+    name = 'unrecent-but-recently-added'
+    unrecentness = attr.ib()
+
+    def score(self, tracks):
+        return unrecent_score_tracks(tracks, True, self.unrecentness)
+
+
+@attr.s
+class ScoreUniform(object):
+    name = 'uniform'
+    rng = attr.ib()
+
+    def score(self, tracks):
+        tracks = list(tracks)
+        self.rng.shuffle(tracks)
+        return list(enumerate(tracks))
+
+
+SCORING = {cls.name: cls for cls in [
+    ScoreUnrecent,
+    ScoreUnrecentButRecentlyAdded,
+    ScoreUniform,
+]}
+
+
+def make(cls, **kw):
+    cls_attrs = {f.name for f in attr.fields(cls)}
+    return cls(**{k: v for k, v in kw.items() if k in cls_attrs})
+
+
+def unrecent_search(rng, tracks, duration_secs):
     bottom_score, top_score = tracks[0][0], tracks[-1][0]
     ret = []
     current_duration = 0
@@ -174,9 +218,7 @@ def unrecent_search(rng, tracks, bias_recent_adds, unrecentness_days,
     return ret
 
 
-def unrecent_score_albums(rng, tracks, bias_recent_adds):
-    tracks = [t for t in tracks if not t.get(typ.pAnt)]
-    tracks = unrecent_score_tracks(tracks, bias_recent_adds, unrecentness_days=0)
+def collate_album_score(rng, tracks):
     albums = {}
     for score, track in tracks:
         key = track.get(typ.pAlb), track.get(typ.pAlA) or track.get(typ.pArt)
@@ -194,7 +236,8 @@ def unrecent_score_albums(rng, tracks, bias_recent_adds):
     return ret
 
 
-def pick_unrecent_albums(rng, all_albums, n_albums, n_choices, iterations=10000):
+def pick_albums(rng, tracks, n_albums, n_choices, iterations=10000):
+    all_albums = collate_album_score(rng, tracks)
     bottom_score, top_score = all_albums[0][0], all_albums[-1][0]
     results = []
 
@@ -242,17 +285,26 @@ def shuffle_together_album_tracks(rng, albums):
     return _album_shuffle.shuffle(rng, albums_dict)
 
 
-def album_search(rng, tracks, bias_recent_adds, n_albums=5, n_choices=5):
-    all_albums = unrecent_score_albums(rng, tracks, bias_recent_adds)
+def filter_tracks_to_genius_albums(tracks):
+    genius_track_pids = set(scripts.call('get_genius'))
+    genius_albums = {
+        t[typ.pAlb]
+        for _, t in tracks
+        if t[typ.pPIS] in genius_track_pids and typ.pAlb in t}
+    return [(s, t) for s, t in tracks if t.get(typ.pAlb) in genius_albums]
+
+
+def album_search(rng, tracks, n_albums=5, n_choices=5, source_genius=False):
+    if source_genius:
+        tracks = filter_tracks_to_genius_albums(tracks)
     ret = []
-    all_choices = pick_unrecent_albums(
-        rng, all_albums, n_albums, n_choices ** 2)
-    choices = rng.sample(all_choices, n_choices)
+    all_choices = pick_albums(rng, tracks, n_albums, n_choices ** 2)
+    choices = rng.sample(all_choices, min(n_choices, len(all_choices)))
     for score, _, albums in choices:
         album_names = sorted(
             album for _, (album, _), _ in albums)
         names = u' ✕ '.join(album_names) + u' ({:.2f})'.format(score)
-        playlist = shuffle_together_album_tracks(rng, albums)
+        _, playlist = shuffle_together_album_tracks(rng, albums)
         ret.append((names, [(0, t) for t in playlist]))
 
     return ret
@@ -324,14 +376,21 @@ def delete_older(pattern, max_age):
               help='Playlist into which to push tracks.')
 @click.option('--start-playing/--no-start-playing', default=False,
               help='Start playing the playlist after being filled.')
-def main(ctx, source_playlist, dest_playlist, start_playing):
+@click.option('--scoring', type=click.Choice(SCORING), default='unrecent',
+              help='XXX')
+@click.option('--unrecentness', default=35, metavar='DAYS',
+              help='How long since the last play for unrecentness scoring.')
+def main(ctx, source_playlist, dest_playlist, start_playing, scoring,
+         unrecentness):
     """
     Generate iTunes playlists in smarter ways than iTunes can.
     """
 
+    rng = random.Random()
+    score_obj = make(SCORING[scoring], rng=rng, unrecentness=unrecentness)
     ctx.obj = TrackContext(
         source_playlist=source_playlist, dest_playlist=dest_playlist,
-        start_playing=start_playing)
+        start_playing=start_playing, score_func=score_obj.score, rng=rng)
 
 
 @main.command()
@@ -348,9 +407,8 @@ def timefill(tracks, duration, fuzz, ideal_length):
     """
 
     tracks.set_default_dest('timefill')
-    rng = random.Random()
     search = functools.partial(
-        timefill_search, rng, tracks.get_tracks(), duration, fuzz,
+        timefill_search, tracks.rng, tracks.get_tracks(), duration, fuzz,
         ideal_length, n_results=6)
     _, playlist = search_and_choose(search)
     tracks.set_tracks(b for a, b in playlist)
@@ -358,18 +416,23 @@ def timefill(tracks, duration, fuzz, ideal_length):
 
 @main.command('album-shuffle')
 @click.pass_obj
-@click.option('--bias-recent-adds/--no-bias-recent-adds', default=False,
-              help='Whether to bias toward recently added songs.')
 @click.option('--playlist-pattern', default=u'※ Album Shuffle\n{names}',
               metavar='PATTERN',
               help='str.format-style pattern for playlists.')
-def album_shuffle(tracks, bias_recent_adds, playlist_pattern):
+@click.option('--n-albums', default=4, metavar='ALBUMS',
+              help='How many albums to shuffle together.')
+@click.option('--source-genius/--no-source-genius', default=False,
+              help='XXX')
+def album_shuffle(tracks, playlist_pattern, n_albums, source_genius):
     """
+    XXX
     """
 
-    rng = random.Random()
+    all_tracks = tracks.score_tracks(
+        t for t in tracks.get_tracks() if not t.get(typ.pAnt))
     search = functools.partial(
-        album_search, rng, tracks.get_tracks(), bias_recent_adds)
+        album_search, tracks.rng, all_tracks, n_albums=n_albums,
+        source_genius=source_genius)
     names, playlist = search_and_choose(search)
     tracks.set_default_dest(playlist_pattern.format(names=names))
     tracks.set_tracks(b for a, b in playlist)
@@ -377,18 +440,13 @@ def album_shuffle(tracks, bias_recent_adds, playlist_pattern):
 
 @main.command('daily-unrecent')
 @click.pass_obj
-@click.option('--bias-recent-adds/--no-bias-recent-adds', default=False,
-              help='Whether to bias toward recently added songs.')
-@click.option('--unrecentness', default=35, metavar='DAYS',
-              help='How long since the last play.')
 @click.option('--duration', default=43200, metavar='SECONDS',
               help='Total duration.')
 @click.option('--playlist-pattern', default=u'※ Daily\n%Y-%m-%d',
               metavar='PATTERN', help='strftime-style pattern for playlists.')
 @click.option('--delete-older-than', default=None, type=int, metavar='DAYS',
               help='How old of playlists to delete.')
-def daily_unrecent(tracks, bias_recent_adds, unrecentness, duration,
-                   playlist_pattern, delete_older_than):
+def daily_unrecent(tracks, duration, playlist_pattern, delete_older_than):
     """
     Build a playlist of non-recently played things.
     """
@@ -396,9 +454,8 @@ def daily_unrecent(tracks, bias_recent_adds, unrecentness, duration,
     date_bytes = datetime.datetime.now().strftime(
         playlist_pattern.encode('utf-8'))
     tracks.set_default_dest(date_bytes.decode('utf-8'))
-    rng = random.Random()
     playlist = unrecent_search(
-        rng, tracks.get_tracks(), bias_recent_adds, unrecentness, duration)
+        tracks.rng, tracks.score_tracks(tracks.get_tracks()), duration)
     show_playlist(playlist)
     tracks.set_tracks(b for a, b in playlist)
     if delete_older_than is not None:

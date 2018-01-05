@@ -16,7 +16,7 @@ def build_sets(rng, albums):
     while albums or cur:
         add_item = (
             albums and
-            (len(cur) <= 2 or random.randrange(n_albums) > len(cur)))
+            (len(cur) <= 2 or rng.randrange(n_albums) > len(cur)))
         if add_item:
             cur.add(pick())
         else:
