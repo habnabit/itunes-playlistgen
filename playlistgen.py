@@ -282,7 +282,7 @@ def shuffle_together_album_tracks(rng, albums):
     albums_dict = {
         name: sorted(ts, key=album_track_position)
         for _, name, ts in albums}
-    return _album_shuffle.shuffle(rng, albums_dict)
+    return _album_shuffle.stretch_shuffle(rng, albums_dict)
 
 
 def filter_tracks_to_genius_albums(tracks):

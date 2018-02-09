@@ -10,6 +10,7 @@ attrs = "*"
 click = "*"
 py-applescript = "*"
 tqdm = "*"
+numpy = "*"
 
 [dev-packages.playlistgen]
 path = "."
