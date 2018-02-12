@@ -5,12 +5,15 @@ name = "pypi"
 
 [packages]
 PyObjC = "*"
+arrow = "!=0.11.*,!=0.12.*"
 attrs = "*"
 "backports.statistics" = "*"
 click = "*"
 py-applescript = "*"
 tqdm = "*"
 numpy = "*"
+klein = "*"
+twisted = "*"
 
 [dev-packages.playlistgen]
 path = "."

@@ -463,5 +463,16 @@ def daily_unrecent(tracks, duration, playlist_pattern, delete_older_than):
             playlist_pattern, datetime.timedelta(days=delete_older_than))
 
 
+@main.command()
+@click.pass_obj
+def web(tracks):
+    """
+    Do it in a browser.
+    """
+
+    import playlistweb
+    playlistweb.run(tracks)
+
+
 if __name__ == '__main__':
     main()
