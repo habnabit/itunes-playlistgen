@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "2257dafae07285aa234179603b110189b794bfa047ce9af418d03693524c509c"
+            "sha256": "52c4cda453dff746f25467863652a31fb61e1f17d5fb71ef38551d6613ed9381"
         },
         "host-environment-markers": {
             "implementation_name": "cpython",
@@ -262,6 +262,7 @@
                 "sha256:82c588e6cf5cef8375e5260fc3996d33b4187e6515ef05aa92186d6b4518f99d",
                 "sha256:1976c178256b40f826b0bd17d13422bbba1e92e2cabbbbfabe854ed6bf96338e"
             ],
+            "markers": "platform_release >= '15.0'",
             "version": "==4.1"
         },
         "pyobjc-framework-contactsui": {
@@ -867,6 +868,13 @@
             ],
             "version": "==17.9.0"
         },
+        "txspinneret": {
+            "hashes": [
+                "sha256:f14ea83d5e9734283eba5af8d0c540cd13f0cf082447a0687b7a861a5e3f9f37",
+                "sha256:a622ab277e7a654050c800ad4959a13a268eb8e48ab77374684ec04d79bbdf30"
+            ],
+            "version": "==0.1.3"
+        },
         "werkzeug": {
             "hashes": [
                 "sha256:d5da73735293558eb1651ee2fddc4d0dedcfa06538b8813a2e20011583c9e49b",
@@ -958,7 +966,6 @@
                 "sha256:26c946f5f3eef5002c9f966b017a371ef70a6d3fc7be65e58dff1800f62c9e69",
                 "sha256:df3cb6b884306cc4bfdf792877b5b90ce4b0d1480a2df2a796f937a42e8b615c"
             ],
-            "markers": "platform_release >= '12.0'",
             "version": "==4.1"
         },
         "pyobjc-framework-addressbook": {
@@ -1116,7 +1123,6 @@
                 "sha256:d924cddd8358a01ad0a54cc41ecd6bd58dde305072e4eec87463cb8a52f418d3",
                 "sha256:dd1efb4e2cd81f91137cdda6b7c2daeb820fd7a3a000b8887d6ddfedd78acf34"
             ],
-            "markers": "platform_release >= '10.0'",
             "version": "==4.1"
         },
         "pyobjc-framework-coreservices": {
@@ -1608,7 +1614,6 @@
                 "sha256:9320277d98251d7472ff737f624702529d25db7326e9ecba2a8c30d9958e9746",
                 "sha256:58fb6ee493dd22fc4a1f515d21a230a149679eeb3ae6964b2b15a5dd71971b6d"
             ],
-            "markers": "platform_release >= '13.0'",
             "version": "==4.1"
         },
         "pyobjc-framework-storekit": {

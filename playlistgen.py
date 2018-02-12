@@ -218,10 +218,14 @@ def unrecent_search(rng, tracks, duration_secs):
     return ret
 
 
+def album_key(track):
+    return track.get(typ.pAlb), track.get(typ.pAlA) or track.get(typ.pArt)
+
+
 def collate_album_score(rng, tracks):
     albums = {}
     for score, track in tracks:
-        key = track.get(typ.pAlb), track.get(typ.pAlA) or track.get(typ.pArt)
+        key = album_key(track)
         if not all(key):
             continue
         albums.setdefault(key, []).append((score, track))
@@ -251,7 +255,7 @@ def pick_albums(rng, tracks, n_albums, n_choices, iterations=10000):
         score = statistics.pvariance(
             sum(t[typ.pDur] for t in tracks)
             for _, _, tracks in albums)
-        score = -math.log(score)
+        score = -math.log(score) if score != 0 else 0
         t = score, album_indices, albums
         if len(results) < n_choices:
             heapq.heappush(results, t)

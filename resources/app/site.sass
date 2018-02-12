@@ -1,0 +1,52 @@
+body
+  font-family: sans-serif
+
+.albums-selector
+  border: 1px black solid
+  margin: 2em 2vw
+  padding: 0 2vw
+  > *
+    margin: 1em 0 !important
+    display: block
+
+.album
+  h3
+    margin: 0
+    button
+      margin-left: 2em
+
+  &.fading
+    opacity: 0.25
+    transition: opacity 0.25s ease-in
+
+ul.tracklist
+  font-size: 0.75em
+  display: flex
+  flex-wrap: wrap
+  margin: 0.5em 0
+  > li
+    list-style: none
+    padding: 0.1em 0.75em
+    white-space: nowrap
+
+
+.alerts
+  .alert
+    padding: 5px
+    margin: 5px
+    display: inline-block
+    border: 1px solid black
+
+.alert-enter
+  opacity: 0.01
+
+  &.alert-enter-active
+    opacity: 1
+    transition: opacity 0.1s ease-in
+
+.alert-leave
+  opacity: 1
+
+  &.alert-leave-active
+    opacity: 0.01
+    transition: opacity 0.1s ease-in

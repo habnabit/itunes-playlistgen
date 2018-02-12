@@ -6,27 +6,74 @@ import attr
 import datetime
 import functools
 import json
+import playlistgen
+import random
 import sys
 import webbrowser
 from klein import Klein
+from playlistgen import typ
 from twisted import logger
 from twisted.internet import defer, endpoints
 from twisted.internet.task import react
 from twisted.web.server import Site
 from twisted.web.static import File
+from txspinneret import query as q
 
 
 log = logger.Logger()
 
 
+class reify(object):
+    """ Use as a class method decorator.  It operates almost exactly like the
+    Python ``@property`` decorator, but it puts the result of the method it
+    decorates into the instance dict after the first call, effectively
+    replacing the function it decorates with an instance variable.  It is, in
+    Python parlance, a non-data descriptor.  The following is an example and
+    its usage:
+
+    .. doctest::
+
+        >>> from pyramid.decorator import reify
+
+        >>> class Foo(object):
+        ...     @reify
+        ...     def jammy(self):
+        ...         print('jammy called')
+        ...         return 1
+
+        >>> f = Foo()
+        >>> v = f.jammy
+        jammy called
+        >>> print(v)
+        1
+        >>> f.jammy
+        1
+        >>> # jammy func not called the second time; it replaced itself with 1
+        >>> # Note: reassignment is possible
+        >>> f.jammy = 2
+        >>> f.jammy
+        2
+    """
+    def __init__(self, wrapped):
+        self.wrapped = wrapped
+        functools.update_wrapper(self, wrapped)
+
+    def __get__(self, inst, objtype=None):
+        if inst is None:
+            return self
+        val = self.wrapped(inst)
+        setattr(inst, self.wrapped.__name__, val)
+        return val
+
+
 def applescript_as_json(obj):
-    if isinstance(obj, (list, tuple)):
+    if isinstance(obj, (list, tuple, set, frozenset)):
         return [applescript_as_json(x) for x in obj]
     elif isinstance(obj, dict):
         return {applescript_as_json(k): applescript_as_json(v)
                 for k, v in obj.items()}
     elif isinstance(obj, applescript.AEType):
-        return 'T_{}'.format(obj.code.strip())
+        return ('T_{}'.format(obj.code.strip()))
     elif isinstance(obj, applescript.AEEnum):
         if obj.code == 'kNon':
             return None
@@ -49,7 +96,7 @@ def as_json(func):
         return json.dumps({
             'data': resp,
             'error': None,
-        }, default=applescript_as_json)
+        })
 
     return wrapper
 
@@ -61,12 +108,19 @@ class TrackWeb(object):
 
     tracks_obj = attr.ib()
     static_resource = attr.ib()
-    tracks = attr.ib(default=(), repr=False)
     done = attr.ib(default=attr.Factory(defer.Deferred))
 
-    def load_tracks(self):
-        self.tracks = applescript_as_json(
-            self.tracks_obj.get_tracks())
+    @reify
+    def tracks(self):
+        return self.tracks_obj.get_tracks()
+
+    @reify
+    def tracks_by_id(self):
+        return {t[typ.pPIS]: t for t in self.tracks}
+
+    @reify
+    def tracks_as_json(self):
+        return applescript_as_json(self.tracks)
 
     @app.route('/', branch=True)
     def index(self, request):
@@ -80,7 +134,52 @@ class TrackWeb(object):
     @app.route('/_api/all-tracks')
     @as_json
     def all_tracks(self, request):
-        return self.tracks
+        return self.tracks_as_json
+
+    @app.route('/_api/pick-albums')
+    @as_json
+    def pick_albums(self, request):
+        parsed = q.parse({
+            'n_albums': q.one(q.Integer),
+            'n_choices': q.one(q.Integer),
+            'scoring': q.one(playlistgen.SCORING.get),
+            'unrecentness': q.one(q.Integer),
+        }, request.args)
+        scoring_cls = parsed.pop('scoring') or playlistgen.ScoreUniform
+        scoring = playlistgen.make(
+            scoring_cls, rng=random, unrecentess=parsed.pop('unrecentness'))
+        tracks = scoring.score(self.tracks)
+        picks = [
+            {
+                'score': score,
+                'albums': [
+                    {
+                        'score': score,
+                        'name': name,
+                        'tracks': [t[typ.pPIS] for t in tracks],
+                    }
+                    for score, name, tracks in albums
+                ]
+            }
+            for score, _, albums
+            in playlistgen.pick_albums(random, tracks, **parsed)
+        ]
+        return picks
+
+    @app.route('/_api/shuffle-together-albums')
+    @as_json
+    def shuffle_together_albums(self, request):
+        parsed = q.parse({
+            'tracks': q.many(q.Text),
+        }, request.args)
+        albums_dict = {}
+        for tid in parsed['tracks']:
+            track = self.tracks_by_id[tid]
+            key = playlistgen.album_key(track)
+            albums_dict.setdefault(key, []).append(track)
+        albums_list = [(0, key, tracks) for key, tracks in albums_dict.iteritems()]
+        _, playlist = playlistgen.shuffle_together_album_tracks(random, albums_list)
+        return [t[typ.pPIS] for t in playlist]
 
 
 def webbrowser_open(port):
@@ -90,9 +189,9 @@ def webbrowser_open(port):
 
 
 def _run(reactor, tracks):
-    static = File('./_web_static')
+    static = File('./resources/dist')
     web = TrackWeb(tracks_obj=tracks, static_resource=static)
-    web.load_tracks()
+    web.tracks_as_json
 
     logger.globalLogBeginner.beginLoggingTo([
         logger.textFileLogObserver(sys.stderr)])
