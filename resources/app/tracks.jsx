@@ -42,19 +42,24 @@ class Album extends React.Component {
 
     render() {
         let classes = ['album']
+        let controls = ''
         if (this.props.album.fading) {
             classes.push('fading')
-        }
-        let replace = ''
-        if (this.props.replace) {
-            replace = <button onClick={() => this.props.remove(this.props.albumIdx, {replace: true})}>Replace</button>
+        } else {
+            let replace = ''
+            if (this.props.replace) {
+                replace = <button onClick={() => this.props.adjust({replace: this.props.albumIdx})}>Replace</button>
+            }
+            controls = <React.Fragment>
+                {replace}
+                <button onClick={() => this.props.adjust({remove: this.props.albumIdx})}>Remove</button>
+                <label><input type="checkbox" name="replacement-source" onChange={this.changed} checked={this.isSelected()} /> Replacement source</label>
+            </React.Fragment>;
         }
         return <div className={classes.join(' ')}>
             <header>
             <h3 style={{background: colorOrder[this.props.albumIdx]}}>{this.props.album.name.join('; ')}</h3>
-            {replace}
-            <button onClick={() => this.props.remove(this.props.albumIdx)}>Remove</button>
-            <label><input type="checkbox" name="replacement-source" onChange={this.changed} checked={this.isSelected()} /> Replacement source</label>
+            {controls}
             </header>
             <Tracks selector={this.props.selector} tracks={this.props.album.tracks.map(id => ({id}))} />
         </div>
@@ -106,13 +111,14 @@ class AlbumsSelector extends React.Component {
     render () {
         let shuffled = ''
         if (this.state.shuffled.length > 0) {
-            shuffled = [
-                <Tracks key="tracks" selector={this.props.selector} tracks={this.state.shuffled} />,
-                <button key="save" onClick={() => this.save()}>Save and exit</button>,
-            ]
+            shuffled = <React.Fragment>
+                <Tracks key="tracks" selector={this.props.selector} tracks={this.state.shuffled} />
+                <button key="save" onClick={() => this.save()}>Save and exit</button>
+            </React.Fragment>
         }
         return <div className="albums-selector">
-            {this.props.albums.albums.map((a, e) => <Album selector={this.props.selector} album={a} remove={this.props.removeAlbum} replace={true} albumIdx={e} key={e} />)}
+            <button onClick={() => this.props.adjustAlbums({add: true})} disabled={!this.props.selector.hasSelection()}>Add albums</button>
+            {this.props.albums.albums.map((a, e) => <Album selector={this.props.selector} album={a} adjust={this.props.adjustAlbums} replace={true} albumIdx={e} key={e} />)}
             <button onClick={() => this.shuffle()}>Shuffle tracks</button>
             {shuffled}
         </div>
@@ -136,6 +142,8 @@ export class AlbumShuffleSelector extends React.Component {
             sources: new Map(),
             choices: [],
             selected: new Map(),
+            sourcingGenius: false,
+            pickingAlbums: false,
         }
     }
 
@@ -144,6 +152,7 @@ export class AlbumShuffleSelector extends React.Component {
     trackIdAsAlbumKeyString = tid => this.trackIdAsAlbumKey(tid).join('\0')
 
     sourceGenius() {
+        this.setState({sourcingGenius: true})
         return fetch('/_api/genius-albums')
             .then(resp => resp.json())
             .then(j => {
@@ -157,6 +166,7 @@ export class AlbumShuffleSelector extends React.Component {
                 }
                 this.setState({sources})
             })
+            .finally(() => this.setState({sourcingGenius: false}))
     }
 
     handleChange(stateKey, event) {
@@ -166,9 +176,14 @@ export class AlbumShuffleSelector extends React.Component {
     }
 
     pickAlbums(n_albums=this.state.nAlbums, n_choices=this.state.nChoices) {
+        this.setState({pickingAlbums: true})
         let params = qs.stringify({n_albums, n_choices})
         return fetch('/_api/pick-albums?' + params)
             .then(resp => resp.json())
+            .finally(r => {
+                this.setState({pickingAlbums: false})
+                return r
+            })
     }
 
     repickAlbums(...args) {
@@ -178,34 +193,55 @@ export class AlbumShuffleSelector extends React.Component {
             })
     }
 
-    removeAlbum(choiceIdx, albumIdx, args={}) {
-        var newAlbumsPromise
-        if (args.replace) {
-            if (this.state.selected.size > 0) {
+    _adjustChoiceAlbums(choiceIdx, albumsAdjustment) {
+        this.setState(({choices: prevChoices}) => {
+            let choices = prevChoices.slice()
+            let choiceAlbums = choices[choiceIdx].albums.slice()
+            let albums = albumsAdjustment(choiceAlbums) || choiceAlbums
+            choices[choiceIdx] = Object.assign({}, choices[choiceIdx], {albums})
+            return {choices}
+        })
+    }
+
+    adjustAlbums(choiceIdx, adjustment) {
+        var sourcePromise
+
+        if ((adjustment.add || adjustment.replace) !== undefined) {
+            if (this.hasSelection()) {
                 let wasSelected = this.state.selected
                 this.setState({selected: new Map()})
                 let newAlbums = Array.from(wasSelected.values(), sel => sel.album)
-                newAlbumsPromise = new Promise(resolve => resolve(newAlbums))
+                sourcePromise = new Promise(resolve => resolve(newAlbums))
             } else {
-                let choices = this.state.choices.slice()
-                newAlbumsPromise = this.pickAlbums(1, 1)
+                sourcePromise = this.pickAlbums(1, 1)
                     .then(j => j.data[0].albums)
-                let albums = choices[choiceIdx].albums
-                albums.splice(albumIdx, 1, Object.assign(albums[albumIdx], {fading: true}))
-                this.setState({choices})
             }
-        } else {
-            newAlbumsPromise = new Promise(resolve => resolve([]))
         }
-        newAlbumsPromise.then(newAlbums => {
-            let choices = this.state.choices.slice();
-            choices[choiceIdx].albums.splice(albumIdx, 1, ...newAlbums)
-            this.setState({choices})
-        })
+
+        if (adjustment.add !== undefined) {
+            sourcePromise.then(newAlbums => this._adjustChoiceAlbums(choiceIdx, albums => newAlbums.concat(albums)))
+        } else if (adjustment.replace !== undefined) {
+            let albumIdx = adjustment.replace
+            this._adjustChoiceAlbums(choiceIdx, albums => {
+                albums.splice(albumIdx, 1, Object.assign({}, albums[albumIdx], {fading: true}))
+            })
+            sourcePromise.then(newAlbums => this._adjustChoiceAlbums(choiceIdx, albums => {
+                albums.splice(albumIdx, 1, ...newAlbums)
+            }))
+        } else if (adjustment.remove !== undefined) {
+            let albumIdx = adjustment.remove
+            this._adjustChoiceAlbums(choiceIdx, albums => {
+                albums.splice(albumIdx, 1)
+            })
+        }
     }
 
     isAlbumSelected(album) {
         return this.state.selected.has(album.name.join('\0'))
+    }
+
+    hasSelection() {
+        return this.state.selected.size > 0
     }
 
     selectAlbum(album) {
@@ -220,14 +256,19 @@ export class AlbumShuffleSelector extends React.Component {
         this.setState({selected})
     }
 
+    newSelector() {
+        this.setState({choices: [{albums: []}].concat(this.state.choices)})
+    }
+
     render() {
         return <div>
-            <button onClick={() => this.sourceGenius()}>Source albums from Genius</button>
+            <button onClick={() => this.sourceGenius()} disabled={this.state.sourcingGenius}>Source albums from Genius</button>
             <AlbumSource selector={this} albums={this.state.sources} />
             <label># albums <input type="text" placeholder="# albums" value={this.state.nAlbums} onChange={ev => this.handleChange('nAlbums', ev)} /></label>
             <label># choices <input type="text" placeholder="# choices" value={this.state.nChoices} onChange={ev => this.handleChange('nChoices', ev)} /></label>
-            <button onClick={() => this.repickAlbums()}>Pick albums</button>
-            {this.state.choices.map((albums, e) => <AlbumsSelector albums={albums} selector={this} removeAlbum={(...args) => this.removeAlbum(e, ...args)} key={e} />)}
+            <button onClick={() => this.repickAlbums()} disabled={this.state.pickingAlbums}>Pick albums</button>
+            <button onClick={() => this.newSelector()}>New selector</button>
+            {this.state.choices.map((albums, e) => <AlbumsSelector albums={albums} selector={this} adjustAlbums={(...args) => this.adjustAlbums(e, ...args)} key={e} />)}
         </div>
     }
 }
