@@ -3,7 +3,6 @@ import React from 'react'
 import ReactDOM from 'react-dom'
 
 import './site.sass'
-import './alerts.jsx'
 import {AlbumShuffleSelector} from './tracks.jsx'
 
 
