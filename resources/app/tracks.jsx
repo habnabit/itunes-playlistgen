@@ -28,26 +28,15 @@ class Tracks extends React.Component {
 }
 
 class Album extends React.Component {
-    constructor(props) {
-        super(props)
-        this.state = {
-            selected: false,
-        }
+    isSelected() {
+        return this.props.selector.isAlbumSelected(this.props.album)
     }
 
     changed = () => {
-        this.setState({selected: !this.state.selected}, this.selectedUpdated)
-    }
-
-    deselect = () => {
-        this.setState({selected: false}, this.selectedUpdated)
-    }
-
-    selectedUpdated = () => {
-        if (this.state.selected) {
-            this.props.selector.selectAlbum(this.props.album, this.deselect)
-        } else {
+        if (this.isSelected()) {
             this.props.selector.deselectAlbum(this.props.album)
+        } else {
+            this.props.selector.selectAlbum(this.props.album)
         }
     }
 
@@ -65,7 +54,7 @@ class Album extends React.Component {
             <h3 style={{background: colorOrder[this.props.albumIdx]}}>{this.props.album.name.join('; ')}</h3>
             {replace}
             <button onClick={() => this.props.remove(this.props.albumIdx)}>Remove</button>
-            <label><input type="checkbox" name="replacement-source" onChange={this.changed} checked={this.state.selected} /> Replacement source</label>
+            <label><input type="checkbox" name="replacement-source" onChange={this.changed} checked={this.isSelected()} /> Replacement source</label>
             </header>
             <Tracks selector={this.props.selector} tracks={this.props.album.tracks.map(id => ({id}))} />
         </div>
@@ -195,10 +184,7 @@ export class AlbumShuffleSelector extends React.Component {
             if (this.state.selected.size > 0) {
                 let wasSelected = this.state.selected
                 this.setState({selected: new Map()})
-                let newAlbums = Array.from(wasSelected.values(), sel => {
-                    sel.toDeselect()
-                    return sel.album
-                })
+                let newAlbums = Array.from(wasSelected.values(), sel => sel.album)
                 newAlbumsPromise = new Promise(resolve => resolve(newAlbums))
             } else {
                 let choices = this.state.choices.slice()
@@ -218,9 +204,13 @@ export class AlbumShuffleSelector extends React.Component {
         })
     }
 
-    selectAlbum(album, toDeselect) {
+    isAlbumSelected(album) {
+        return this.state.selected.has(album.name.join('\0'))
+    }
+
+    selectAlbum(album) {
         let selected = new Map(this.state.selected)
-        selected.set(album.name.join('\0'), {album, toDeselect})
+        selected.set(album.name.join('\0'), {album})
         this.setState({selected})
     }
 
