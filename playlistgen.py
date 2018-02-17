@@ -292,10 +292,10 @@ def shuffle_together_album_tracks(rng, albums):
 def filter_tracks_to_genius_albums(tracks):
     genius_track_pids = set(scripts.call('get_genius'))
     genius_albums = {
-        t[typ.pAlb]
+        album_key(t)
         for _, t in tracks
         if t[typ.pPIS] in genius_track_pids and typ.pAlb in t}
-    return [(s, t) for s, t in tracks if t.get(typ.pAlb) in genius_albums]
+    return [(s, t) for s, t in tracks if album_key(t) in genius_albums]
 
 
 def album_search(rng, tracks, n_albums=5, n_choices=5, source_genius=False):

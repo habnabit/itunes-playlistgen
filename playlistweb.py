@@ -15,7 +15,8 @@ from playlistgen import typ
 from twisted import logger
 from twisted.internet import defer, endpoints
 from twisted.internet.task import react
-from twisted.web.server import Site
+from twisted.web.http import HTTPChannel
+from twisted.web.server import Request, Site
 from twisted.web.static import File
 from txspinneret import query as q
 
@@ -170,16 +171,55 @@ class TrackWeb(object):
     @as_json
     def shuffle_together_albums(self, request):
         parsed = q.parse({
-            'tracks': q.many(q.Text),
+            'tracks': q.many(self.tracks_by_id.get),
         }, request.args)
         albums_dict = {}
-        for tid in parsed['tracks']:
-            track = self.tracks_by_id[tid]
+        for track in parsed['tracks']:
             key = playlistgen.album_key(track)
             albums_dict.setdefault(key, []).append(track)
         albums_list = [(0, key, tracks) for key, tracks in albums_dict.iteritems()]
         _, playlist = playlistgen.shuffle_together_album_tracks(random, albums_list)
         return [t[typ.pPIS] for t in playlist]
+
+    @app.route('/_api/genius-albums')
+    @as_json
+    def genius_albums(self, request):
+        tracks = playlistgen.filter_tracks_to_genius_albums(
+            [(0, t) for t in self.tracks])
+        return [t[typ.pPIS] for _, t in tracks]
+
+    @app.route('/_api/save-and-exit', methods=['POST'])
+    @as_json
+    def save_and_exit(self, request):
+        parsed = q.parse({
+            'name': q.one(q.Text),
+            'tracks': q.many(self.tracks_by_id.get),
+        }, request.args)
+        self.tracks_obj.set_default_dest(parsed['name'])
+        self.tracks_obj.set_tracks(parsed['tracks'])
+        request.notifyClose().chainDeferred(self.done)
+        return True
+
+
+class OnCloseRequest(Request):
+    def notifyClose(self):
+        self.setHeader('connection', 'close')
+        d = self.channel._closeDeferred = defer.Deferred()
+        return d
+
+
+class OnCloseHttpChannel(HTTPChannel):
+    _closeDeferred = None
+
+    def connectionLost(self, reason):
+        if self._closeDeferred is not None:
+            self._closeDeferred.errback(reason)
+        HTTPChannel.connectionLost(self, reason)
+
+
+class OnCloseSite(Site):
+    requestFactory = OnCloseRequest
+    protocol = OnCloseHttpChannel
 
 
 def webbrowser_open(port):
@@ -196,7 +236,7 @@ def _run(reactor, tracks):
     logger.globalLogBeginner.beginLoggingTo([
         logger.textFileLogObserver(sys.stderr)])
 
-    site = Site(web.app.resource())
+    site = OnCloseSite(web.app.resource())
     endpoint = endpoints.TCP6ServerEndpoint(reactor, 0, interface='::1')
     d = endpoint.listen(site)
     d.addCallback(webbrowser_open)
