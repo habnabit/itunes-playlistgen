@@ -79,19 +79,16 @@ def stretch_shuffle_picks(rng, album_lengths):
     return coords, flat[flat > 0] - 1
 
 
-def swap_a_few(rng, seq, reach=3):
+def swap_a_few(rng, seq):
+    orig_indices = collections.defaultdict(list)
+    for e, i in enumerate(seq):
+        orig_indices[i].append(e)
     n_swaps = len(seq) // 2
     indices = range(len(seq))
-    new_indices = list(indices)
     for _ in range(n_swaps):
-        center = rng.choice(indices)
-        source = indices[max(center - reach, 0):center + reach]
-        i, j = rng.sample(source, 2)
-        if seq[i] == seq[j]:
-            continue
-        new_indices[i], new_indices[j] = new_indices[j], new_indices[i]
-    seq[:] = [seq[i] for i in new_indices]
-    return new_indices
+        i, j = rng.sample(indices, 2)
+        seq[i], seq[j] = seq[j], seq[i]
+    return [orig_indices[i].pop(0) for i in seq]
 
 
 def stretch_shuffle(rng, albums_dict):

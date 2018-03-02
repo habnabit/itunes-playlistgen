@@ -78,6 +78,10 @@ class ShuffleInfoDisplay extends React.Component {
             }
         })
         flatCircles.sort((a, b) => a.x - b.x)
+        let flatCirclesRearranged = Array(flatCircles.length);
+        (this.props.info.new_indices || []).forEach((pre, post) => {
+            flatCirclesRearranged[post] = flatCircles[pre]
+        })
         let circles = []
         let lines = []
         let elementIdx = 0
@@ -87,7 +91,17 @@ class ShuffleInfoDisplay extends React.Component {
             circles.push(<circle cx={x} cy={y} r="0.375" key={++elementIdx} style={style} />)
             if (lastCircle !== undefined) {
                 let {x: x1, y: y1} = lastCircle
-                let style = {stroke: 'black', strokeWidth: '0.1px'}
+                let style = {stroke: 'orange', opacity: 0.5, strokeWidth: '0.1px'}
+                lines.push(<line x1={x1} y1={y1} x2={x} y2={y} key={++elementIdx} style={style} />)
+            }
+            lastCircle = c
+        }
+        lastCircle = undefined
+        for (let c of flatCirclesRearranged) {
+            let {x, y} = c
+            if (lastCircle !== undefined) {
+                let {x: x1, y: y1} = lastCircle
+                let style = {stroke: 'purple', opacity: 0.25, strokeWidth: '0.1px'}
                 lines.push(<line x1={x1} y1={y1} x2={x} y2={y} key={++elementIdx} style={style} />)
             }
             lastCircle = c
@@ -108,7 +122,7 @@ class ShuffleInfoDisplay extends React.Component {
     swapsGroup () {
         let indices = this.props.info.new_indices || []
         let elements = []
-        indices.forEach((e2, e1) => {
+        indices.forEach((e1, e2) => {
             elements.push(<line x1={e1 * 1.5} y1="0" x2={e2 * 1.5} y2="7.5" key={elements.length} />)
         })
         return <React.Fragment>{elements}</React.Fragment>
@@ -119,7 +133,7 @@ class ShuffleInfoDisplay extends React.Component {
             stroke: 'rgba(0, 0, 0, 0.5)',
             strokeWidth: '0.1px',
         }
-        return <svg xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 75 25" preserveAspectRatio="xMinYMin meet" width="100%" height="175px">
+        return <svg xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 75 25" preserveAspectRatio="xMinYMin meet" width="100%" height="500px">
             <g transform="translate(2.5 2.5)" style={style}>{this.matGroup()}</g>
             <g transform="translate(2.5 15)" style={style}>
                 {this.swapsGroup()}
