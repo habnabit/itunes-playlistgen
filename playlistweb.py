@@ -178,8 +178,11 @@ class TrackWeb(object):
             key = playlistgen.album_key(track)
             albums_dict.setdefault(key, []).append(track)
         albums_list = [(0, key, tracks) for key, tracks in albums_dict.iteritems()]
-        _, playlist = playlistgen.shuffle_together_album_tracks(random, albums_list)
-        return [t[typ.pPIS] for t in playlist]
+        info, playlist = playlistgen.shuffle_together_album_tracks(random, albums_list)
+        return {
+            'info': info,
+            'tracks': [t[typ.pPIS] for t in playlist],
+        }
 
     @app.route('/_api/genius-albums')
     @as_json

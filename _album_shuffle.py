@@ -65,37 +65,53 @@ def shuffle(rng, albums_dict):
 def stretch_shuffle_picks(rng, album_lengths):
     space = max(album_lengths) * 2
     mat = np.zeros((space, len(album_lengths)), dtype=int)
+    coords = []
     for e, album_length in enumerate(album_lengths, start=1):
         start = rng.randrange(space - album_length)
         stop = rng.randrange(start + album_length, space)
         step = float(stop - start) / album_length
-        indices = np.arange(start, stop, step).astype(int)
+        findices = np.arange(start, stop, step)
+        indices = findices.astype(int)
         assert len(indices) == len(set(indices)) == album_length
         mat[indices, e - 1] = e
+        coords.append(list(findices))
     flat = mat.reshape(-1)
-    return mat, flat[flat > 0] - 1
+    return coords, flat[flat > 0] - 1
 
 
-def swap_a_few(rng, seq):
+def swap_a_few(rng, seq, reach=3):
     n_swaps = len(seq) // 2
     indices = range(len(seq))
+    new_indices = list(indices)
     for _ in range(n_swaps):
-        i, j = rng.sample(indices, 2)
-        seq[i], seq[j] = seq[j], seq[i]
+        center = rng.choice(indices)
+        source = indices[max(center - reach, 0):center + reach]
+        i, j = rng.sample(source, 2)
+        if seq[i] == seq[j]:
+            continue
+        new_indices[i], new_indices[j] = new_indices[j], new_indices[i]
+    seq[:] = [seq[i] for i in new_indices]
+    return new_indices
 
 
 def stretch_shuffle(rng, albums_dict):
     all_tracks = albums_dict.values()
     while True:
         try:
-            _, picks = stretch_shuffle_picks(rng, [len(ts) for ts in all_tracks])
+            coords, picks = stretch_shuffle_picks(
+                rng, [len(ts) for ts in all_tracks])
         except AssertionError:
             pass
         else:
             break
-    swap_a_few(rng, picks)
+    info = {
+        'coords': coords,
+        'pre_picks': list(picks),
+    }
+    info['new_indices'] = swap_a_few(rng, picks)
+    info['post_picks'] = list(picks)
     ret = [all_tracks[i].pop(0) for i in picks]
-    return list(picks), ret
+    return info, ret
 
 
 if __name__ == '__main__':
