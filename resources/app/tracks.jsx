@@ -68,80 +68,64 @@ class Album extends React.Component {
 
 class ShuffleInfoDisplay extends React.Component {
     matGroup () {
+        let lineStyle = {
+            stroke: 'rgba(0, 0, 0, 0.75)',
+            strokeWidth: '0.05',
+        }
+
+        let circleStyle = {
+            stroke: 'rgba(0, 0, 0, 0.5)',
+            strokeWidth: lineStyle.strokeWidth,
+        }
+
         let coords = this.props.info.coords || []
+        let postPicks = this.props.info.post_picks || []
+        let elementIdx = 0
+        let circles = []
+        let lines = []
         let flatCircles = []
-        coords.forEach((xs, e) => {
-            let y = (e + 1) * 2.5
-            let style = {fill: colorOrder[e]}
+        let xMax = 0
+        coords.forEach((xs, y) => {
             for (let x of xs) {
-                flatCircles.push(({x: x * 2.5, y, style}))
+                let style = {}
+                flatCircles.push(({x: Math.floor(x), y, style}))
+                style = Object.assign({fill: colorOrder[y], opacity: 0.5}, circleStyle)
+                circles.push(<circle cx={x} cy={y} r="0.25" key={++elementIdx} style={style} />)
+                xMax = Math.max(xMax, x)
             }
         })
         flatCircles.sort((a, b) => a.x - b.x)
-        let flatCirclesRearranged = Array(flatCircles.length);
-        (this.props.info.new_indices || []).forEach((pre, post) => {
-            flatCirclesRearranged[post] = flatCircles[pre]
+        postPicks.forEach((pick, e) => {
+            flatCircles[e].style.fill = colorOrder[pick]
         })
-        let circles = []
-        let lines = []
-        let elementIdx = 0
         let lastCircle
         for (let c of flatCircles) {
-            let {x, y, style} = c
-            circles.push(<circle cx={x} cy={y} r="0.375" key={++elementIdx} style={style} />)
+            let {x, y, style: localCircleStyle} = c
+            localCircleStyle = Object.assign({}, circleStyle, localCircleStyle)
+            circles.push(<circle cx={x} cy={y} r="0.125" key={++elementIdx} style={localCircleStyle} />)
             if (lastCircle !== undefined) {
                 let {x: x1, y: y1} = lastCircle
-                let style = {stroke: 'orange', opacity: 0.5, strokeWidth: '0.1px'}
-                lines.push(<line x1={x1} y1={y1} x2={x} y2={y} key={++elementIdx} style={style} />)
+                lines.push(<line x1={x1} y1={y1} x2={x} y2={y} key={++elementIdx} style={lineStyle} />)
             }
             lastCircle = c
         }
-        lastCircle = undefined
-        for (let c of flatCirclesRearranged) {
-            let {x, y} = c
-            if (lastCircle !== undefined) {
-                let {x: x1, y: y1} = lastCircle
-                let style = {stroke: 'purple', opacity: 0.25, strokeWidth: '0.1px'}
-                lines.push(<line x1={x1} y1={y1} x2={x} y2={y} key={++elementIdx} style={style} />)
-            }
-            lastCircle = c
+        return {
+            xMax, yMax: coords.length,
+            element: <React.Fragment>{lines}{circles}</React.Fragment>,
         }
-        return <React.Fragment>{lines}{circles}</React.Fragment>
-    }
-
-    picksGroup (picks) {
-        picks = picks || []
-        let elements = []
-        picks.forEach((p, e) => {
-            let style = {fill: colorOrder[p]}
-            elements.push(<circle cx={e * 1.5} cy={0} r="0.375" key={elements.length} style={style} />)
-        })
-        return <React.Fragment>{elements}</React.Fragment>
-    }
-
-    swapsGroup () {
-        let indices = this.props.info.new_indices || []
-        let elements = []
-        indices.forEach((e1, e2) => {
-            elements.push(<line x1={e1 * 1.5} y1="0" x2={e2 * 1.5} y2="7.5" key={elements.length} />)
-        })
-        return <React.Fragment>{elements}</React.Fragment>
     }
 
     render () {
-        let style = {
-            stroke: 'rgba(0, 0, 0, 0.5)',
-            strokeWidth: '0.1px',
+        let {xMax, yMax, element} = this.matGroup()
+        let viewBox = "0 0 " + (xMax + 2) + " " + (yMax + 2)
+        let style = {}
+        if (xMax == 0 || yMax == 0) {
+            style = {display: 'none'}
+        } else {
+            style = {width: '100%', height: '100px'}
         }
-        return <svg xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 75 25" preserveAspectRatio="xMinYMin meet" width="100%" height="500px">
-            <g transform="translate(2.5 2.5)" style={style}>{this.matGroup()}</g>
-            <g transform="translate(2.5 15)" style={style}>
-                {this.swapsGroup()}
-                {this.picksGroup(this.props.info.pre_picks)}
-            </g>
-            <g transform="translate(2.5 22.5)" style={style}>
-                {this.picksGroup(this.props.info.post_picks)}
-            </g>
+        return <svg xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox={viewBox} preserveAspectRatio="xMinYMin meet" style={style}>
+            <g transform="translate(1 1)">{element}</g>
         </svg>
     }
 }
