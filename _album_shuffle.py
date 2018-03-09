@@ -102,6 +102,7 @@ def stretch_shuffle(rng, albums_dict):
         else:
             break
     info = {
+        'albums': albums_dict.keys(),
         'coords': coords,
         'pre_picks': list(picks),
     }

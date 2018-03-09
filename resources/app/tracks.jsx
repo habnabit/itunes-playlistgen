@@ -67,6 +67,11 @@ class Album extends React.Component {
 }
 
 class ShuffleInfoDisplay extends React.Component {
+    colorByAlbumIndex(idx) {
+        let album = this.props.info.albums[idx]
+        return this.props.colorsByAlbum.get(album.join('\0'))
+    }
+
     matGroup () {
         let lineStyle = {
             stroke: 'rgba(0, 0, 0, 0.75)',
@@ -86,17 +91,18 @@ class ShuffleInfoDisplay extends React.Component {
         let flatCircles = []
         let xMax = 0
         coords.forEach((xs, y) => {
+            let fill = this.colorByAlbumIndex(y)
             for (let x of xs) {
                 let style = {}
                 flatCircles.push(({x: Math.floor(x), y, style}))
-                style = Object.assign({fill: colorOrder[y], opacity: 0.5}, circleStyle)
+                style = Object.assign({fill, opacity: 0.5}, circleStyle)
                 circles.push(<circle cx={x} cy={y} r="0.25" key={++elementIdx} style={style} />)
                 xMax = Math.max(xMax, x)
             }
         })
         flatCircles.sort((a, b) => a.x - b.x)
         postPicks.forEach((pick, e) => {
-            flatCircles[e].style.fill = colorOrder[pick]
+            flatCircles[e].style.fill = this.colorByAlbumIndex(pick)
         })
         let lastCircle
         for (let c of flatCircles) {
@@ -122,7 +128,7 @@ class ShuffleInfoDisplay extends React.Component {
         if (xMax == 0 || yMax == 0) {
             style = {display: 'none'}
         } else {
-            style = {width: '100%', height: '100px'}
+            style = {width: '100%', height: '125px'}
         }
         return <svg xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox={viewBox} preserveAspectRatio="xMinYMin meet" style={style}>
             <g transform="translate(1 1)">{element}</g>
@@ -137,6 +143,7 @@ class AlbumsSelector extends React.Component {
             shuffled: [],
             shuffleInfo: {},
         }
+        this.colorsByAlbum = new Map(this.props.albums.albums.map((a, e) => [a.name.join('\0'), colorOrder[e]]))
     }
 
     shuffle() {
@@ -147,9 +154,8 @@ class AlbumsSelector extends React.Component {
         return fetch('/_api/shuffle-together-albums?' + params)
             .then(resp => resp.json())
             .then(j => {
-                let colorsByAlbum = new Map(this.props.albums.albums.map((a, e) => [a.name.join('\0'), colorOrder[e]]))
                 let shuffled = j.data.tracks.map(
-                    id => ({id, color: colorsByAlbum.get(this.props.selector.trackIdAsAlbumKeyString(id))}))
+                    id => ({id, color: this.colorsByAlbum.get(this.props.selector.trackIdAsAlbumKeyString(id))}))
                 this.setState({shuffleInfo: j.data.info, shuffled})
             })
     }
@@ -185,7 +191,7 @@ class AlbumsSelector extends React.Component {
             <button onClick={() => this.props.adjustAlbums({add: true})} disabled={!this.props.selector.hasSelection()}>Add albums</button>
             {this.props.albums.albums.map((a, e) => <Album selector={this.props.selector} album={a} adjust={this.props.adjustAlbums} replace={true} albumIdx={e} key={e} />)}
             <button onClick={() => this.shuffle()}>Shuffle tracks</button>
-            <ShuffleInfoDisplay info={this.state.shuffleInfo} />
+            <ShuffleInfoDisplay info={this.state.shuffleInfo} colorsByAlbum={this.colorsByAlbum} />
             {shuffled}
         </div>
     }
