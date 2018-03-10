@@ -205,12 +205,29 @@ class AlbumSource extends React.Component {
     }
 }
 
+class AlbumSearch extends React.Component {
+    render () {
+        let needle = this.props.query.toLowerCase();
+        let albums = [];
+        if (needle.length >= 2) {
+            for (let [keyString, album] of this.props.selector.getAlbums()) {
+                if (!album.nameLower.includes(needle)) {
+                    continue
+                }
+                albums.push(<Album selector={this.props.selector} album={album} key={keyString} />)
+            }
+        }
+        return <div className="album-source">{albums}</div>
+    }
+}
+
 export class AlbumShuffleSelector extends React.Component {
     constructor(props) {
         super(props)
         this.state = {
             nAlbums: '4',
             nChoices: '5',
+            albumSearch: '',
             sources: new Map(),
             choices: [],
             selected: new Map(),
@@ -223,19 +240,30 @@ export class AlbumShuffleSelector extends React.Component {
     trackIdAsAlbumKey = tid => trackAsAlbumKey(this.getTrack(tid))
     trackIdAsAlbumKeyString = tid => this.trackIdAsAlbumKey(tid).join('\0')
 
+    _collateAlbums(tracks, collated=new Map()) {
+        for (let tid of tracks) {
+            let key = this.trackIdAsAlbumKey(tid)
+            let keyString = key.join('\0')
+            let value = collated.get(keyString)
+            if (value === undefined) {
+                value = {name: key, nameLower: key.join(' ').toLowerCase(), tracks: []}
+                collated.set(keyString, value)
+            }
+            value.tracks.push(tid)
+        }
+        return collated
+    }
+
+    getAlbums() {
+        return this._collateAlbums(this.props.tracks.keys())
+    }
+
     sourceGenius() {
         this.setState({sourcingGenius: true})
         return fetch('/_api/genius-albums')
             .then(resp => resp.json())
             .then(j => {
-                let sources = new Map(this.state.sources)
-                for (let tid of j.data) {
-                    let key = this.trackIdAsAlbumKey(tid)
-                    sources.set(key.join('\0'), {name: key, tracks: []})
-                }
-                for (let tid of j.data) {
-                    sources.get(this.trackIdAsAlbumKeyString(tid)).tracks.push(tid)
-                }
+                let sources = this._collateAlbums(j.data, new Map(this.state.sources))
                 this.setState({sources})
             })
             .finally(() => this.setState({sourcingGenius: false}))
@@ -334,6 +362,8 @@ export class AlbumShuffleSelector extends React.Component {
 
     render() {
         return <div>
+            <input type="search" placeholder="Album search..." value={this.state.albumSearch} onChange={ev => this.handleChange('albumSearch', ev)} />
+            <AlbumSearch selector={this} query={this.state.albumSearch} />
             <button onClick={() => this.sourceGenius()} disabled={this.state.sourcingGenius}>Source albums from Genius</button>
             <AlbumSource selector={this} albums={this.state.sources} />
             <label># albums <input type="text" placeholder="# albums" value={this.state.nAlbums} onChange={ev => this.handleChange('nAlbums', ev)} /></label>
