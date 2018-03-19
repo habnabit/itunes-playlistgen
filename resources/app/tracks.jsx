@@ -143,7 +143,10 @@ class AlbumsSelector extends React.Component {
             shuffled: [],
             shuffleInfo: {},
         }
-        this.colorsByAlbum = new Map(this.props.albums.albums.map((a, e) => [a.name.join('\0'), colorOrder[e]]))
+    }
+
+    colorsByAlbum() {
+        return new Map(this.props.albums.albums.map((a, e) => [a.name.join('\0'), colorOrder[e]]))
     }
 
     shuffle() {
@@ -154,8 +157,9 @@ class AlbumsSelector extends React.Component {
         return fetch('/_api/shuffle-together-albums?' + params)
             .then(resp => resp.json())
             .then(j => {
+                let colors = this.colorsByAlbum()
                 let shuffled = j.data.tracks.map(
-                    id => ({id, color: this.colorsByAlbum.get(this.props.selector.trackIdAsAlbumKeyString(id))}))
+                    id => ({id, color: colors.get(this.props.selector.trackIdAsAlbumKeyString(id))}))
                 this.setState({shuffleInfo: j.data.info, shuffled})
             })
     }
@@ -191,7 +195,7 @@ class AlbumsSelector extends React.Component {
             <button onClick={() => this.props.adjustAlbums({add: true})} disabled={!this.props.selector.hasSelection()}>Add albums</button>
             {this.props.albums.albums.map((a, e) => <Album selector={this.props.selector} album={a} adjust={this.props.adjustAlbums} replace={true} albumIdx={e} key={e} />)}
             <button onClick={() => this.shuffle()}>Shuffle tracks</button>
-            <ShuffleInfoDisplay info={this.state.shuffleInfo} colorsByAlbum={this.colorsByAlbum} />
+            <ShuffleInfoDisplay info={this.state.shuffleInfo} colorsByAlbum={this.colorsByAlbum()} />
             {shuffled}
         </div>
     }
