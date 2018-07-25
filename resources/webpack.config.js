@@ -1,21 +1,23 @@
-const ExtractTextPlugin = require("extract-text-webpack-plugin");
-const UglifyJSPlugin = require("uglifyjs-webpack-plugin");
+const MiniCssExtractPlugin = require("mini-css-extract-plugin");
 const path = require("path");
 
-const extractSass = new ExtractTextPlugin("site.css");
-
 module.exports = {
-  entry: "./app/index.jsx",
+  mode: "development",
+  entry: "./app/index.tsx",
   output: {
     filename: "site.js",
     path: path.resolve(__dirname, "dist"),
   },
-  devtool: "source-map",
+  resolve: {
+    extensions: [".ts", ".tsx", ".js", ".json"],
+  },
+  devtool: "inline-source-map",
   module: {
     rules: [{
       test: /\.sass$/,
-      use: extractSass.extract({
-        use: [{
+      use: [
+        MiniCssExtractPlugin.loader,
+        {
           loader: "css-loader",
           options: {
             sourceMap: true,
@@ -25,19 +27,21 @@ module.exports = {
           options: {
             sourceMap: true,
           },
-        }],
-        fallback: "style-loader",
-      })
+        }
+      ],
     }, {
-      test: /\.jsx?$/,
+      test: /\.tsx?$/,
       exclude: /node_modules/,
-      use: {
-        loader: "babel-loader",
-      },
+      loader: "ts-loader",
     }],
   },
   plugins: [
-    extractSass,
-    //new UglifyJSPlugin({extractComments: true}),
+    new MiniCssExtractPlugin({
+      filename: "site.css",
+    }),
   ],
+  externals: {
+    "react": "React",
+    "react-dom": "ReactDOM",
+  },
 };
