@@ -3,7 +3,7 @@ import {Newtype, iso} from 'newtype-ts'
 import * as React from 'react'
 import * as qs from 'qs'
 
-import {lensFromIndex, lensFromListIndex, lensFromRecordProp} from './extlens'
+import {lensFromImplicitAccessors, lensFromIndex, lensFromListIndex, lensFromRecordProp} from './extlens'
 import {Lens, Iso} from 'monocle-ts';
 import {StandardShorthandProperties} from 'csstype';
 
@@ -29,7 +29,7 @@ export class Track {
     _raw: any
 
     constructor(raw: any) {
-        Object.assign(this, raw)
+        this.id = isoTrackId.wrap(raw.T_pPIS)
         this._raw = raw
     }
 
@@ -123,7 +123,7 @@ class AlbumDisplay extends React.Component<AlbumDisplayProps> {
             <h3 style={{background: 'gray'}}>{album.key.album}; {album.key.artist}</h3>
             {controls}
             </header>
-            <TracksDisplay tracks={album.tracks.map(this.props.lens.selector.getTrack)} />
+            <TracksDisplay tracks={album.tracks.map(t => this.props.lens.selector.getTrack(t))} />
         </div>
     }
 }
@@ -137,7 +137,7 @@ class AlbumSearchDisplay extends React.Component<{lens: SelectorLens<string>}> {
                 .toSeq()
                 .filter((album, key) => album.nameLower.includes(needle))
                 .keySeq()
-                .map(this.props.lens.selector.albumDisplay)
+                .map((k, e) => this.props.lens.selector.albumDisplay(k, e))
         }
         return <div className="album-source">{albums}</div>
     }
@@ -204,7 +204,7 @@ export class AlbumShuffleSelectorDisplay extends React.Component<AlbumShuffleSel
         super(props)
         this.state = {
             tracks: props.tracks,
-            albums: Map(),
+            albums: this._collateAlbums(props.tracks.values()),
             choices: List(),
             nAlbums: 4,
             nChoices: 5,
@@ -219,15 +219,15 @@ export class AlbumShuffleSelectorDisplay extends React.Component<AlbumShuffleSel
         return this.getTrack(tid).albumKey()
     }
 
-    _collateAlbums(tracks: IterableIterator<TrackId>, collated=Map<AlbumKey, Album>()) {
+    _collateAlbums(tracks: IterableIterator<Track>, collated: Map<AlbumKey, Album> = Map()): Map<AlbumKey, Album> {
         return collated.withMutations(collated => {
-            for (let tid of tracks) {
-                let key = this.trackIdAsAlbumKey(tid)
+            for (let t of tracks) {
+                let key = t.albumKey()
                 collated.update(key, undefined, album => {
                     if (!album) {
                         album = new Album(key)
                     }
-                    return album.withTrack(tid)
+                    return album.withTrack(t.id)
                 })
             }
         })
@@ -241,8 +241,9 @@ export class AlbumShuffleSelectorDisplay extends React.Component<AlbumShuffleSel
         return this.state.albums.get(key)
     }
 
-    albumDisplay(key: AlbumKey): JSX.Element {
-        return <AlbumDisplay lens={undefined} remove={undefined} />
+    albumDisplay(key: AlbumKey, idx: number): JSX.Element {
+        let lens: SelectorLens<Album> = this.propLens('albums').compose(lensFromImplicitAccessors(key))
+        return <AlbumDisplay lens={lens} remove={() => {}} key={idx} />
     }
 
     handleNumberChange(key: SubsetKeys<AlbumShuffleSelectorState, number>, event: React.ChangeEvent<HTMLInputElement>)

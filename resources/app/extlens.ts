@@ -20,3 +20,12 @@ export function lensFromIndex<T>(index: number): Lens<T[], T> {
             return a_
         })
 }
+
+interface ImplicitAccessors<K, V> {
+    get(key: K): V
+    set(key: K, value: V): this
+}
+
+export function lensFromImplicitAccessors<K, V, T extends ImplicitAccessors<K, V>>(key: K): Lens<T, V> {
+    return new Lens(o => o.get(key), v => o => o.set(key, v))
+}
