@@ -3,8 +3,8 @@ import {Newtype, iso} from 'newtype-ts'
 import * as React from 'react'
 import * as qs from 'qs'
 
-import {lensFromImplicitAccessors, lensFromIndex, lensFromListIndex, lensFromRecordProp} from './extlens'
-import {Lens, Iso} from 'monocle-ts';
+import {lensFromImplicitAccessors, lensFromListIndex, lensFromNullableImplicitAccessorsAndConstructor, ComponentLens} from './extlens'
+import {Lens, Iso, Optional} from 'monocle-ts';
 import {StandardShorthandProperties} from 'csstype';
 
 const colorOrder = ["#fbb4ae","#b3cde3","#ccebc5","#decbe4","#fed9a6","#ffffcc","#e5d8bd","#fddaec","#f2f2f2"]
@@ -34,49 +34,41 @@ export class Track {
 
     albumKey(): AlbumKey {
         return AlbumKey({
-            album: this._raw.T_pAlb,
-            artist: this._raw.T_pAlA || this._raw.T_pArt,
+            album: this.t('pAlb'),
+            artist: this.t('pAlA') || this.t('pArt'),
         })
     }
+
+    t = (typ: string) => this._raw['T_' + typ]
 }
 
-class TrackDisplay extends React.Component<{track: Track, color?: string}> {
-    t = (typ: string) => this.props.track._raw['T_' + typ]
-
-    render() {
-        let style: StandardShorthandProperties = {}
-        if (this.props.color) {
-            style.background = this.props.color
-        }
-        return <li style={style}>
-            {this.t('pnam')}
-        </li>
+function TrackDisplay(props: {track: Track, color?: string}): JSX.Element {
+    let style: StandardShorthandProperties = {}
+    if (props.color) {
+        style.background = props.color
     }
+    return <li style={style}>
+        {props.track.t('pnam')}
+    </li>
 }
 
-class TracksDisplay extends React.Component<{tracks: List<Track>, colorByAlbum?: Map<AlbumKey, string>}> {
-    render() {
-        let colorByAlbum = this.props.colorByAlbum || Map()
-        return <ul className="tracklist">
-            {this.props.tracks.map((track, e) => <TrackDisplay track={track} color={colorByAlbum.get(track.albumKey())} key={e} />)}
-        </ul>
-    }
+function TracksDisplay(props: {tracks: List<Track>, colorByAlbum?: Map<AlbumKey, string>}): JSX.Element {
+    let colorByAlbum = props.colorByAlbum || Map()
+    return <ul className="tracklist">
+        {props.tracks.map((track, e) => <TrackDisplay track={track} color={colorByAlbum.get(track.albumKey())} key={e} />)}
+    </ul>
 }
 
 type AlbumProps = {
     key: AlbumKey,
     nameLower: string,
     tracks: List<TrackId>,
-    selected: boolean,
-    fading: boolean,
 }
 
 export class Album extends (Record({
     key: undefined,
     nameLower: undefined,
     tracks: List(),
-    selected: false,
-    fading: false,
 }) as Record.Factory<AlbumProps>) {
     constructor(key: AlbumKey) {
         let nameLower = (key.album + ' ' + key.artist).toLowerCase()
@@ -103,59 +95,58 @@ export function collateAlbums(tracks: IterableIterator<Track>, collated: Map<Alb
 }
 
 type AlbumDisplayProps = {
-    lens: SelectorLens<Album>
+    top: AlbumShuffleSelectorDisplay
+    album: Album
     remove?: () => void
     color?: string
+    albumSelector?: ComponentLens<AlbumsSelectorDisplayProps, AlbumsSelectorDisplayState, AlbumsSelectorDisplay, AlbumSelector>
 }
 
-class AlbumDisplay extends React.Component<AlbumDisplayProps> {
-    album(): Album {
-        return this.props.lens.get()
-    }
-
-    isSelected() {
-        return this.album().selected
-    }
-
-    changed = () => {
-        this.props.lens.modify(a => a.update('selected', b => !b))
-    }
-
-    render() {
-        let classes = ['album']
-        let controls = <></>
-        let album = this.album()
-        if (album.fading) {
+function AlbumDisplay(props: AlbumDisplayProps): JSX.Element {
+    let album = props.album
+    let classes = ['album']
+    let controls = <></>
+    if (props.albumSelector) {
+        let selector = props.albumSelector.get()
+        if (selector.fading) {
             classes.push('fading')
         } else {
+            let onChange = () => props.albumSelector.modify(s => s.set('selected', !s.selected))
             controls = <>
-                <button onClick={this.props.remove}>Remove</button>
-                <label><input type="checkbox" name="replacement-source" onChange={this.changed} checked={this.isSelected()} /> Replacement source</label>
+                <button onClick={props.remove}>Remove</button>
+                <label><input type="checkbox" name="replacement-source" onChange={onChange} checked={selector.selected} /> Replacement source</label>
             </>;
         }
-        return <div className={classes.join(' ')}>
-            <header>
-            <h3 style={{background: this.props.color}}>{album.key.album}; {album.key.artist}</h3>
-            {controls}
-            </header>
-            <TracksDisplay tracks={album.tracks.map(t => this.props.lens.selector.getTrack(t))} />
-        </div>
     }
+    return <div className={classes.join(' ')}>
+        <header>
+        <h3 style={{background: props.color}}>{album.key.album}; {album.key.artist}</h3>
+        {controls}
+        </header>
+        <TracksDisplay tracks={album.tracks.map(t => props.top.getTrack(t))} />
+    </div>
 }
 
-class AlbumSearchDisplay extends React.Component<{lens: SelectorLens<string>}> {
-    render () {
-        let needle = this.props.lens.get().toLowerCase();
-        let albums = Seq();
-        if (needle.length >= 2) {
-            albums = this.props.lens.selector.state.albums
-                .toSeq()
-                .filter((album, key) => album.nameLower.includes(needle))
-                .keySeq()
-                .map((k, e) => this.props.lens.selector.albumDisplay(k, e))
-        }
-        return <div className="album-source">{albums}</div>
+function AlbumSearchDisplay(props: {top: AlbumShuffleSelectorDisplay, albums: Seq.Indexed<Album>, query: string}): JSX.Element {
+    let needle = props.query.toLowerCase();
+    let albums = Seq();
+    if (needle.length >= 2) {
+        albums = props.albums
+            .filter(album => album.nameLower.includes(needle))
+            .map((album, e) => <AlbumDisplay key={e} top={props.top} album={album} />)
     }
+    return <div className="album-source">{albums}</div>
+}
+
+
+export class AlbumSelector extends (Record({
+    selected: false,
+    fading: false,
+}) as Record.Factory<{
+    selected: boolean
+    fading: boolean
+}>) {
+
 }
 
 type AlbumsSelectorDisplayProps = {
@@ -163,6 +154,7 @@ type AlbumsSelectorDisplayProps = {
 }
 
 type AlbumsSelectorDisplayState = {
+    albums: Map<AlbumKey, AlbumSelector>
     shuffled: List<TrackId>
     shuffleInfo: any
 }
@@ -171,6 +163,7 @@ class AlbumsSelectorDisplay extends React.Component<AlbumsSelectorDisplayProps, 
     constructor(props: AlbumsSelectorDisplayProps) {
         super(props)
         this.state = {
+            albums: Map(),
             shuffled: List(),
             shuffleInfo: {},
         }
@@ -181,11 +174,11 @@ class AlbumsSelectorDisplay extends React.Component<AlbumsSelectorDisplayProps, 
     }
 
     albums(): List<Album> {
-        return this.keys().map(k => this.props.lens.selector.getAlbum(k))
+        return this.keys().map(k => this.props.lens.bound.getAlbum(k))
     }
 
     shuffled(): List<Track> {
-        return this.state.shuffled.map(tid => this.props.lens.selector.getTrack(tid))
+        return this.state.shuffled.map(tid => this.props.lens.bound.getTrack(tid))
     }
 
     colorsByAlbum(): Map<AlbumKey, string> {
@@ -226,60 +219,42 @@ class AlbumsSelectorDisplay extends React.Component<AlbumsSelectorDisplayProps, 
     }
 
     render () {
-        let selector = this.props.lens.selector
+        let colors = this.colorsByAlbum()
         let shuffledDisplay = <></>
         let shuffled = this.shuffled()
         if (!this.state.shuffled.isEmpty()) {
             shuffledDisplay = <>
-                <TracksDisplay tracks={shuffled} colorByAlbum={this.colorsByAlbum()} />
+                <TracksDisplay tracks={shuffled} colorByAlbum={colors} />
             </>
         }
 
         return <div className="albums-selector">
-            <button onClick={() => selector.addSelection(this.props.lens)} disabled={!selector.hasSelection()}>Add albums</button>
-            {this.keys().map((k, e) => selector.albumDisplay(k, e, {withColors: true}))}
+            <button onClick={() => {}} disabled={true}>Add albums</button>
+            {this.albums().map((album, e) => {
+                let top = this.props.lens.bound
+                let color = colors.get(album.key)
+                let keyLens: Lens<Map<AlbumKey, AlbumSelector>, AlbumSelector> = lensFromNullableImplicitAccessorsAndConstructor(album.key, () => new AlbumSelector())
+                let albumSelector: ComponentLens<AlbumsSelectorDisplayProps, AlbumsSelectorDisplayState, AlbumsSelectorDisplay, AlbumSelector> = new ComponentLens(this, Lens.fromProp<AlbumsSelectorDisplayState, 'albums'>('albums')).compose(keyLens)
+                return <AlbumDisplay key={e} {...{top, album, color, keyLens, albumSelector}} />
+            })}
             <button onClick={() => this.shuffle()}>Shuffle tracks</button>
             {shuffledDisplay}
         </div>
     }
 }
 
-class SelectorLens<T> {
-    selector: AlbumShuffleSelectorDisplay
-    lens: Lens<AlbumShuffleSelectorState, T>
-
-    constructor(selector: AlbumShuffleSelectorDisplay, lens: Lens<AlbumShuffleSelectorState, T>) {
-        this.selector = selector
-        this.lens = lens
-    }
-
-    get(): T {
-        return this.selector.getState(this.lens.get)
-    }
-
-    set(v: T) {
-        this.selector.updateState(this.lens.set(v))
-    }
-
-    modify(f: (x: T) => T) {
-        this.selector.updateState(this.lens.modify(f))
-    }
-
-    compose<U>(over: Lens<T, U>): SelectorLens<U> {
-        return new SelectorLens(this.selector, this.lens.compose(over))
-    }
-}
+type SelectorLens<T> = ComponentLens<AlbumShuffleSelectorProps, AlbumShuffleSelectorState, AlbumShuffleSelectorDisplay, T>
 
 function lensOverTrack(sl: SelectorLens<TrackId>): SelectorLens<Track> {
-    return new SelectorLens(sl.selector, sl.lens.composeIso(new Iso(
-        (s: TrackId) => sl.selector.getTrack(s),
+    return new ComponentLens(sl.bound, sl.lens.composeIso(new Iso(
+        (s: TrackId) => sl.bound.getTrack(s),
         (a: Track) => a.id,
     )))
 }
 
 function lensOverAlbum(sl: SelectorLens<AlbumKey>): SelectorLens<Album> {
-    return new SelectorLens(sl.selector, sl.lens.composeIso(new Iso(
-        (s: AlbumKey) => sl.selector.getAlbum(s),
+    return new ComponentLens(sl.bound, sl.lens.composeIso(new Iso(
+        (s: AlbumKey) => sl.bound.getAlbum(s),
         (a: Album) => a.key,
     )))
 }
@@ -329,13 +304,8 @@ export class AlbumShuffleSelectorDisplay extends React.Component<AlbumShuffleSel
         return this.state.albums.get(key)
     }
 
-    albumDisplay(key: AlbumKey, idx: number, opts: {remove?: () => void, withColors?: boolean} = {}): JSX.Element {
-        let lens: SelectorLens<Album> = this.propLens('albums').compose(lensFromImplicitAccessors(key))
-        let props: AlbumDisplayProps = {lens, remove: opts.remove}
-        if (opts.withColors) {
-            props.color = colorOrder[idx]
-        }
-        return <AlbumDisplay key={idx} {...props} />
+    albumLens(key: AlbumKey): SelectorLens<Album> {
+        return this.propLens('albums').compose(lensFromImplicitAccessors(key))
     }
 
     handleNumberChange(key: SubsetKeys<AlbumShuffleSelectorState, number>, event: React.ChangeEvent<HTMLInputElement>)
@@ -364,27 +334,27 @@ export class AlbumShuffleSelectorDisplay extends React.Component<AlbumShuffleSel
         this.setState({choices: this.state.choices.push(List())})
     }
 
-    hasSelection(): boolean {
-        return this.state.albums.valueSeq().some(a => a.selected)
-    }
+    // hasSelection(): boolean {
+    //     return this.state.albums.valueSeq().some(a => a.selected)
+    // }
 
-    addSelection(lens: SelectorLens<List<AlbumKey>>) {
-        let newAlbums = List().withMutations(newAlbums => {
-            let albums = this.state.albums.withMutations(albums => albums.forEach((album, key) => {
-                if (!album.selected) {
-                    return
-                }
-                newAlbums.push(key)
-                albums.set(key, album.set('selected', false))
-            }))
-            this.setState({albums})
-        })
-        lens.modify(albums => albums.concat(newAlbums))
-    }
+    // addSelection(lens: SelectorLens<List<AlbumKey>>) {
+    //     let newAlbums = List().withMutations(newAlbums => {
+    //         let albums = this.state.albums.withMutations(albums => albums.forEach((album, key) => {
+    //             if (!album.selected) {
+    //                 return
+    //             }
+    //             newAlbums.push(key)
+    //             albums.set(key, album.set('selected', false))
+    //         }))
+    //         this.setState({albums})
+    //     })
+    //     lens.modify(albums => albums.concat(newAlbums))
+    // }
 
     propLens<P extends keyof AlbumShuffleSelectorState>(prop: P): SelectorLens<AlbumShuffleSelectorState[P]>
     {
-        return new SelectorLens(this, Lens.fromProp(prop))
+        return new ComponentLens(this, Lens.fromProp(prop))
     }
 
     getState<V>(getter: (prev: Readonly<AlbumShuffleSelectorState>) => V): V {
@@ -406,7 +376,7 @@ export class AlbumShuffleSelectorDisplay extends React.Component<AlbumShuffleSel
     render() {
         return <div>
             <input type="search" placeholder="Album search..." value={this.state.albumSearch} onChange={ev => this.handleStringChange('albumSearch', ev)} />
-            <AlbumSearchDisplay lens={this.propLens('albumSearch')} />
+            <AlbumSearchDisplay top={this} albums={this.props.albums.valueSeq()} query={this.state.albumSearch} />
             <button onClick={() => this.sourceGenius()} disabled={this.state.sourcingGenius}>Source albums from Genius</button>
             <label># albums <input type="number" placeholder="# albums" value={this.state.nAlbums} onChange={ev => this.handleNumberChange('nAlbums', ev)} /></label>
             <label># choices <input type="number" placeholder="# choices" value={this.state.nChoices} onChange={ev => this.handleNumberChange('nChoices', ev)} /></label>

@@ -1,5 +1,6 @@
 import {List, Record} from 'immutable'
-import {Lens, Index, Iso, At} from 'monocle-ts'
+import {Lens, Optional} from 'monocle-ts'
+import {fromNullable} from 'fp-ts/lib/Option';
 
 export function lensFromRecordProp<TProps, T extends Record<TProps>, P extends keyof TProps>(prop: P): Lens<T, TProps[P]> {
     return new Lens(r => r.get(prop, undefined), v => r => r.set(prop, v))
@@ -28,4 +29,43 @@ interface ImplicitAccessors<K, V> {
 
 export function lensFromImplicitAccessors<K, V, T extends ImplicitAccessors<K, V>>(key: K): Lens<T, V> {
     return new Lens(o => o.get(key), v => o => o.set(key, v))
+}
+
+interface NullableImplicitAccessors<K, V> {
+    get(key: K): V | undefined
+    set(key: K, value: V): this
+}
+
+export function lensFromNullableImplicitAccessorsAndConstructor<K, V, T extends NullableImplicitAccessors<K, V>>(key: K, constructor: () => V): Lens<T, V> {
+    return new Lens(o => o.get(key) || constructor(), (v: V) => (o: T) => o.set(key, v))
+}
+
+export function optionalFromNullableImplicitAccessors<K, V, T extends NullableImplicitAccessors<K, V>>(key: K): Optional<T, V> {
+    return new Optional(o => fromNullable(o.get(key)), (v: V) => (o: T) => o.set(key, v))
+}
+
+export class ComponentLens<P, S, C extends React.Component<P, S>, A> {
+    bound: Readonly<C>
+    lens: Lens<S, A>
+
+    constructor(bound: C, lens: Lens<S, A>) {
+        this.bound = bound
+        this.lens = lens
+    }
+
+    get(): A {
+        return this.lens.get(this.bound.state)
+    }
+
+    set(v: A) {
+        this.bound.setState(s => this.lens.set(v)(s))
+    }
+
+    modify(f: (x: A) => A) {
+        this.bound.setState(s => this.lens.modify(f)(s))
+    }
+
+    compose<U>(over: Lens<A, U>): ComponentLens<P, S, C, U> {
+        return new ComponentLens(this.bound, this.lens.compose(over))
+    }
 }
