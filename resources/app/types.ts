@@ -1,5 +1,7 @@
-import { Map, List, Record, OrderedMap } from 'immutable'
+import { Map, List, Record, OrderedMap, Seq } from 'immutable'
 import { Newtype, iso } from 'newtype-ts'
+import { Lens } from '../node_modules/monocle-ts';
+import { lensFromRecordProp, lensFromImplicitAccessors } from './extlens';
 
 
 export type SubsetKeys<T, S> = {
@@ -8,6 +10,9 @@ export type SubsetKeys<T, S> = {
 
 export interface TrackId extends Newtype<{ readonly TrackId: unique symbol }, string> {}
 export const isoTrackId = iso<TrackId>()
+
+export interface SelectorId extends Newtype<{ readonly SelectorId: unique symbol }, number> {}
+export const isoSelectorId = iso<SelectorId>()
 
 export class AlbumKey extends Record({
     album: undefined as string,
@@ -78,12 +83,13 @@ export class AlbumShuffleSelector extends Record({
     selectorses: List<List<AlbumSelector>>(),
     nAlbums: '4',
     nChoices: '5',
-    albumSearch: '',
+    searchQuery: '',
+    searchResults: List<AlbumSelector>(),
     sources: Map<string, string>(),
     sourcingGenius: false,
     pickingAlbums: false,
 }) {
-    gotTracks(j: any): this {
+    withTracks(j: any): this {
         let orderedTracks = OrderedMap<TrackId, Track>().withMutations(m => {
             for (var t of j.data) {
                 m.set(isoTrackId.wrap(t.T_pPIS), new Track(t))
@@ -92,5 +98,59 @@ export class AlbumShuffleSelector extends Record({
         let tracks = orderedTracks.toMap()
         let albums = collateAlbums(orderedTracks.values())
         return this.merge({tracks, albums})
+    }
+
+    updateSearch(query: string): this {
+        if (query.length < 2) {
+            return this.set('searchResults', List())
+        }
+        let needle = query.toLowerCase();
+        return this.set(
+            'searchResults',
+            this.albums
+                .valueSeq()
+                .filter(album => album.nameLower.includes(needle))
+                .map((album, e) => new AlbumSelector({album}))
+                .toList()
+        )
+    }
+
+    allSelected(): Seq.Indexed<[AlbumSelector, Lens<AlbumShuffleSelector, AlbumSelector>]> {
+        return this.searchResults.valueSeq()
+            .map((sel, e) => {
+                let lens1: Lens<AlbumShuffleSelector, List<AlbumSelector>> = new Lens(
+                    o => o.get('searchResults', undefined),
+                    v => o => o.set('searchResults', v))
+                let lens2: Lens<AlbumShuffleSelector, AlbumSelector> = lens1.compose(lensFromImplicitAccessors(e))
+                return [sel, lens2] as [AlbumSelector, null]
+            })
+            .concat(this.selectorses.valueSeq().flatMap((sels, i) => {
+                let lens1: Lens<AlbumShuffleSelector, List<List<AlbumSelector>>> = new Lens(
+                    o => o.get('selectorses', undefined),
+                    v => o => o.set('selectorses', v))
+                let lens2 = lens1.compose(lensFromImplicitAccessors(i))
+                return sels.map((sel, j) => {
+                    let lens3 = lens2.compose(lensFromImplicitAccessors(j))
+                    return [sel, lens3] as [AlbumSelector, null]
+                })
+            }))
+            .filter(([sel, _lens]) => sel.selected)
+    }
+
+    hasSelection(): boolean {
+        return this.allSelected().some(_t => true)
+    }
+
+    addSelection(selectors: Lens<AlbumShuffleSelector, List<AlbumSelector>>): AlbumShuffleSelector {
+        let newSelectors = this.allSelected()
+            .map(([sel, _lens]) => new AlbumSelector({album: sel.album}))
+            .toList()
+        return selectors.modify(selectors => selectors.concat(newSelectors))(this).clearSelected()
+    }
+
+    clearSelected(): AlbumShuffleSelector {
+        return this.allSelected().reduce((ret, [_sel, lens]) => {
+            return lens.modify(sel => sel.set('selected', false))(ret)
+        }, this)
     }
 }

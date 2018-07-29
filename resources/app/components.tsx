@@ -3,8 +3,8 @@ import {Newtype, iso} from 'newtype-ts'
 import * as React from 'react'
 import * as qs from 'qs'
 
-import {lensFromImplicitAccessors, lensFromListIndex, lensFromNullableImplicitAccessorsAndConstructor, ComponentLens} from './extlens'
-import {Lens, Iso, Optional} from 'monocle-ts';
+import {lensFromImplicitAccessors, lensFromListIndex, lensFromNullableImplicitAccessorsAndConstructor, ComponentLens, lensFromRecordProp} from './extlens'
+import {Lens, Iso, Optional, lensFromPath} from 'monocle-ts';
 import {StandardShorthandProperties} from 'csstype';
 import { TrackId, AlbumKey, Album, Track } from './types'
 import {} from './redux'
@@ -15,6 +15,7 @@ import { ActionType, getType } from 'typesafe-actions'
 
 import * as actions from './actions'
 import { AlbumShuffleSelector, AlbumSelector } from './types'
+import { access } from 'fs';
 
 
 const colorOrder = ["#fbb4ae","#b3cde3","#ccebc5","#decbe4","#fed9a6","#ffffcc","#e5d8bd","#fddaec","#f2f2f2"]
@@ -45,8 +46,9 @@ const TracksComponent: React.SFC<{
 const AlbumSelectorComponent: React.SFC<{
     selector: AlbumSelector
     color?: string
-    path?: [number, number]
-    onToggle: typeof actions.toggleAlbumSelected
+    selectorLens: Lens<AlbumShuffleSelector, AlbumSelector>
+    selectorsLens?: Lens<AlbumShuffleSelector, List<AlbumSelector>>
+    onToggleSelected: typeof actions.toggleAlbumSelected
     onRemove: typeof actions.removeAlbum
 }> = (props) => {
     let album = props.selector.album
@@ -54,13 +56,14 @@ const AlbumSelectorComponent: React.SFC<{
     if (props.selector.fading) {
         classes.push('fading')
     }
-    let controls = <></>
 
-    if (props.path) {
-        let path = props.path
+    let controls = <>
+        <label><input type="checkbox" name="replacement-source" onChange={() => props.onToggleSelected({lens: props.selectorLens})} checked={props.selector.selected} /> Replacement source</label>
+    </>
+    if (props.selectorsLens) {
         controls = <>
-            <button onClick={() => props.onRemove({path})}>Remove</button>
-            <label><input type="checkbox" name="replacement-source" onChange={() => props.onToggle({path})} checked={props.selector.selected} /> Replacement source</label>
+            {controls}
+            <button onClick={() => props.onRemove({lens: props.selectorsLens, album: album.key})}>Remove</button>
         </>
     }
 
@@ -74,28 +77,21 @@ const AlbumSelectorComponent: React.SFC<{
 }
 
 export const ConnectedAlbumSelectorComponent = connect(
-    (top: AlbumShuffleSelector, ownProps: {path?: [number, number], albumKey?: AlbumKey}) => {
-        if (ownProps.path) {
-            return {
-                path: ownProps.path,
-                selector: top.selectorses.getIn(ownProps.path),
-            }
-        } else if (ownProps.albumKey) {
-            return {
-                selector: new AlbumSelector({album: top.albums.get(ownProps.albumKey)})
-            }
-        }
+    (top: AlbumShuffleSelector, ownProps: {selectorLens: Lens<AlbumShuffleSelector, AlbumSelector>}) => {
+        return {selector: ownProps.selectorLens.get(top)}
     },
     (d: Dispatch) => bindActionCreators({
-        onToggle: actions.toggleAlbumSelected,
+        onToggleSelected: actions.toggleAlbumSelected,
         onRemove: actions.removeAlbum,
     }, d),
 )(AlbumSelectorComponent)
 
 class AlbumSelectorsComponent extends React.Component<{
-    idxTop: number
     tracks: Map<TrackId, Track>
     selectors: List<AlbumSelector>
+    lens: Lens<AlbumShuffleSelector, List<AlbumSelector>>
+    allowAdd: boolean
+    onAddSelection: typeof actions.addSelectionTo
 }, {
     shuffled: List<TrackId>
 }> {
@@ -125,11 +121,12 @@ class AlbumSelectorsComponent extends React.Component<{
         }
 
         return <div className="albums-selector">
-            <button onClick={() => {}} disabled={true}>Add albums</button>
+            <button onClick={() => { this.props.onAddSelection({lens: this.props.lens}) }} disabled={!this.props.allowAdd}>Add albums</button>
             {this.props.selectors.map((selector, e) => {
                 let color = colors.get(selector.album.key)
-                let path: [number, number] = [this.props.idxTop, e]
-                return <ConnectedAlbumSelectorComponent key={e} {...{color, path}} />
+                let selectorLens: Lens<AlbumShuffleSelector, AlbumSelector> = this.props.lens.compose(
+                    lensFromImplicitAccessors(e))
+                return <ConnectedAlbumSelectorComponent key={e} selectorLens={this.props.lens} {...{color, selectorLens}} />
             })}
             {shuffledDisplay}
         </div>
@@ -138,34 +135,44 @@ class AlbumSelectorsComponent extends React.Component<{
 
 export const ConnectedAlbumSelectorsComponent = connect(
     (top: AlbumShuffleSelector, ownProps: {idxTop: number}) => {
+        let lens1: Lens<AlbumShuffleSelector, List<List<AlbumSelector>>> = new Lens(
+            o => o.get('selectorses', undefined),
+            v => o => o.set('selectorses', v))
+        let lens2: Lens<AlbumShuffleSelector, List<AlbumSelector>> = lens1.compose(
+            lensFromImplicitAccessors(ownProps.idxTop))
         return {
             tracks: top.tracks,
             selectors: top.selectorses.get(ownProps.idxTop),
+            lens: lens2,
+            allowAdd: top.hasSelection(),
         }
     },
     (d: Dispatch) => bindActionCreators({
-        onChange: actions.controlChange,
+        onAddSelection: actions.addSelectionTo,
     }, d),
 )(AlbumSelectorsComponent)
 
 const AlbumSearchComponent: React.SFC<{
     albums: Map<AlbumKey, Album>
-    albumSearch: string
+    searchQuery: string
+    searchResults: List<AlbumSelector>
     onChange: typeof actions.controlChange
+    onSearch: typeof actions.updateSearch
 }> = (props) => {
-    let needle = props.albumSearch.toLowerCase();
-    let albums = Seq();
-    if (needle.length >= 2) {
-        albums = props.albums
-            .valueSeq()
-            .filter(album => album.nameLower.includes(needle))
-            .map((album, e) => {
-                return <ConnectedAlbumSelectorComponent key={e} albumKey={album.key} />
-            })
-    }
     return <div>
-        <input type="search" placeholder="Album search..." value={props.albumSearch} onChange={ev => { props.onChange({prop: 'albumSearch', value: ev.target.value}) }} />
-        <div className="album-source">{albums}</div>
+        <input type="search" placeholder="Album search..." value={props.searchQuery} onChange={ev => {
+            props.onSearch({query: ev.target.value})
+            props.onChange({prop: 'searchQuery', value: ev.target.value})
+        }} />
+        <div className="album-source">
+            {props.searchResults.map((sel, e) => {
+                let lens1: Lens<AlbumShuffleSelector, List<AlbumSelector>> = new Lens(
+                    o => o.get('searchResults', undefined),
+                    v => o => o.set('searchResults', v))
+                let lens2: Lens<AlbumShuffleSelector, AlbumSelector> = lens1.compose(lensFromImplicitAccessors(e))
+                return <ConnectedAlbumSelectorComponent key={e} selectorLens={lens2} />
+            })}
+        </div>
     </div>
 }
 
@@ -173,6 +180,7 @@ export const ConnectedAlbumSearchComponent = connect(
     (top: AlbumShuffleSelector) => (top || new AlbumShuffleSelector()).toObject(),
     (d: Dispatch) => bindActionCreators({
         onChange: actions.controlChange,
+        onSearch: actions.updateSearch,
     }, d),
 )(AlbumSearchComponent)
 

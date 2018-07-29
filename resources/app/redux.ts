@@ -25,22 +25,33 @@ export const fetchTracksEpic: Epic<AlbumShuffleSelectorAction, AlbumShuffleSelec
 export function reducer(state = new AlbumShuffleSelector(), action: AlbumShuffleSelectorAction): AlbumShuffleSelector {
     switch (action.type) {
     case getType(actions.toggleAlbumSelected):
-        return state.updateIn(
-            ['selectorses', ...action.payload.path],
-            (sel: AlbumSelector) => sel.set('selected', !sel.selected))
+        return action.payload.lens.modify(
+            (sel: AlbumSelector) => sel.set('selected', !sel.selected)
+        )(state)
 
     case getType(actions.removeAlbum):
-        return state.deleteIn(['selectorses', ...action.payload.path])
+        return action.payload.lens.modify(
+            (sels: List<AlbumSelector>) => sels.filter(sel => sel.album.key != action.payload.album)
+        )(state)
 
     case getType(actions.newAlbumSelector):
         return state.update('selectorses', l => l.push(action.payload.initial || List()))
+
+    case getType(actions.addSelectionTo):
+        return state.addSelection(action.payload.lens)
 
     case getType(actions.controlChange):
         let { prop, value } = action.payload
         return state.set(prop, value)
 
+    case getType(actions.updateSearch):
+        return state.updateSearch(action.payload.query)
+
     case getType(actions.fetchTracks.success):
-        return state.gotTracks(action.payload)
+        return state.withTracks(action.payload)
+
+    default:
+        return state
     }
 }
 

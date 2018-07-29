@@ -5,6 +5,7 @@
     "build": "webpack"
   },
   "devDependencies": {
+    "@types/ramda": "^0.25.35",
     "css-loader": "^1.0.0",
     "mini-css-extract-plugin": "^0.4.1",
     "node-sass": "^4.5.2",
@@ -28,12 +29,14 @@
     "newtype-ts": "^0.2.1",
     "promise.prototype.finally": "^3.1.0",
     "qs": "^6.5.1",
+    "ramda": "^0.25.0",
     "react": "^16.2",
     "react-dom": "^16.2",
     "react-redux": "^5.0.7",
     "redux": "^4.0.0",
     "redux-observable": "^1.0.0",
     "rxjs": "^6.2.2",
+    "typed-path": "^1.0.3",
     "typesafe-actions": "^2.0.4"
   }
 }
