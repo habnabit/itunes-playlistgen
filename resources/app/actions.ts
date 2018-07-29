@@ -40,3 +40,8 @@ export const shuffleTracks = createAsyncAction('playlistgen/shuffleTracksRequest
     json: any
     lens: Lens<AlbumShuffleSelector, AlbumSelectors>
 }, Error>()
+
+export const savePlaylist = createAsyncAction('playlistgen/savePlaylistRequest', 'playlistgen/savePlaylistSuccess', 'playlistgen/savePlaylistFailure')<{
+    name: string
+    tracks: List<Track>
+}, never, Error>()

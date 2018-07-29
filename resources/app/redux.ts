@@ -41,6 +41,30 @@ export const shuffleTracksEpic: Epic<AlbumShuffleSelectorAction, AlbumShuffleSel
     )
 )
 
+export const savePlaylistEpic: Epic<AlbumShuffleSelectorAction, AlbumShuffleSelectorAction> = (action$) => (
+    action$.pipe(
+        filter(isActionOf(actions.savePlaylist.request)),
+        switchMap(action => {
+            let { name, tracks } = action.payload
+            let body = new FormData()
+            body.append('name', name)
+            for (let t of tracks) {
+                body.append('tracks', isoTrackId.unwrap(t.id))
+            }
+            return from(
+                fetch('/_api/save-and-exit', {method: 'POST', body})
+                    .then(resp => resp.json())
+                    .then(json => {
+                        if (json.data) {
+                            window.close()
+                        }
+                        return actions.shuffleTracks.failure(new Error("request failed to complete"))
+                    }, actions.shuffleTracks.failure)
+            )
+        })
+    )
+)
+
 export function reducer(state = new AlbumShuffleSelector(), action: AlbumShuffleSelectorAction): AlbumShuffleSelector {
     switch (action.type) {
     case getType(actions.toggleAlbumSelected):
@@ -88,3 +112,4 @@ export default store
 
 epicMiddleware.run(fetchTracksEpic)
 epicMiddleware.run(shuffleTracksEpic)
+epicMiddleware.run(savePlaylistEpic)

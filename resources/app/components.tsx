@@ -175,6 +175,7 @@ class AlbumSelectorsComponent extends React.Component<{
     allowAdd: boolean
     onAddSelection: typeof actions.addSelectionTo
     onShuffle: typeof actions.shuffleTracks.request
+    onSave: typeof actions.savePlaylist.request
 }> {
     colorByAlbum(): Map<AlbumKey, string> {
         return Map(this.props.selectors.selectors.toSeq().map((a, e) => [a.album.key, colorOrder[e]] as [AlbumKey, string]))
@@ -191,6 +192,15 @@ class AlbumSelectorsComponent extends React.Component<{
         this.props.onShuffle({tracks, lens: this.props.lens})
     }
 
+    save() {
+        let albumNames = this.props.selectors.selectors
+            .map(sel => sel.album.key.album)
+            .toArray()
+        albumNames.sort()
+        let name = '\u203b Album Shuffle\n' + albumNames.join(' \u2715 ')
+        this.props.onSave({name, tracks: this.props.selectors.shuffled})
+    }
+
     render () {
         let colors = this.colorByAlbum()
         let shuffledDisplay = <></>
@@ -198,6 +208,7 @@ class AlbumSelectorsComponent extends React.Component<{
         if (!shuffled.isEmpty()) {
             shuffledDisplay = <>
                 <TracksComponent tracks={shuffled} colorByAlbum={colors} />
+                <button key="save" onClick={() => this.save()}>Save and exit</button>
             </>
         }
 
@@ -235,6 +246,7 @@ export const ConnectedAlbumSelectorsComponent = connect(
     (d: Dispatch) => bindActionCreators({
         onAddSelection: actions.addSelectionTo,
         onShuffle: actions.shuffleTracks.request,
+        onSave: actions.savePlaylist.request,
     }, d),
 )(AlbumSelectorsComponent)
 
