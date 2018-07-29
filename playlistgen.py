@@ -1,12 +1,14 @@
 # -*- coding: utf-8 -*-
 
 import bisect
+import collections
 import datetime
 import functools
 import io
 import itertools
 import heapq
 import math
+import operator
 import random
 
 from backports import statistics
@@ -130,6 +132,100 @@ def timefill_search(rng, tracks, duration, fuzz, ideal_length,
         pass
     results.sort()
     return results
+
+
+def rescale_inv(value, scale, offset):
+    return scale / (value + offset * math.log(scale, 10))
+
+
+@attr.s
+class TargetTime(object):
+    name = 'time'
+    time = attr.ib(converter=float)
+    scale = attr.ib(default=10, converter=float)
+    offset = attr.ib(default=1, converter=float)
+    at = attr.ib(default='end')
+
+    def pick_score(self, scores):
+        if self.at == 'end':
+            return scores[-1]
+        elif self.at == 'middle':
+            if len(scores) < 2:
+                return 0
+            return max(scores[:-1])
+
+    def score(self, tracks):
+        scores = []
+        duration = 0
+        for t in tracks:
+            duration += t[typ.pDur]
+            delta = abs(self.time - duration)
+            score = rescale_inv(delta, self.scale, self.offset)
+            scores.append(score)
+        return self.pick_score(scores)
+
+
+@attr.s
+class TargetTracks(object):
+    name = 'ntracks'
+    count = attr.ib(converter=int)
+    power = attr.ib(default=10, converter=float)
+
+    def score(self, tracks):
+        return self.power ** (-abs(self.count - len(tracks)))
+
+
+@attr.s
+class TargetAlbums(object):
+    name = 'albums'
+    spread = attr.ib()
+    power = attr.ib(default=1, converter=float)
+
+    def score(self, tracks):
+        albums = {t[typ.pAlb] for t in tracks}
+        if self.spread == 'many':
+            # many albums
+            albums_per_track = float(len(albums)) / len(tracks)
+            return albums_per_track ** self.power
+
+        elif self.spread == 'few':
+            # few albums
+            tracks_per_album = float(len(tracks)) / len(albums)
+            return tracks_per_album ** self.power
+
+
+def timefill_search_targets(rng, tracks, targets, pull_prev=25, keep=125, iterations=5000):
+    all_indexes = frozenset(range(len(tracks)))
+    results = []
+    previous = [(0, (), ())] * pull_prev
+
+    for _ in xrange(iterations):
+        if not previous:
+            previous = rng.sample(results, min(len(results), pull_prev))
+        _, _, indexes = previous.pop()
+        subtracks = [tracks[i] for i in indexes]
+        [i] = rng.sample(all_indexes.difference(indexes), 1)
+        candidate = subtracks + [tracks[i]]
+        scores = [target.score(candidate) for target in targets]
+        score = reduce(operator.mul, scores, 1)
+        results.append((score, scores, indexes + (i,)))
+        results.sort(reverse=True)
+        del results[keep:]
+
+    return results
+
+
+TARGETS = {cls.name: cls for cls in [
+    TargetTracks,
+    TargetTime,
+    TargetAlbums,
+]}
+
+
+def parse_target(value):
+    args = [arg.partition('=')[::2] for arg in value.split(',')]
+    target_name, first_arg = args.pop(0)
+    return TARGETS[target_name](first_arg, **dict(args))
 
 
 def unrecent_score_tracks(tracks, bias_recent_adds, unrecentness_days):
@@ -418,9 +514,24 @@ def timefill(tracks, duration, fuzz, ideal_length):
     tracks.set_tracks(b for a, b in playlist)
 
 
+@main.command()
+@click.pass_obj
+@click.argument('targets', type=parse_target, nargs=-1)
+def timefill_targets(tracks, targets):
+    """
+    Make a playlist close to some length.
+    """
+
+    tracks.set_default_dest(u'targets')
+    track_list = tracks.get_tracks()
+    playlists = timefill_search_targets(tracks.rng, track_list, targets)
+    show_playlists((b, [(None, track_list[t]) for t in c]) for a, b, c in reversed(playlists))
+    tracks.set_tracks(track_list[t] for t in playlists[0][-1])
+
+
 @main.command('album-shuffle')
 @click.pass_obj
-@click.option('--playlist-pattern', default=u'※ Album Shuffle\n{names}',
+@click.option('--playlist-pattern', default=u'※ Album Shuffle\n{now:%Y-%m-%d}: {names}',
               metavar='PATTERN',
               help='str.format-style pattern for playlists.')
 @click.option('--n-albums', default=4, metavar='ALBUMS',
@@ -438,7 +549,8 @@ def album_shuffle(tracks, playlist_pattern, n_albums, source_genius):
         album_search, tracks.rng, all_tracks, n_albums=n_albums,
         source_genius=source_genius)
     names, playlist = search_and_choose(search)
-    tracks.set_default_dest(playlist_pattern.format(names=names))
+    tracks.set_default_dest(playlist_pattern.format(
+        names=names, now=datetime.datetime.now()))
     tracks.set_tracks(b for a, b in playlist)
 
 
@@ -446,7 +558,7 @@ def album_shuffle(tracks, playlist_pattern, n_albums, source_genius):
 @click.pass_obj
 @click.option('--duration', default=43200, metavar='SECONDS',
               help='Total duration.')
-@click.option('--playlist-pattern', default=u'※ Daily\n%Y-%m-%d',
+@click.option('--playlist-pattern', default=u'※ Daily\n{now:%Y-%m-%d}',
               metavar='PATTERN', help='strftime-style pattern for playlists.')
 @click.option('--delete-older-than', default=None, type=int, metavar='DAYS',
               help='How old of playlists to delete.')
@@ -455,9 +567,8 @@ def daily_unrecent(tracks, duration, playlist_pattern, delete_older_than):
     Build a playlist of non-recently played things.
     """
 
-    date_bytes = datetime.datetime.now().strftime(
-        playlist_pattern.encode('utf-8'))
-    tracks.set_default_dest(date_bytes.decode('utf-8'))
+    tracks.set_default_dest(playlist_pattern.format(
+        now=datetime.datetime.now()))
     playlist = unrecent_search(
         tracks.rng, tracks.score_tracks(tracks.get_tracks()), duration)
     show_playlist(playlist)
