@@ -1,29 +1,31 @@
 import { List, Seq } from 'immutable'
 import * as qs from 'qs'
-import { applyMiddleware, createStore } from 'redux'
+import { applyMiddleware, createStore, combineReducers, Reducer, Store, DeepPartial } from 'redux'
 import { createEpicMiddleware, Epic } from 'redux-observable'
 import { from } from 'rxjs'
 import { filter, switchMap } from 'rxjs/operators'
 import { ActionType, getType, isActionOf } from 'typesafe-actions'
 
 import * as actions from './actions'
-import { AlbumSelector, AlbumShuffleSelector, AlbumSelectors, isoTrackId, TrackId } from './types'
+import { AlbumSelector, AlbumShuffleSelector, AlbumSelectors, isoTrackId, TrackId, TimefillSelector } from './types'
 
 
-export type AlbumShuffleSelectorAction = ActionType<typeof actions>
+type AllActions = ActionType<typeof actions>
 
-export const fetchTracksEpic: Epic<AlbumShuffleSelectorAction, AlbumShuffleSelectorAction> = (action$) => (
+const fetchTracksEpic: Epic<AllActions, AllActions> = (action$) => (
     action$.pipe(
         filter(isActionOf(actions.fetchTracks.request)),
         switchMap(action => from(
             fetch('/_api/all-tracks')
                 .then(resp => resp.json())
-                .then(actions.fetchTracks.success, actions.fetchTracks.failure)
+                .then(
+                    json => actions.fetchTracks.success({json}),
+                    actions.fetchTracks.failure)
         ))
     )
 )
 
-export const shuffleTracksEpic: Epic<AlbumShuffleSelectorAction, AlbumShuffleSelectorAction> = (action$) => (
+const shuffleTracksEpic: Epic<AllActions, AllActions> = (action$) => (
     action$.pipe(
         filter(isActionOf(actions.shuffleTracks.request)),
         switchMap(action => {
@@ -41,7 +43,24 @@ export const shuffleTracksEpic: Epic<AlbumShuffleSelectorAction, AlbumShuffleSel
     )
 )
 
-export const savePlaylistEpic: Epic<AlbumShuffleSelectorAction, AlbumShuffleSelectorAction> = (action$) => (
+const runTimefillEpic: Epic<AllActions, AllActions> = (action$) => (
+    action$.pipe(
+        filter(isActionOf(actions.runTimefill.request)),
+        switchMap(action => {
+            let targets = action.payload.targets.toArray()
+            let params = qs.stringify({targets}, {arrayFormat: 'repeat'})
+            return from(
+                fetch('/_api/timefill-targets?' + params)
+                    .then(resp => resp.json())
+                    .then(
+                        json => actions.runTimefill.success({json}),
+                        actions.runTimefill.failure)
+            )
+        })
+    )
+)
+
+const savePlaylistEpic: Epic<AllActions, AllActions> = (action$) => (
     action$.pipe(
         filter(isActionOf(actions.savePlaylist.request)),
         switchMap(action => {
@@ -65,7 +84,7 @@ export const savePlaylistEpic: Epic<AlbumShuffleSelectorAction, AlbumShuffleSele
     )
 )
 
-export function reducer(state = new AlbumShuffleSelector(), action: AlbumShuffleSelectorAction): AlbumShuffleSelector {
+function albumShuffleReducer(state = new AlbumShuffleSelector(), action: AllActions): AlbumShuffleSelector {
     switch (action.type) {
     case getType(actions.toggleAlbumSelected):
         return action.payload.lens.modify(
@@ -84,7 +103,7 @@ export function reducer(state = new AlbumShuffleSelector(), action: AlbumShuffle
     case getType(actions.addSelectionTo):
         return state.addSelection(action.payload.lens)
 
-    case getType(actions.controlChange):
+    case getType(actions.changeControl):
         let { prop, value } = action.payload
         return state.set(prop, value)
 
@@ -92,7 +111,7 @@ export function reducer(state = new AlbumShuffleSelector(), action: AlbumShuffle
         return state.updateSearch(action.payload.query)
 
     case getType(actions.fetchTracks.success):
-        return state.withTracksResponse(action.payload)
+        return state.withTracksResponse(action.payload.json)
 
     case getType(actions.shuffleTracks.success):
         let { lens, json } = action.payload
@@ -106,10 +125,36 @@ export function reducer(state = new AlbumShuffleSelector(), action: AlbumShuffle
     }
 }
 
-const epicMiddleware = createEpicMiddleware()
-export const store = createStore(reducer, applyMiddleware(epicMiddleware))
-export default store
+function timefillReducer(state = new TimefillSelector(), action: AllActions): TimefillSelector {
+    switch (action.type) {
+    case getType(actions.addTarget):
+        return state.update('targets', l => l.push(''))
 
-epicMiddleware.run(fetchTracksEpic)
-epicMiddleware.run(shuffleTracksEpic)
-epicMiddleware.run(savePlaylistEpic)
+    case getType(actions.changeTarget):
+        let { index, value } = action.payload
+        return state.update('targets', l => l.set(index, value))
+
+    case getType(actions.fetchTracks.success):
+        return state.withTracksResponse(action.payload.json)
+
+    case getType(actions.runTimefill.success):
+        return state.withTimefillResponse(action.payload.json)
+
+    default:
+        return state
+    }
+}
+
+function makeStore<S>(reducer: Reducer<S>, state: DeepPartial<S>): Store<S> {
+    const epicMiddleware = createEpicMiddleware()
+    const store = createStore(reducer, state, applyMiddleware(epicMiddleware))
+    epicMiddleware.run(fetchTracksEpic)
+    epicMiddleware.run(shuffleTracksEpic)
+    epicMiddleware.run(runTimefillEpic)
+    epicMiddleware.run(savePlaylistEpic)
+
+    return store
+}
+
+export const albumShuffleStore = (state = new AlbumShuffleSelector()) => makeStore(albumShuffleReducer, state)
+export const timefillStore = (state = new TimefillSelector()) => makeStore(timefillReducer, state)

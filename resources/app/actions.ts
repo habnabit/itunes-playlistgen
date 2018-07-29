@@ -22,7 +22,7 @@ export const addSelectionTo = createStandardAction('playlistgen/addSelectionTo')
     lens: Lens<AlbumShuffleSelector, AlbumSelectors>
 }>()
 
-export const controlChange = createStandardAction('playlistgen/controlChange')<{
+export const changeControl = createStandardAction('playlistgen/controlChange')<{
     prop: SubsetKeys<AlbumShuffleSelector, string>
     value: string
 }>()
@@ -31,7 +31,14 @@ export const updateSearch = createStandardAction('playlistgen/updateSearch')<{
     query: string
 }>()
 
-export const fetchTracks = createAsyncAction('playlistgen/fetchTracksRequest', 'playlistgen/fetchTracksSuccess', 'playlistgen/fetchTracksFailure')<void, Object, Error>()
+export const addTarget = createStandardAction('playlistgen/addTarget')<{}>()
+
+export const changeTarget = createStandardAction('playlistgen/changeTarget')<{
+    index: number
+    value: string
+}>()
+
+export const fetchTracks = createAsyncAction('playlistgen/fetchTracksRequest', 'playlistgen/fetchTracksSuccess', 'playlistgen/fetchTracksFailure')<void, {json: any}, Error>()
 
 export const shuffleTracks = createAsyncAction('playlistgen/shuffleTracksRequest', 'playlistgen/shuffleTracksSuccess', 'playlistgen/shuffleTracksFailure')<{
     tracks: List<Track>
@@ -39,6 +46,12 @@ export const shuffleTracks = createAsyncAction('playlistgen/shuffleTracksRequest
 }, {
     json: any
     lens: Lens<AlbumShuffleSelector, AlbumSelectors>
+}, Error>()
+
+export const runTimefill = createAsyncAction('playlistgen/runTimefillRequest', 'playlistgen/runTimefillSuccess', 'playlistgen/runTimefillFailure')<{
+    targets: List<string>
+}, {
+    json: any
 }, Error>()
 
 export const savePlaylist = createAsyncAction('playlistgen/savePlaylistRequest', 'playlistgen/savePlaylistSuccess', 'playlistgen/savePlaylistFailure')<{

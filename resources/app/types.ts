@@ -168,3 +168,34 @@ export class AlbumShuffleSelector extends Record({
         }, this)
     }
 }
+
+export class Playlist extends Record({
+    tracks: List<Track>(),
+    score: 0,
+    scores: [] as number[],
+}) {
+}
+
+export class TimefillSelector extends Record({
+    tracks: Map<TrackId, Track>(),
+    targets: List<string>(),
+    playlists: List<Playlist>(),
+}) {
+    withTracksResponse(j: any): this {
+        let tracks = Map<TrackId, Track>().withMutations(m => {
+            for (let t of j.data) {
+                m.set(isoTrackId.wrap(t.T_pPIS), new Track(t))
+            }
+        })
+        return this.set('tracks', tracks)
+    }
+
+    withTimefillResponse(j: any): this {
+        let playlists = List(j.data.playlists as {tracks: TrackId[], score: number, scores: number[]}[])
+            .map(p => {
+                let initial = Object.assign(p, {tracks: List(p.tracks).map(tid => this.tracks.get(tid))})
+                return new Playlist(initial)
+            })
+        return this.set('playlists', playlists)
+    }
+}

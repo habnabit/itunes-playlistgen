@@ -191,6 +191,20 @@ class TrackWeb(object):
             [(0, t) for t in self.tracks])
         return [t[typ.pPIS] for _, t in tracks]
 
+    @app.route('/_api/timefill-targets')
+    @as_json
+    def timefill_targets(self, request):
+        parsed = q.parse({
+            'targets': q.many(playlistgen.parse_target),
+        }, request.args)
+        playlists = playlistgen.timefill_search_targets(random, self.tracks, parsed['targets'])
+        playlists = [{
+            'score': score,
+            'scores': scores,
+            'tracks': [self.tracks[t][typ.pPIS] for t in tracks]
+        } for score, scores, tracks in playlists]
+        return {'playlists': playlists}
+
     @app.route('/_api/save-and-exit', methods=['POST'])
     @as_json
     def save_and_exit(self, request):

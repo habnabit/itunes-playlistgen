@@ -7,7 +7,7 @@ import { bindActionCreators, Dispatch } from 'redux'
 
 import * as actions from './actions'
 import { lensFromImplicitAccessors } from './extlens'
-import { Album, AlbumKey, AlbumSelector, AlbumShuffleSelector, Track, TrackId, AlbumSelectors, isoTrackId } from './types'
+import { Album, AlbumKey, AlbumSelector, AlbumShuffleSelector, Track, TrackId, AlbumSelectors, isoTrackId, TimefillSelector, Playlist } from './types'
 
 
 const colorOrder = [
@@ -117,9 +117,9 @@ const TracksComponent: React.SFC<{
     colorByAlbum?: Map<AlbumKey, string>
 }> = (props) => {
     let colorByAlbum = props.colorByAlbum || Map()
-    return <ul className="tracklist">
+    return <ol className="tracklist">
         {props.tracks.map((track, e) => <TrackComponent track={track} color={colorByAlbum.get(track.albumKey())} key={e} />)}
-    </ul>
+    </ol>
 }
 
 const AlbumSelectorComponent: React.SFC<{
@@ -254,7 +254,7 @@ const AlbumSearchComponent: React.SFC<{
     albums: Map<AlbumKey, Album>
     searchQuery: string
     searchResults: List<AlbumSelector>
-    onChange: typeof actions.controlChange
+    onChange: typeof actions.changeControl
     onSearch: typeof actions.updateSearch
 }> = (props) => {
     return <div>
@@ -277,7 +277,7 @@ const AlbumSearchComponent: React.SFC<{
 export const ConnectedAlbumSearchComponent = connect(
     (top: AlbumShuffleSelector) => (top || new AlbumShuffleSelector()).toObject(),
     (d: Dispatch) => bindActionCreators({
-        onChange: actions.controlChange,
+        onChange: actions.changeControl,
         onSearch: actions.updateSearch,
     }, d),
 )(AlbumSearchComponent)
@@ -286,7 +286,7 @@ class AlbumShuffleSelectorComponent extends React.Component<{
     selectorses: List<AlbumSelectors>
     nAlbums: string
     nChoices: string
-    onChange: typeof actions.controlChange
+    onChange: typeof actions.changeControl
     onNewAlbumSelector: typeof actions.newAlbumSelector
     onLoad: typeof actions.fetchTracks.request
 }> {
@@ -308,8 +308,78 @@ class AlbumShuffleSelectorComponent extends React.Component<{
 export const ConnectedAlbumShuffleSelectorComponent = connect(
     (top: AlbumShuffleSelector) => (top || new AlbumShuffleSelector()).toObject(),
     (d: Dispatch) => bindActionCreators({
-        onChange: actions.controlChange,
+        onChange: actions.changeControl,
         onNewAlbumSelector: actions.newAlbumSelector,
         onLoad: actions.fetchTracks.request,
     }, d),
 )(AlbumShuffleSelectorComponent)
+
+const DurationComponent: React.SFC<{
+    duration: number
+}> = (props) => {
+    let minutes = Math.floor(props.duration / 60)
+    let seconds = Math.floor(props.duration % 60).toLocaleString('en', {minimumIntegerDigits: 2})
+    return <>⟨{minutes}:{seconds}⟩</>
+}
+
+const FullerTrackComponent: React.SFC<{
+    track: Track
+}> = (props) => {
+    let key = props.track.albumKey()
+    let duration: number = props.track.t('pDur')
+    return <li>
+        <DurationComponent duration={props.track.t('pDur')} /> {props.track.t('pnam')} ({key.album}; {key.artist})
+    </li>
+}
+
+const PlaylistComponent: React.SFC<{
+    playlist: Playlist
+}> = (props) => {
+    let { playlist } = props
+    let totalDuration = playlist.tracks.reduce((totalDuration, track) => totalDuration + track.t('pDur') as number, 0)
+    return <div className="playlist">
+        <p>score: {playlist.score.toPrecision(2)}; scores: {playlist.scores.map(s => s.toPrecision(2)).join(' ')}</p>
+        <ol className="fuller tracklist">
+            {props.playlist.tracks.map((track, e) => <FullerTrackComponent key={e} track={track} />)}
+            <li className="total"><DurationComponent duration={totalDuration} /> total</li>
+        </ol>
+    </div>
+}
+
+class TimefillSelectorComponent extends React.Component<{
+    targets: List<string>
+    playlists: List<Playlist>
+    onAddTarget: typeof actions.addTarget
+    onChangeTarget: typeof actions.changeTarget
+    onLoad: typeof actions.fetchTracks.request
+    onSelect: typeof actions.runTimefill.request
+}> {
+    componentDidMount() {
+        this.props.onLoad()
+    }
+
+    render() {
+        return <div>
+            <button onClick={() => this.props.onAddTarget({})}>Add target</button>
+            {this.props.targets.map((target, e) => {
+                return <input key={e} type="text" placeholder="Target..." value={target} onChange={ev => {
+                    this.props.onChangeTarget({index: e, value: ev.target.value})
+                }} />
+            })}
+            <button onClick={() => this.props.onSelect({targets: this.props.targets})}>Select new</button>
+            <div className="playlists">
+                {this.props.playlists.map((pl, e) => <PlaylistComponent key={e} playlist={pl} />)}
+            </div>
+        </div>
+    }
+}
+
+export const ConnectedTimefillSelectorComponent = connect(
+    (top: TimefillSelector) => (top || new TimefillSelector()).toObject(),
+    (d: Dispatch) => bindActionCreators({
+        onAddTarget: actions.addTarget,
+        onChangeTarget: actions.changeTarget,
+        onLoad: actions.fetchTracks.request,
+        onSelect: actions.runTimefill.request,
+    }, d),
+)(TimefillSelectorComponent)

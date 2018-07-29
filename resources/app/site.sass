@@ -22,16 +22,36 @@ body
     opacity: 0.25
     transition: opacity 0.25s ease-in
 
-ul.tracklist
+ol.tracklist
   font-size: 0.75em
   display: flex
   flex-wrap: wrap
-  margin: 0.5em 0
+  margin: 0.5em
+  padding: 0
   > li
     list-style: none
     padding: 0.1em 0.75em
     white-space: nowrap
 
+  &.fuller
+    flex-direction: column
+    align-content: flex-start
+    > li
+      list-style: decimal
+      margin-left: 2em
+      white-space: normal
+      padding-left: 1em
+      text-indent: -1em
+      &.total
+        list-style: none
+        padding-top: 0.5em
+
+.playlists
+  display: flex
+  flex-wrap: wrap
+  justify-content: space-evenly
+  .playlist
+    max-width: 30%
 
 .alerts
   .alert
