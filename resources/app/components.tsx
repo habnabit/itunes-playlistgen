@@ -1,5 +1,5 @@
 import { StandardShorthandProperties } from 'csstype'
-import { List, Map } from 'immutable'
+import { List, Map, Seq } from 'immutable'
 import { Lens } from 'monocle-ts'
 import * as React from 'react'
 import { connect } from 'react-redux'
@@ -14,6 +14,90 @@ const colorOrder = [
     '#fbb4ae', '#b3cde3', '#ccebc5', '#decbe4', '#fed9a6',
     '#ffffcc', '#e5d8bd', '#fddaec', '#f2f2f2',
 ]
+
+
+class ShuffleInfoComponent extends React.Component<{
+    response: any
+    colorByAlbum: Map<AlbumKey, string>
+}> {
+    colorByAlbumIndex(): Map<number, string> {
+        let seq = Seq.Indexed.of(...this.props.response.data.info.albums as string[][])
+            .map(([album, artist], e) => {
+                let key = new AlbumKey({album, artist})
+                return [e, this.props.colorByAlbum.get(key)] as [number, string]
+            })
+        return Map(seq)
+    }
+
+    matGroup(): {xMax: number, yMax: number, element: JSX.Element} {
+        let lineStyle = {
+            stroke: 'rgba(0, 0, 0, 0.75)',
+            strokeWidth: '0.05',
+        }
+
+        let circleStyle = {
+            stroke: 'rgba(0, 0, 0, 0.5)',
+            strokeWidth: lineStyle.strokeWidth,
+        }
+
+        let info = this.props.response.data.info
+        let colors = this.colorByAlbumIndex()
+        let coords: number[][] = info.coords || []
+        let postPicks: number[] = info.post_picks || []
+        let elementIdx = 0
+        let circles: JSX.Element[] = []
+        let lines: JSX.Element[] = []
+        let flatCircles: {x: number, y: number, style: any}[] = []
+        let xMax = 0
+        coords.forEach((xs, y) => {
+            let fill = colors.get(y)
+            for (let x of xs) {
+                let style = {}
+                flatCircles.push(({x: Math.floor(x), y, style}))
+                style = Object.assign({fill, opacity: 0.5}, circleStyle)
+                circles.push(<circle cx={x} cy={y} r="0.25" key={elementIdx++} style={style} />)
+                xMax = Math.max(xMax, x)
+            }
+        })
+        flatCircles.sort((a, b) => a.x - b.x)
+        postPicks.forEach((pick, e) => {
+            flatCircles[e].style.fill = colors.get(pick)
+        })
+        let lastCircle: typeof flatCircles[number]
+        for (let c of flatCircles) {
+            let {x, y, style: localCircleStyle} = c
+            localCircleStyle = Object.assign({}, circleStyle, localCircleStyle)
+            circles.push(<circle cx={x} cy={y} r="0.125" key={elementIdx++} style={localCircleStyle} />)
+            if (lastCircle !== undefined) {
+                let {x: x1, y: y1} = lastCircle
+                lines.push(<line x1={x1} y1={y1} x2={x} y2={y} key={elementIdx++} style={lineStyle} />)
+            }
+            lastCircle = c
+        }
+        return {
+            xMax, yMax: coords.length,
+            element: <>{lines}{circles}</>,
+        }
+    }
+
+    render() {
+        if (!this.props.response) {
+            return <></>
+        }
+
+        let {xMax, yMax, element} = this.matGroup()
+        let viewBox = "0 0 " + (xMax + 2) + " " + (yMax + 2)
+        let style = {}
+        if (xMax == 0 || yMax == 0) {
+            style = {display: 'none'}
+        } else {
+            style = {width: '100%', height: '125px'}
+        }
+        return <svg xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox={viewBox} preserveAspectRatio="xMinYMin meet" style={style}>
+            <g transform="translate(1 1)">{element}</g>
+        </svg>
+    }
+}
 
 const TrackComponent: React.SFC<{
     track: Track
@@ -92,7 +176,7 @@ class AlbumSelectorsComponent extends React.Component<{
     onAddSelection: typeof actions.addSelectionTo
     onShuffle: typeof actions.shuffleTracks.request
 }> {
-    colorsByAlbum(): Map<AlbumKey, string> {
+    colorByAlbum(): Map<AlbumKey, string> {
         return Map(this.props.selectors.selectors.toSeq().map((a, e) => [a.album.key, colorOrder[e]] as [AlbumKey, string]))
     }
 
@@ -108,7 +192,7 @@ class AlbumSelectorsComponent extends React.Component<{
     }
 
     render () {
-        let colors = this.colorsByAlbum()
+        let colors = this.colorByAlbum()
         let shuffledDisplay = <></>
         let shuffled = this.shuffled()
         if (!shuffled.isEmpty()) {
@@ -128,6 +212,7 @@ class AlbumSelectorsComponent extends React.Component<{
                 return <ConnectedAlbumSelectorComponent key={e} selectorsLens={this.props.lens} {...{color, selectorLens}} />
             })}
             <button onClick={() => this.shuffle()}>Shuffle tracks</button>
+            <ShuffleInfoComponent response={this.props.selectors.shuffleInfo} colorByAlbum={colors} />
             {shuffledDisplay}
         </div>
     }
