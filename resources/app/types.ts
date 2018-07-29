@@ -1,7 +1,8 @@
-import { Map, List, Record, OrderedMap, Seq } from 'immutable'
-import { Newtype, iso } from 'newtype-ts'
-import { Lens } from '../node_modules/monocle-ts';
-import { lensFromRecordProp, lensFromImplicitAccessors } from './extlens';
+import { List, Map, OrderedMap, Record, Seq } from 'immutable'
+import { iso, Newtype } from 'newtype-ts'
+import { Lens } from '../node_modules/monocle-ts'
+
+import { lensFromImplicitAccessors } from './extlens'
 
 
 export type SubsetKeys<T, S> = {
@@ -10,9 +11,6 @@ export type SubsetKeys<T, S> = {
 
 export interface TrackId extends Newtype<{ readonly TrackId: unique symbol }, string> {}
 export const isoTrackId = iso<TrackId>()
-
-export interface SelectorId extends Newtype<{ readonly SelectorId: unique symbol }, number> {}
-export const isoSelectorId = iso<SelectorId>()
 
 export class AlbumKey extends Record({
     album: undefined as string,
@@ -104,7 +102,7 @@ export class AlbumShuffleSelector extends Record({
         if (query.length < 2) {
             return this.set('searchResults', List())
         }
-        let needle = query.toLowerCase();
+        let needle = query.toLowerCase()
         return this.set(
             'searchResults',
             this.albums

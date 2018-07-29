@@ -1,5 +1,5 @@
 import { List } from 'immutable'
-import { Lens } from 'monocle-ts';
+import { Lens } from 'monocle-ts'
 import { createAsyncAction, createStandardAction } from 'typesafe-actions'
 
 import { AlbumSelector, AlbumShuffleSelector, SubsetKeys, AlbumKey } from './types'

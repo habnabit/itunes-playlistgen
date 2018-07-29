@@ -1,21 +1,13 @@
-import {Map, List, Record, Seq} from 'immutable'
-import {Newtype, iso} from 'newtype-ts'
+import { StandardShorthandProperties } from 'csstype'
+import { List, Map } from 'immutable'
+import { Lens } from 'monocle-ts'
 import * as React from 'react'
-import * as qs from 'qs'
-
-import {lensFromImplicitAccessors, lensFromListIndex, lensFromNullableImplicitAccessorsAndConstructor, ComponentLens, lensFromRecordProp} from './extlens'
-import {Lens, Iso, Optional, lensFromPath} from 'monocle-ts';
-import {StandardShorthandProperties} from 'csstype';
-import { TrackId, AlbumKey, Album, Track } from './types'
-import {} from './redux'
-
-import { Dispatch, bindActionCreators, createStore } from 'redux';
 import { connect } from 'react-redux'
-import { ActionType, getType } from 'typesafe-actions'
+import { bindActionCreators, Dispatch } from 'redux'
 
 import * as actions from './actions'
-import { AlbumShuffleSelector, AlbumSelector } from './types'
-import { access } from 'fs';
+import { lensFromImplicitAccessors } from './extlens'
+import { Album, AlbumKey, AlbumSelector, AlbumShuffleSelector, Track, TrackId } from './types'
 
 
 const colorOrder = ["#fbb4ae","#b3cde3","#ccebc5","#decbe4","#fed9a6","#ffffcc","#e5d8bd","#fddaec","#f2f2f2"]

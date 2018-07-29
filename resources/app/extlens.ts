@@ -1,6 +1,6 @@
-import {List, Record} from 'immutable'
-import {Lens, Optional} from 'monocle-ts'
-import {fromNullable} from 'fp-ts/lib/Option';
+import { fromNullable } from 'fp-ts/lib/Option'
+import { List, Record } from 'immutable'
+import { Lens, Optional } from 'monocle-ts'
 
 export function lensFromRecordProp<TProps, T extends Record<TProps>, P extends keyof TProps>(prop: P): Lens<T, TProps[P]> {
     return new Lens(r => r.get(prop, undefined), v => r => r.set(prop, v))

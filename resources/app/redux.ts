@@ -1,13 +1,13 @@
 import { List } from 'immutable'
-import { Dispatch, bindActionCreators, createStore, applyMiddleware } from 'redux';
-import { Epic, createEpicMiddleware } from 'redux-observable'
-import { connect } from 'react-redux'
-import { from, pipe, of } from 'rxjs';
-import { catchError, filter, switchMap, map } from 'rxjs/operators'
-import { ActionType, StateType, isActionOf, getType } from 'typesafe-actions'
+import { applyMiddleware, createStore } from 'redux'
+import { createEpicMiddleware, Epic } from 'redux-observable'
+import { from } from 'rxjs'
+import { filter, switchMap } from 'rxjs/operators'
+import { ActionType, getType, isActionOf } from 'typesafe-actions'
 
 import * as actions from './actions'
-import { AlbumShuffleSelector, AlbumSelector } from './types'
+import { AlbumSelector, AlbumShuffleSelector } from './types'
+
 
 export type AlbumShuffleSelectorAction = ActionType<typeof actions>
 
