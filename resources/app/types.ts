@@ -75,10 +75,20 @@ export class AlbumSelector extends Record({
 
 }
 
+export class AlbumSelectors extends Record({
+    selectors: List<AlbumSelector>(),
+    shuffled: List<Track>(),
+    shuffleInfo: undefined as any,
+}) {
+    withShuffleResponse(shuffled: List<Track>, shuffleInfo: any): this {
+        return this.merge({shuffled, shuffleInfo})
+    }
+}
+
 export class AlbumShuffleSelector extends Record({
     tracks: Map<TrackId, Track>(),
     albums: Map<AlbumKey, Album>(),
-    selectorses: List<List<AlbumSelector>>(),
+    selectorses: List<AlbumSelectors>(),
     nAlbums: '4',
     nChoices: '5',
     searchQuery: '',
@@ -87,7 +97,7 @@ export class AlbumShuffleSelector extends Record({
     sourcingGenius: false,
     pickingAlbums: false,
 }) {
-    withTracks(j: any): this {
+    withTracksResponse(j: any): this {
         let orderedTracks = OrderedMap<TrackId, Track>().withMutations(m => {
             for (var t of j.data) {
                 m.set(isoTrackId.wrap(t.T_pPIS), new Track(t))
@@ -108,7 +118,7 @@ export class AlbumShuffleSelector extends Record({
             this.albums
                 .valueSeq()
                 .filter(album => album.nameLower.includes(needle))
-                .map((album, e) => new AlbumSelector({album}))
+                .map((album) => new AlbumSelector({album}))
                 .toList()
         )
     }
@@ -123,13 +133,16 @@ export class AlbumShuffleSelector extends Record({
                 return [sel, lens2] as [AlbumSelector, null]
             })
             .concat(this.selectorses.valueSeq().flatMap((sels, i) => {
-                let lens1: Lens<AlbumShuffleSelector, List<List<AlbumSelector>>> = new Lens(
+                let lens1: Lens<AlbumShuffleSelector, List<AlbumSelectors>> = new Lens(
                     o => o.get('selectorses', undefined),
                     v => o => o.set('selectorses', v))
-                let lens2 = lens1.compose(lensFromImplicitAccessors(i))
-                return sels.map((sel, j) => {
-                    let lens3 = lens2.compose(lensFromImplicitAccessors(j))
-                    return [sel, lens3] as [AlbumSelector, null]
+                let lens2: Lens<AlbumShuffleSelector, AlbumSelectors> = lens1.compose(lensFromImplicitAccessors(i))
+                return sels.selectors.map((sel, j) => {
+                    let lens3: Lens<AlbumShuffleSelector, List<AlbumSelector>> = lens2.compose(new Lens(
+                        o => o.get('selectors', undefined),
+                        v => o => o.set('selectors', v)))
+                    let lens4: Lens<AlbumShuffleSelector, AlbumSelector> = lens3.compose(lensFromImplicitAccessors(j))
+                    return [sel, lens4] as [AlbumSelector, null]
                 })
             }))
             .filter(([sel, _lens]) => sel.selected)
@@ -139,11 +152,14 @@ export class AlbumShuffleSelector extends Record({
         return this.allSelected().some(_t => true)
     }
 
-    addSelection(selectors: Lens<AlbumShuffleSelector, List<AlbumSelector>>): AlbumShuffleSelector {
+    addSelection(selectors: Lens<AlbumShuffleSelector, AlbumSelectors>): AlbumShuffleSelector {
         let newSelectors = this.allSelected()
             .map(([sel, _lens]) => new AlbumSelector({album: sel.album}))
             .toList()
-        return selectors.modify(selectors => selectors.concat(newSelectors))(this).clearSelected()
+        return selectors.modify(sels =>
+            sels.update('selectors', selsList =>
+                selsList.concat(newSelectors))
+        )(this).clearSelected()
     }
 
     clearSelected(): AlbumShuffleSelector {

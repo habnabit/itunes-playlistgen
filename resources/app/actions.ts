@@ -2,7 +2,7 @@ import { List } from 'immutable'
 import { Lens } from 'monocle-ts'
 import { createAsyncAction, createStandardAction } from 'typesafe-actions'
 
-import { AlbumSelector, AlbumShuffleSelector, SubsetKeys, AlbumKey } from './types'
+import { AlbumSelector, AlbumShuffleSelector, SubsetKeys, AlbumKey, AlbumSelectors, Track } from './types'
 
 
 export const toggleAlbumSelected = createStandardAction('playlistgen/toggleAlbumSelected')<{
@@ -10,16 +10,16 @@ export const toggleAlbumSelected = createStandardAction('playlistgen/toggleAlbum
 }>()
 
 export const removeAlbum = createStandardAction('playlistgen/removeAlbum')<{
-    lens: Lens<AlbumShuffleSelector, List<AlbumSelector>>
+    lens: Lens<AlbumShuffleSelector, AlbumSelectors>
     album: AlbumKey
 }>()
 
 export const newAlbumSelector = createStandardAction('playlistgen/newAlbumSelector')<{
-    initial?: List<AlbumSelector>
+    initial?: AlbumSelectors
 }>()
 
 export const addSelectionTo = createStandardAction('playlistgen/addSelectionTo')<{
-    lens: Lens<AlbumShuffleSelector, List<AlbumSelector>>
+    lens: Lens<AlbumShuffleSelector, AlbumSelectors>
 }>()
 
 export const controlChange = createStandardAction('playlistgen/controlChange')<{
@@ -32,3 +32,11 @@ export const updateSearch = createStandardAction('playlistgen/updateSearch')<{
 }>()
 
 export const fetchTracks = createAsyncAction('playlistgen/fetchTracksRequest', 'playlistgen/fetchTracksSuccess', 'playlistgen/fetchTracksFailure')<void, Object, Error>()
+
+export const shuffleTracks = createAsyncAction('playlistgen/shuffleTracksRequest', 'playlistgen/shuffleTracksSuccess', 'playlistgen/shuffleTracksFailure')<{
+    tracks: List<Track>
+    lens: Lens<AlbumShuffleSelector, AlbumSelectors>
+}, {
+    json: any
+    lens: Lens<AlbumShuffleSelector, AlbumSelectors>
+}, Error>()

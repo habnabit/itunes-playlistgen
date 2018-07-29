@@ -7,10 +7,13 @@ import { bindActionCreators, Dispatch } from 'redux'
 
 import * as actions from './actions'
 import { lensFromImplicitAccessors } from './extlens'
-import { Album, AlbumKey, AlbumSelector, AlbumShuffleSelector, Track, TrackId } from './types'
+import { Album, AlbumKey, AlbumSelector, AlbumShuffleSelector, Track, TrackId, AlbumSelectors, isoTrackId } from './types'
 
 
-const colorOrder = ["#fbb4ae","#b3cde3","#ccebc5","#decbe4","#fed9a6","#ffffcc","#e5d8bd","#fddaec","#f2f2f2"]
+const colorOrder = [
+    '#fbb4ae', '#b3cde3', '#ccebc5', '#decbe4', '#fed9a6',
+    '#ffffcc', '#e5d8bd', '#fddaec', '#f2f2f2',
+]
 
 const TrackComponent: React.SFC<{
     track: Track
@@ -39,7 +42,7 @@ const AlbumSelectorComponent: React.SFC<{
     selector: AlbumSelector
     color?: string
     selectorLens: Lens<AlbumShuffleSelector, AlbumSelector>
-    selectorsLens?: Lens<AlbumShuffleSelector, List<AlbumSelector>>
+    selectorsLens?: Lens<AlbumShuffleSelector, AlbumSelectors>
     onToggleSelected: typeof actions.toggleAlbumSelected
     onRemove: typeof actions.removeAlbum
 }> = (props) => {
@@ -69,8 +72,11 @@ const AlbumSelectorComponent: React.SFC<{
 }
 
 export const ConnectedAlbumSelectorComponent = connect(
-    (top: AlbumShuffleSelector, ownProps: {selectorLens: Lens<AlbumShuffleSelector, AlbumSelector>}) => {
-        return {selector: ownProps.selectorLens.get(top)}
+    (top: AlbumShuffleSelector, ownProps: {
+        selectorLens: Lens<AlbumShuffleSelector, AlbumSelector>
+        selectorsLens?: Lens<AlbumShuffleSelector, AlbumSelectors>
+    }) => {
+        return {selector: ownProps.selectorLens.get(top), selectorsLens: ownProps.selectorsLens}
     },
     (d: Dispatch) => bindActionCreators({
         onToggleSelected: actions.toggleAlbumSelected,
@@ -80,26 +86,25 @@ export const ConnectedAlbumSelectorComponent = connect(
 
 class AlbumSelectorsComponent extends React.Component<{
     tracks: Map<TrackId, Track>
-    selectors: List<AlbumSelector>
-    lens: Lens<AlbumShuffleSelector, List<AlbumSelector>>
+    selectors: AlbumSelectors
+    lens: Lens<AlbumShuffleSelector, AlbumSelectors>
     allowAdd: boolean
     onAddSelection: typeof actions.addSelectionTo
-}, {
-    shuffled: List<TrackId>
+    onShuffle: typeof actions.shuffleTracks.request
 }> {
-    constructor(props: any) {
-        super(props)
-        this.state = {
-            shuffled: List(),
-        }
-    }
-
     colorsByAlbum(): Map<AlbumKey, string> {
-        return Map(this.props.selectors.toSeq().map((a, e) => [a.album.key, colorOrder[e]] as [AlbumKey, string]))
+        return Map(this.props.selectors.selectors.toSeq().map((a, e) => [a.album.key, colorOrder[e]] as [AlbumKey, string]))
     }
 
     shuffled(): List<Track> {
-        return this.state.shuffled.map(this.props.tracks.get)
+        return this.props.selectors.shuffled
+    }
+
+    shuffle() {
+        let tracks = this.props.selectors.selectors
+            .flatMap(sel => sel.album.tracks)
+            .toList()
+        this.props.onShuffle({tracks, lens: this.props.lens})
     }
 
     render () {
@@ -114,12 +119,15 @@ class AlbumSelectorsComponent extends React.Component<{
 
         return <div className="albums-selector">
             <button onClick={() => { this.props.onAddSelection({lens: this.props.lens}) }} disabled={!this.props.allowAdd}>Add albums</button>
-            {this.props.selectors.map((selector, e) => {
+            {this.props.selectors.selectors.map((selector, e) => {
                 let color = colors.get(selector.album.key)
-                let selectorLens: Lens<AlbumShuffleSelector, AlbumSelector> = this.props.lens.compose(
-                    lensFromImplicitAccessors(e))
-                return <ConnectedAlbumSelectorComponent key={e} selectorLens={this.props.lens} {...{color, selectorLens}} />
+                let lens1: Lens<AlbumShuffleSelector, List<AlbumSelector>> = this.props.lens.compose(new Lens(
+                    o => o.get('selectors', undefined),
+                    v => o => o.set('selectors', v)))
+                let selectorLens: Lens<AlbumShuffleSelector, AlbumSelector> = lens1.compose(lensFromImplicitAccessors(e))
+                return <ConnectedAlbumSelectorComponent key={e} selectorsLens={this.props.lens} {...{color, selectorLens}} />
             })}
+            <button onClick={() => this.shuffle()}>Shuffle tracks</button>
             {shuffledDisplay}
         </div>
     }
@@ -127,10 +135,10 @@ class AlbumSelectorsComponent extends React.Component<{
 
 export const ConnectedAlbumSelectorsComponent = connect(
     (top: AlbumShuffleSelector, ownProps: {idxTop: number}) => {
-        let lens1: Lens<AlbumShuffleSelector, List<List<AlbumSelector>>> = new Lens(
+        let lens1: Lens<AlbumShuffleSelector, List<AlbumSelectors>> = new Lens(
             o => o.get('selectorses', undefined),
             v => o => o.set('selectorses', v))
-        let lens2: Lens<AlbumShuffleSelector, List<AlbumSelector>> = lens1.compose(
+        let lens2: Lens<AlbumShuffleSelector, AlbumSelectors> = lens1.compose(
             lensFromImplicitAccessors(ownProps.idxTop))
         return {
             tracks: top.tracks,
@@ -141,6 +149,7 @@ export const ConnectedAlbumSelectorsComponent = connect(
     },
     (d: Dispatch) => bindActionCreators({
         onAddSelection: actions.addSelectionTo,
+        onShuffle: actions.shuffleTracks.request,
     }, d),
 )(AlbumSelectorsComponent)
 
@@ -177,7 +186,7 @@ export const ConnectedAlbumSearchComponent = connect(
 )(AlbumSearchComponent)
 
 class AlbumShuffleSelectorComponent extends React.Component<{
-    selectorses: List<List<AlbumSelector>>
+    selectorses: List<AlbumSelectors>
     nAlbums: string
     nChoices: string
     onChange: typeof actions.controlChange
