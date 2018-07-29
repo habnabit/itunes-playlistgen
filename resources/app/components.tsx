@@ -1,4 +1,4 @@
-import { StandardShorthandProperties } from 'csstype'
+import { SvgProperties, StandardProperties } from 'csstype'
 import { List, Map, Seq } from 'immutable'
 import { Lens } from 'monocle-ts'
 import * as React from 'react'
@@ -30,12 +30,12 @@ class ShuffleInfoComponent extends React.Component<{
     }
 
     matGroup(): {xMax: number, yMax: number, element: JSX.Element} {
-        let lineStyle = {
+        let lineStyle: SvgProperties = {
             stroke: 'rgba(0, 0, 0, 0.75)',
             strokeWidth: '0.05',
         }
 
-        let circleStyle = {
+        let circleStyle: SvgProperties = {
             stroke: 'rgba(0, 0, 0, 0.5)',
             strokeWidth: lineStyle.strokeWidth,
         }
@@ -47,12 +47,12 @@ class ShuffleInfoComponent extends React.Component<{
         let elementIdx = 0
         let circles: JSX.Element[] = []
         let lines: JSX.Element[] = []
-        let flatCircles: {x: number, y: number, style: any}[] = []
+        let flatCircles: {x: number, y: number, style: SvgProperties}[] = []
         let xMax = 0
         coords.forEach((xs, y) => {
             let fill = colors.get(y)
             for (let x of xs) {
-                let style = {}
+                let style: SvgProperties = {}
                 flatCircles.push(({x: Math.floor(x), y, style}))
                 style = Object.assign({fill, opacity: 0.5}, circleStyle)
                 circles.push(<circle cx={x} cy={y} r="0.25" key={elementIdx++} style={style} />)
@@ -87,7 +87,7 @@ class ShuffleInfoComponent extends React.Component<{
 
         let {xMax, yMax, element} = this.matGroup()
         let viewBox = "0 0 " + (xMax + 2) + " " + (yMax + 2)
-        let style = {}
+        let style: StandardProperties = {}
         if (xMax == 0 || yMax == 0) {
             style = {display: 'none'}
         } else {
@@ -103,7 +103,7 @@ const TrackComponent: React.SFC<{
     track: Track
     color?: string
 }> = (props) => {
-    let style: StandardShorthandProperties = {}
+    let style: StandardProperties = {}
     if (props.color) {
         style.background = props.color
     }
