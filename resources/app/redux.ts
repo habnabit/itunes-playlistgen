@@ -1,4 +1,4 @@
-import { List, Seq } from 'immutable'
+import { List, Seq, Map } from 'immutable'
 import * as qs from 'qs'
 import { applyMiddleware, createStore, combineReducers, Reducer, Store, DeepPartial } from 'redux'
 import { createEpicMiddleware, Epic } from 'redux-observable'
@@ -137,6 +137,25 @@ function timefillReducer(state = new TimefillSelector(), action: AllActions): Ti
     case getType(actions.fetchTracks.success):
         return state.withTracksResponse(action.payload.json)
 
+    case getType(actions.togglePlaylistTrack):
+        let { lens, track } = action.payload
+        let selection = state.currentSelection()
+        return lens.modify(pl =>
+            pl.update('selected', m =>
+                m.update(track, undefined, cur => cur === selection? undefined : selection))
+        )(state)
+
+    case getType(actions.setKeyboardAvailability):
+        return state.merge({keyboardAvailable: action.payload.available, keysDown: Map()})
+
+    case getType(actions.changeKey):
+        if (state.keyboardAvailable) {
+            return state.update('keysDown', m =>
+                m.set(action.payload.key, action.payload.down))
+        } else {
+            return state
+        }
+
     case getType(actions.runTimefill.success):
         return state.withTimefillResponse(action.payload.json)
 
@@ -148,10 +167,14 @@ function timefillReducer(state = new TimefillSelector(), action: AllActions): Ti
 function makeStore<S>(reducer: Reducer<S>, state: DeepPartial<S>): Store<S> {
     const epicMiddleware = createEpicMiddleware()
     const store = createStore(reducer, state, applyMiddleware(epicMiddleware))
+
     epicMiddleware.run(fetchTracksEpic)
     epicMiddleware.run(shuffleTracksEpic)
     epicMiddleware.run(runTimefillEpic)
     epicMiddleware.run(savePlaylistEpic)
+
+    addEventListener('keydown', (ev) => store.dispatch(actions.changeKey({key: ev.key.toLowerCase(), down: true})))
+    addEventListener('keyup', (ev) => store.dispatch(actions.changeKey({key: ev.key.toLowerCase(), down: false})))
 
     return store
 }

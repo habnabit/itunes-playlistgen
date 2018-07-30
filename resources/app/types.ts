@@ -169,8 +169,11 @@ export class AlbumShuffleSelector extends Record({
     }
 }
 
+export type PlaylistTrackSelection = 'include' | 'exclude' | undefined
+
 export class Playlist extends Record({
     tracks: List<Track>(),
+    selected: Map<TrackId, PlaylistTrackSelection>(),
     score: 0,
     scores: [] as number[],
 }) {
@@ -180,7 +183,19 @@ export class TimefillSelector extends Record({
     tracks: Map<TrackId, Track>(),
     targets: List<string>(),
     playlists: List<Playlist>(),
+    keyboardAvailable: true,
+    keysDown: Map<string, boolean>(),
 }) {
+    currentSelection(): PlaylistTrackSelection {
+        if (this.keysDown.get('z')) {
+            return 'include'
+        } else if (this.keysDown.get('x')) {
+            return 'exclude'
+        } else {
+            return undefined
+        }
+    }
+
     withTracksResponse(j: any): this {
         let tracks = Map<TrackId, Track>().withMutations(m => {
             for (let t of j.data) {

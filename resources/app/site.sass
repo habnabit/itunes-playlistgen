@@ -45,6 +45,25 @@ ol.tracklist
       &.total
         list-style: none
         padding-top: 0.5em
+      &:not(.total)
+        cursor: pointer
+        transition: background 0.25s ease-out
+        &.include
+          background: hsla(95, 100%, 70%, 0.75)
+        &.exclude
+          background: hsla(45, 100%, 70%, 0.75)
+
+.set-include ol.tracklist.fuller > li:not(.total)
+  &:hover
+    background: hsla(95, 100%, 70%, 0.5)
+  &.include:hover
+    background: hsla(95, 100%, 70%, 1)
+
+.set-exclude ol.tracklist.fuller > li:not(.total)
+  &:hover
+    background: hsla(45, 100%, 70%, 0.5)
+  &.exclude:hover
+    background: hsla(45, 100%, 70%, 1)
 
 .playlists
   display: flex

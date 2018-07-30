@@ -3,11 +3,13 @@ import { List, Map, Seq } from 'immutable'
 import { Lens } from 'monocle-ts'
 import * as React from 'react'
 import { connect } from 'react-redux'
+import { onlyUpdateForKeys, pure, shouldUpdate, shallowEqual } from 'recompose'
 import { bindActionCreators, Dispatch } from 'redux'
 
 import * as actions from './actions'
 import { lensFromImplicitAccessors } from './extlens'
-import { Album, AlbumKey, AlbumSelector, AlbumShuffleSelector, Track, TrackId, AlbumSelectors, isoTrackId, TimefillSelector, Playlist } from './types'
+import { Album, AlbumKey, AlbumSelector, AlbumShuffleSelector, Track, TrackId, AlbumSelectors, isoTrackId, TimefillSelector, Playlist, PlaylistTrackSelection } from './types'
+import xstreamConfig from 'recompose/xstreamObservableConfig';
 
 
 const colorOrder = [
@@ -16,7 +18,7 @@ const colorOrder = [
 ]
 
 
-class ShuffleInfoComponent extends React.Component<{
+class ShuffleInfoComponent extends React.PureComponent<{
     response: any
     colorByAlbum: Map<AlbumKey, string>
 }> {
@@ -168,7 +170,7 @@ export const ConnectedAlbumSelectorComponent = connect(
     }, d),
 )(AlbumSelectorComponent)
 
-class AlbumSelectorsComponent extends React.Component<{
+class AlbumSelectorsComponent extends React.PureComponent<{
     tracks: Map<TrackId, Track>
     selectors: AlbumSelectors
     lens: Lens<AlbumShuffleSelector, AlbumSelectors>
@@ -282,7 +284,7 @@ export const ConnectedAlbumSearchComponent = connect(
     }, d),
 )(AlbumSearchComponent)
 
-class AlbumShuffleSelectorComponent extends React.Component<{
+class AlbumShuffleSelectorComponent extends React.PureComponent<{
     selectorses: List<AlbumSelectors>
     nAlbums: string
     nChoices: string
@@ -314,43 +316,77 @@ export const ConnectedAlbumShuffleSelectorComponent = connect(
     }, d),
 )(AlbumShuffleSelectorComponent)
 
-const DurationComponent: React.SFC<{
+const DurationComponent = pure((props: {
     duration: number
-}> = (props) => {
+}) => {
     let minutes = Math.floor(props.duration / 60)
     let seconds = Math.floor(props.duration % 60).toLocaleString('en', {minimumIntegerDigits: 2})
     return <>⟨{minutes}:{seconds}⟩</>
-}
+})
 
-const FullerTrackComponent: React.SFC<{
+const PlaylistTrackComponent = onlyUpdateForKeys(
+    ['track', 'selected']
+)((props: {
     track: Track
-}> = (props) => {
+    selected: PlaylistTrackSelection
+    onToggle: () => void
+}) => {
     let key = props.track.albumKey()
-    let duration: number = props.track.t('pDur')
-    return <li>
+    return <li className={props.selected || ''} onClick={props.onToggle}>
         <DurationComponent duration={props.track.t('pDur')} /> {props.track.t('pnam')} ({key.album}; {key.artist})
     </li>
-}
+})
 
-const PlaylistComponent: React.SFC<{
+const PlaylistComponent = onlyUpdateForKeys(
+    ['playlist']
+)((props: {
+    lens: Lens<TimefillSelector, Playlist>
     playlist: Playlist
-}> = (props) => {
+    onToggle: typeof actions.togglePlaylistTrack
+}) => {
     let { playlist } = props
     let totalDuration = playlist.tracks.reduce((totalDuration, track) => totalDuration + track.t('pDur') as number, 0)
     return <div className="playlist">
         <p>score: {playlist.score.toPrecision(2)}; scores: {playlist.scores.map(s => s.toPrecision(2)).join(' ')}</p>
         <ol className="fuller tracklist">
-            {props.playlist.tracks.map((track, e) => <FullerTrackComponent key={e} track={track} />)}
+            {props.playlist.tracks.map((track, e) => {
+                let onToggle = () => props.onToggle({lens: props.lens, track: track.id})
+                return <PlaylistTrackComponent key={e} selected={playlist.selected.get(track.id)} {...{track, onToggle}} />
+            })}
             <li className="total"><DurationComponent duration={totalDuration} /> total</li>
         </ol>
     </div>
-}
+})
 
-class TimefillSelectorComponent extends React.Component<{
+export const ConnectedPlaylistComponent = connect(
+    (top: TimefillSelector, ownProps: {idxTop: number}) => {
+        let lens1: Lens<TimefillSelector, List<Playlist>> = new Lens(
+            o => o.get('playlists', undefined),
+            v => o => o.set('playlists', v))
+        let lens2: Lens<TimefillSelector, Playlist> = lens1.compose(
+            lensFromImplicitAccessors(ownProps.idxTop))
+        return {
+            playlist: top.playlists.get(ownProps.idxTop),
+            lens: lens2,
+        }
+    },
+    (d: Dispatch) => bindActionCreators({
+        onToggle: actions.togglePlaylistTrack,
+    }, d),
+    undefined,
+    {
+        areStatesEqual: (x, y) => x.playlists === y.playlists,
+        areStatePropsEqual: (x, y) => x.playlist === y.playlist,
+    },
+)(PlaylistComponent)
+
+class TimefillSelectorComponent extends React.PureComponent<{
     targets: List<string>
     playlists: List<Playlist>
+    selectState: PlaylistTrackSelection
     onAddTarget: typeof actions.addTarget
     onChangeTarget: typeof actions.changeTarget
+    onKeyboardAvailable: typeof actions.setKeyboardAvailability
     onLoad: typeof actions.fetchTracks.request
     onSelect: typeof actions.runTimefill.request
 }> {
@@ -359,26 +395,37 @@ class TimefillSelectorComponent extends React.Component<{
     }
 
     render() {
-        return <div>
+        let classes: string[] = []
+        if (this.props.selectState === 'include') {
+            classes.push('set-include')
+        } else if (this.props.selectState === 'exclude') {
+            classes.push('set-exclude')
+        }
+        return <div className={classes.join(' ')}>
             <button onClick={() => this.props.onAddTarget({})}>Add target</button>
             {this.props.targets.map((target, e) => {
                 return <input key={e} type="text" placeholder="Target..." value={target} onChange={ev => {
                     this.props.onChangeTarget({index: e, value: ev.target.value})
-                }} />
+                }} onFocus={() => this.props.onKeyboardAvailable({available: false})} onBlur={() => this.props.onKeyboardAvailable({available: true})}  />
             })}
             <button onClick={() => this.props.onSelect({targets: this.props.targets})}>Select new</button>
             <div className="playlists">
-                {this.props.playlists.map((pl, e) => <PlaylistComponent key={e} playlist={pl} />)}
+                {this.props.playlists.map((pl, e) => <ConnectedPlaylistComponent key={e} idxTop={e} />)}
             </div>
         </div>
     }
 }
 
 export const ConnectedTimefillSelectorComponent = connect(
-    (top: TimefillSelector) => (top || new TimefillSelector()).toObject(),
+    (top: TimefillSelector = new TimefillSelector()) => {
+        let { targets, playlists } = top
+        let selectState = top.currentSelection()
+        return { targets, playlists, selectState }
+    },
     (d: Dispatch) => bindActionCreators({
         onAddTarget: actions.addTarget,
         onChangeTarget: actions.changeTarget,
+        onKeyboardAvailable: actions.setKeyboardAvailability,
         onLoad: actions.fetchTracks.request,
         onSelect: actions.runTimefill.request,
     }, d),
