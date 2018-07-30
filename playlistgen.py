@@ -194,21 +194,32 @@ class TargetAlbums(object):
             return tracks_per_album ** self.power
 
 
-def timefill_search_targets(rng, tracks, targets, pull_prev=25, keep=125, iterations=5000):
+def timefill_search_targets(rng, tracks, targets, pull_prev=None, keep=None, iterations=None, initial=()):
+    pull_prev = pull_prev or 25
+    keep = keep or 125
+    iterations = iterations or 5000
     all_indexes = frozenset(range(len(tracks)))
     results = []
-    previous = [(0, (), ())] * pull_prev
+    previous = []
+
+    def add(indexes, to):
+        if indexes:
+            candidate = [tracks[i] for i in indexes]
+            scores = [target.score(candidate) for target in targets]
+        else:
+            scores = []
+        score = reduce(operator.mul, scores, 1)
+        to.append((score, scores, indexes))
+
+    for _ in xrange(pull_prev):
+        add(initial, to=previous)
 
     for _ in xrange(iterations):
         if not previous:
             previous = rng.sample(results, min(len(results), pull_prev))
         _, _, indexes = previous.pop()
-        subtracks = [tracks[i] for i in indexes]
         [i] = rng.sample(all_indexes.difference(indexes), 1)
-        candidate = subtracks + [tracks[i]]
-        scores = [target.score(candidate) for target in targets]
-        score = reduce(operator.mul, scores, 1)
-        results.append((score, scores, indexes + (i,)))
+        add(indexes + (i,), to=results)
         results.sort(reverse=True)
         del results[keep:]
 

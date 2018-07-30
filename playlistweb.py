@@ -196,10 +196,16 @@ class TrackWeb(object):
     def timefill_targets(self, request):
         parsed = q.parse({
             'targets': q.many(playlistgen.parse_target),
+            'pull_prev': q.one(q.Integer),
+            'keep': q.one(q.Integer),
+            'iterations': q.one(q.Integer),
+            'include': q.many(self.tracks_by_id.get),
         }, request.args)
-        playlists = playlistgen.timefill_search_targets(random, self.tracks, parsed['targets'])
+        include_indexes = tuple(self.tracks.index(t) for t in parsed.pop('include', ()))
+        playlists = playlistgen.timefill_search_targets(
+            random, self.tracks, initial=include_indexes, **parsed)
         playlists = [{
-            'score': score,
+        'score': score,
             'scores': scores,
             'tracks': [self.tracks[t][typ.pPIS] for t in tracks]
         } for score, scores, tracks in playlists]
