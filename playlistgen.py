@@ -194,35 +194,57 @@ class TargetAlbums(object):
             return tracks_per_album ** self.power
 
 
-def timefill_search_targets(rng, tracks, targets, pull_prev=None, keep=None, iterations=None, initial=()):
+def timefill_search_targets(rng, tracks, targets, pull_prev=None, keep=None, n_options=None, iterations=None, initial=()):
     pull_prev = pull_prev or 25
     keep = keep or 125
-    iterations = iterations or 5000
+    n_options = n_options or 5
+    iterations = iterations or 1000
     all_indexes = frozenset(range(len(tracks)))
     results = []
-    previous = []
 
-    def add(indexes, to):
+    def safe_sample(pool, n):
+        return rng.sample(pool, min(len(pool), n))
+
+    def score(indexes):
         if indexes:
             candidate = [tracks[i] for i in indexes]
             scores = [target.score(candidate) for target in targets]
+            score = reduce(operator.mul, scores, 1)
         else:
             scores = []
-        score = reduce(operator.mul, scores, 1)
-        to.append((score, scores, indexes))
+            score = 0
+        return score, scores, indexes
 
-    for _ in xrange(pull_prev):
-        add(initial, to=previous)
+    def prune():
+        results_by_track_sets = {frozenset(i): (sc, scs, i) for sc, scs, i in results}
+        results[:] = sorted(results_by_track_sets.values(), reverse=True)
+        del results[keep:]
+
+    def an_option(indexes):
+        r = rng.random()
+        if r < 0.95:
+            n = 1 + int(math.log(19 / r / 20, 2))
+            indexes = indexes + tuple(safe_sample(
+                all_indexes.difference(indexes), n))
+            if n > 1 and rng.random() > 0.5:
+                indexes = indexes[1:]
+        else:
+            indexes = tuple(rng.sample(indexes, len(indexes)))
+        return score(indexes)
+
+    previous = [score(initial)] * pull_prev
 
     for _ in xrange(iterations):
         if not previous:
-            previous = rng.sample(results, min(len(results), pull_prev))
-        _, _, indexes = previous.pop()
-        [i] = rng.sample(all_indexes.difference(indexes), 1)
-        add(indexes + (i,), to=results)
-        results.sort(reverse=True)
-        del results[keep:]
+            prune()
+            previous = safe_sample(results, pull_prev)
+        prev_score, _, indexes = previous.pop()
+        options = [an_option(indexes) for _ in xrange(n_options)]
+        options = [(sc, scs, i) for sc, scs, i in options if sc >= prev_score]
+        if options:
+            results.append(rng.choice(options))
 
+    prune()
     return results
 
 
@@ -536,8 +558,8 @@ def timefill_targets(tracks, targets):
     tracks.set_default_dest(u'targets')
     track_list = tracks.get_tracks()
     playlists = timefill_search_targets(tracks.rng, track_list, targets)
-    show_playlists((b, [(None, track_list[t]) for t in c]) for a, b, c in reversed(playlists))
-    tracks.set_tracks(track_list[t] for t in playlists[0][-1])
+    show_playlists(([a] + b, [(None, track_list[t]) for t in c]) for a, b, c in reversed(playlists[:10]))
+    #tracks.set_tracks(track_list[t] for t in playlists[0][-1])
 
 
 @main.command('album-shuffle')

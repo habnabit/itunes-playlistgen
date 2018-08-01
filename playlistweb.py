@@ -198,16 +198,20 @@ class TrackWeb(object):
             'targets': q.many(playlistgen.parse_target),
             'pull_prev': q.one(q.Integer),
             'keep': q.one(q.Integer),
+            'n_options': q.one(q.Integer),
             'iterations': q.one(q.Integer),
             'include': q.many(self.tracks_by_id.get),
+            'exclude': q.many(self.tracks_by_id.get),
         }, request.args)
-        include_indexes = tuple(self.tracks.index(t) for t in parsed.pop('include', ()))
+        to_exclude = {t[typ.pPIS] for t in parsed.pop('exclude', ())}
+        local_tracks = [t for t in self.tracks if t[typ.pPIS] not in to_exclude]
+        include_indexes = tuple({local_tracks.index(t) for t in parsed.pop('include', ())})
         playlists = playlistgen.timefill_search_targets(
-            random, self.tracks, initial=include_indexes, **parsed)
+            random, local_tracks, initial=include_indexes, **parsed)
         playlists = [{
         'score': score,
             'scores': scores,
-            'tracks': [self.tracks[t][typ.pPIS] for t in tracks]
+            'tracks': [local_tracks[t][typ.pPIS] for t in tracks]
         } for score, scores, tracks in playlists]
         return {'playlists': playlists}
 

@@ -2,7 +2,7 @@ import { List } from 'immutable'
 import { Lens } from 'monocle-ts'
 import { createAsyncAction, createStandardAction } from 'typesafe-actions'
 
-import { AlbumSelector, AlbumShuffleSelector, SubsetKeys, AlbumKey, AlbumSelectors, Track, TimefillSelector, Playlist, TrackId } from './types'
+import { AlbumSelector, AlbumShuffleSelector, SubsetKeys, AlbumKey, AlbumSelectors, Track, TimefillSelector, Playlist, TrackId, PlaylistTrackSelection } from './types'
 
 
 export const toggleAlbumSelected = createStandardAction('playlistgen/toggleAlbumSelected')<{
@@ -29,6 +29,10 @@ export const changeControl = createStandardAction('playlistgen/controlChange')<{
 
 export const updateSearch = createStandardAction('playlistgen/updateSearch')<{
     query: string
+}>()
+
+export const changeName = createStandardAction('playlistgen/changeName')<{
+    name: string
 }>()
 
 export const addTarget = createStandardAction('playlistgen/addTarget')<{}>()
@@ -64,8 +68,11 @@ export const shuffleTracks = createAsyncAction('playlistgen/shuffleTracksRequest
 
 export const runTimefill = createAsyncAction('playlistgen/runTimefillRequest', 'playlistgen/runTimefillSuccess', 'playlistgen/runTimefillFailure')<{
     targets: List<string>
+    selections?: {[K in PlaylistTrackSelection]: TrackId[]}
+    replace?: Lens<TimefillSelector, Playlist>
 }, {
     json: any
+    replace?: Lens<TimefillSelector, Playlist>
 }, Error>()
 
 export const savePlaylist = createAsyncAction('playlistgen/savePlaylistRequest', 'playlistgen/savePlaylistSuccess', 'playlistgen/savePlaylistFailure')<{

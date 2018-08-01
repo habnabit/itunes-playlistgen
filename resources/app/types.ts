@@ -177,10 +177,20 @@ export class Playlist extends Record({
     score: 0,
     scores: [] as number[],
 }) {
+    selectionMap(): {[K in PlaylistTrackSelection]: TrackId[]} {
+        let ret = {include: [] as TrackId[], exclude: [] as TrackId[]}
+        this.selected.forEach((sel, tid) => {
+            if (sel) {
+                ret[sel].push(tid)
+            }
+        })
+        return ret
+    }
 }
 
 export class TimefillSelector extends Record({
     tracks: Map<TrackId, Track>(),
+    name: '',
     targets: List<string>(),
     playlists: List<Playlist>(),
     keyboardAvailable: true,
@@ -196,6 +206,18 @@ export class TimefillSelector extends Record({
         }
     }
 
+    selectionMap(): {[K in PlaylistTrackSelection]: TrackId[]} {
+        let ret = {include: [] as TrackId[], exclude: [] as TrackId[]}
+        this.playlists.forEach(pl => {
+            pl.selected.forEach((sel, tid) => {
+                if (sel) {
+                    ret[sel].push(tid)
+                }
+            })
+        })
+        return ret
+    }
+
     withTracksResponse(j: any): this {
         let tracks = Map<TrackId, Track>().withMutations(m => {
             for (let t of j.data) {
@@ -205,12 +227,17 @@ export class TimefillSelector extends Record({
         return this.set('tracks', tracks)
     }
 
-    withTimefillResponse(j: any): this {
+    withTimefillResponse(j: any, replace?: Lens<TimefillSelector, Playlist>): TimefillSelector {
         let playlists = List(j.data.playlists as {tracks: TrackId[], score: number, scores: number[]}[])
             .map(p => {
                 let initial = Object.assign(p, {tracks: List(p.tracks).map(tid => this.tracks.get(tid))})
                 return new Playlist(initial)
             })
-        return this.set('playlists', playlists)
+        if (replace) {
+            let toInsert = playlists.first()
+            return replace.modify(pl => toInsert.set('selected', pl.selected))(this)
+        } else {
+            return this.set('playlists', playlists)
+        }
     }
 }

@@ -47,13 +47,14 @@ const runTimefillEpic: Epic<AllActions, AllActions> = (action$) => (
     action$.pipe(
         filter(isActionOf(actions.runTimefill.request)),
         switchMap(action => {
+            let { replace } = action.payload
             let targets = action.payload.targets.toArray()
-            let params = qs.stringify({targets}, {arrayFormat: 'repeat'})
+            let params = qs.stringify(Object.assign({targets}, action.payload.selections), {arrayFormat: 'repeat'})
             return from(
                 fetch('/_api/timefill-targets?' + params)
                     .then(resp => resp.json())
                     .then(
-                        json => actions.runTimefill.success({json}),
+                        json => actions.runTimefill.success({json, replace}),
                         actions.runTimefill.failure)
             )
         })
@@ -127,6 +128,10 @@ function albumShuffleReducer(state = new AlbumShuffleSelector(), action: AllActi
 
 function timefillReducer(state = new TimefillSelector(), action: AllActions): TimefillSelector {
     switch (action.type) {
+    case getType(actions.changeName):
+        let { name } = action.payload
+        return state.set('name', name)
+
     case getType(actions.addTarget):
         return state.update('targets', l => l.push(''))
 
@@ -157,7 +162,7 @@ function timefillReducer(state = new TimefillSelector(), action: AllActions): Ti
         }
 
     case getType(actions.runTimefill.success):
-        return state.withTimefillResponse(action.payload.json)
+        return state.withTimefillResponse(action.payload.json, action.payload.replace)
 
     default:
         return state

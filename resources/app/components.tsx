@@ -340,17 +340,20 @@ const PlaylistTrackComponent = onlyUpdateForKeys(
 const PlaylistComponent = onlyUpdateForKeys(
     ['playlist']
 )((props: {
-    lens: Lens<TimefillSelector, Playlist>
     playlist: Playlist
-    onToggle: typeof actions.togglePlaylistTrack
+    onToggle: (tid: TrackId) => () => void
+    onReroll: () => void
+    onSave: () => void
 }) => {
     let { playlist } = props
     let totalDuration = playlist.tracks.reduce((totalDuration, track) => totalDuration + track.t('pDur') as number, 0)
     return <div className="playlist">
         <p>score: {playlist.score.toPrecision(2)}; scores: {playlist.scores.map(s => s.toPrecision(2)).join(' ')}</p>
+        <button onClick={() => props.onReroll()}>Reroll</button>
+        <button onClick={() => props.onSave()}>Save</button>
         <ol className="fuller tracklist">
             {props.playlist.tracks.map((track, e) => {
-                let onToggle = () => props.onToggle({lens: props.lens, track: track.id})
+                let onToggle = props.onToggle(track.id)
                 return <PlaylistTrackComponent key={e} selected={playlist.selected.get(track.id)} {...{track, onToggle}} />
             })}
             <li className="total"><DurationComponent duration={totalDuration} /> total</li>
@@ -368,12 +371,27 @@ export const ConnectedPlaylistComponent = connect(
         return {
             playlist: top.playlists.get(ownProps.idxTop),
             lens: lens2,
+            top,
         }
     },
     (d: Dispatch) => bindActionCreators({
         onToggle: actions.togglePlaylistTrack,
+        onReroll: actions.runTimefill.request,
+        onSave: actions.savePlaylist.request,
     }, d),
-    undefined,
+    (stateProps, dispatchProps, ownProps) => {
+        let { playlist, lens, top } = stateProps
+        return Object.assign({}, stateProps, ownProps, {
+            onToggle: (track: TrackId) => () => dispatchProps.onToggle({lens, track}),
+            onReroll: () => {
+                let selections = playlist.selectionMap()
+                dispatchProps.onReroll({targets: top.targets, selections, replace: lens})
+            },
+            onSave: () => {
+                dispatchProps.onSave({name: top.name, tracks: playlist.tracks})
+            },
+        })
+    },
     {
         areStatesEqual: (x, y) => x.playlists === y.playlists,
         areStatePropsEqual: (x, y) => x.playlist === y.playlist,
@@ -381,9 +399,11 @@ export const ConnectedPlaylistComponent = connect(
 )(PlaylistComponent)
 
 class TimefillSelectorComponent extends React.PureComponent<{
+    name: string
     targets: List<string>
     playlists: List<Playlist>
     selectState: PlaylistTrackSelection
+    onChangeName: typeof actions.changeName
     onAddTarget: typeof actions.addTarget
     onChangeTarget: typeof actions.changeTarget
     onKeyboardAvailable: typeof actions.setKeyboardAvailability
@@ -402,27 +422,35 @@ class TimefillSelectorComponent extends React.PureComponent<{
             classes.push('set-exclude')
         }
         return <div className={classes.join(' ')}>
-            <button onClick={() => this.props.onAddTarget({})}>Add target</button>
-            {this.props.targets.map((target, e) => {
-                return <input key={e} type="text" placeholder="Target..." value={target} onChange={ev => {
-                    this.props.onChangeTarget({index: e, value: ev.target.value})
-                }} onFocus={() => this.props.onKeyboardAvailable({available: false})} onBlur={() => this.props.onKeyboardAvailable({available: true})}  />
-            })}
-            <button onClick={() => this.props.onSelect({targets: this.props.targets})}>Select new</button>
-            <div className="playlists">
+            <section>
+                <textarea onChange={ev => this.props.onChangeName({name: ev.target.value})}>{this.props.name}</textarea>
+            </section>
+            <section>
+                <button onClick={() => this.props.onAddTarget({})}>Add target</button>
+                {this.props.targets.map((target, e) => {
+                    return <input key={e} type="text" placeholder="Target..." value={target} onChange={ev => {
+                        this.props.onChangeTarget({index: e, value: ev.target.value})
+                    }} onFocus={() => this.props.onKeyboardAvailable({available: false})} onBlur={() => this.props.onKeyboardAvailable({available: true})}  />
+                })}
+            </section>
+            <section>
+                <button onClick={() => this.props.onSelect({targets: this.props.targets})}>Select new</button>
+            </section>
+            <section className="playlists">
                 {this.props.playlists.map((pl, e) => <ConnectedPlaylistComponent key={e} idxTop={e} />)}
-            </div>
+            </section>
         </div>
     }
 }
 
 export const ConnectedTimefillSelectorComponent = connect(
     (top: TimefillSelector = new TimefillSelector()) => {
-        let { targets, playlists } = top
+        let { name, targets, playlists } = top
         let selectState = top.currentSelection()
-        return { targets, playlists, selectState }
+        return { name, targets, playlists, selectState }
     },
     (d: Dispatch) => bindActionCreators({
+        onChangeName: actions.changeName,
         onAddTarget: actions.addTarget,
         onChangeTarget: actions.changeTarget,
         onKeyboardAvailable: actions.setKeyboardAvailability,

@@ -13,9 +13,10 @@ import { TimefillSelector } from './types';
 
 function makeRootElement(): JSX.Element {
     if (location.pathname == '/timefill') {
-        let parsed: { targets?: string[] } = qs.parse(location.search.slice(1))
+        let parsed: { targets?: string[], name?: string } = qs.parse(location.search.slice(1))
         let initial = {
             targets: parsed.targets? List(parsed.targets) : undefined,
+            name: parsed.name,
         }
         let state = new TimefillSelector(initial)
         return <Provider store={stores.timefillStore(state)}>
