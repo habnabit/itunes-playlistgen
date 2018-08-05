@@ -25,6 +25,19 @@ const fetchTracksEpic: Epic<AllActions, AllActions> = (action$) => (
     )
 )
 
+const fetchPlaylistsEpic: Epic<AllActions, AllActions> = (action$) => (
+    action$.pipe(
+        filter(isActionOf(actions.fetchPlaylists.request)),
+        switchMap(action => from(
+            fetch('/_api/playlists')
+                .then(resp => resp.json())
+                .then(
+                    json => actions.fetchPlaylists.success({json}),
+                    actions.fetchPlaylists.failure)
+        ))
+    )
+)
+
 const shuffleTracksEpic: Epic<AllActions, AllActions> = (action$) => (
     action$.pipe(
         filter(isActionOf(actions.shuffleTracks.request)),
@@ -114,6 +127,9 @@ function albumShuffleReducer(state = new AlbumShuffleSelector(), action: AllActi
     case getType(actions.fetchTracks.success):
         return state.withTracksResponse(action.payload.json)
 
+    case getType(actions.fetchPlaylists.success):
+        return state.withPlaylistsResponse(action.payload.json)
+
     case getType(actions.shuffleTracks.success):
         let { lens, json } = action.payload
         let shuffled = Seq.Indexed.of(...json.data.tracks as TrackId[])
@@ -174,6 +190,7 @@ function makeStore<S>(reducer: Reducer<S>, state: DeepPartial<S>): Store<S> {
     const store = createStore(reducer, state, applyMiddleware(epicMiddleware))
 
     epicMiddleware.run(fetchTracksEpic)
+    epicMiddleware.run(fetchPlaylistsEpic)
     epicMiddleware.run(shuffleTracksEpic)
     epicMiddleware.run(runTimefillEpic)
     epicMiddleware.run(savePlaylistEpic)

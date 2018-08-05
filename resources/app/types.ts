@@ -1,4 +1,4 @@
-import { List, Map, OrderedMap, Record, Seq } from 'immutable'
+import { List, Map, OrderedMap, Record, Seq, Set } from 'immutable'
 import { iso, Newtype } from 'newtype-ts'
 import { Lens } from '../node_modules/monocle-ts'
 
@@ -88,6 +88,7 @@ export class AlbumSelectors extends Record({
 export class AlbumShuffleSelector extends Record({
     tracks: Map<TrackId, Track>(),
     albums: Map<AlbumKey, Album>(),
+    existingPlaylists: Map<TrackId, Set<string>>(),
     selectorses: List<AlbumSelectors>(),
     nAlbums: '4',
     nChoices: '5',
@@ -106,6 +107,17 @@ export class AlbumShuffleSelector extends Record({
         let tracks = orderedTracks.toMap()
         let albums = collateAlbums(orderedTracks.values())
         return this.merge({tracks, albums})
+    }
+
+    withPlaylistsResponse(j: any): this {
+        let tracksMap = Map<TrackId, Set<string>>().withMutations(m => {
+            for (let [album, tracks] of j.data) {
+                for (let track of tracks) {
+                    m.update(track, Set(), l => l.add(album))
+                }
+            }
+        })
+        return this.set('existingPlaylists', tracksMap)
     }
 
     updateSearch(query: string): this {

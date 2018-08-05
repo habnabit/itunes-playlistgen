@@ -123,6 +123,10 @@ class TrackWeb(object):
     def tracks_as_json(self):
         return applescript_as_json(self.tracks)
 
+    @reify
+    def playlists(self):
+        return playlistgen.scripts.call('get_playlists')
+
     @app.route('/', branch=True)
     def index(self, request):
         request.prepath.append(request.postpath.pop())
@@ -190,6 +194,11 @@ class TrackWeb(object):
         tracks = playlistgen.filter_tracks_to_genius_albums(
             [(0, t) for t in self.tracks])
         return [t[typ.pPIS] for _, t in tracks]
+
+    @app.route('/_api/playlists')
+    @as_json
+    def playlists_api(self, request):
+        return self.playlists
 
     @app.route('/_api/timefill-targets')
     @as_json
@@ -259,6 +268,7 @@ def _run(reactor, tracks):
     static = File('./resources/dist')
     web = TrackWeb(tracks_obj=tracks, static_resource=static)
     web.tracks_as_json
+    web.playlists
 
     logger.globalLogBeginner.beginLoggingTo([
         logger.textFileLogObserver(sys.stderr)])

@@ -90,3 +90,15 @@ on get_genius()
 		return the persistent ID of every track of the first item in pls
 	end tell
 end get_genius
+
+on get_playlists()
+	set ret to {}
+	tell application "iTunes"
+		repeat with pl in (every playlist whose special kind is none)
+			if (the tracks of pl exists) and pl's smart is false and pl's genius is false then
+				copy {the name of pl, the persistent ID of tracks of pl} to the end of ret
+			end if
+		end repeat
+	end tell
+	return ret
+end get_playlists

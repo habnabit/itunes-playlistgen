@@ -58,6 +58,8 @@ export const changeKey = createStandardAction('playlistgen/changeKey')<{
 
 export const fetchTracks = createAsyncAction('playlistgen/fetchTracksRequest', 'playlistgen/fetchTracksSuccess', 'playlistgen/fetchTracksFailure')<void, {json: any}, Error>()
 
+export const fetchPlaylists = createAsyncAction('playlistgen/fetchPlaylistsRequest', 'playlistgen/fetchPlaylistsSuccess', 'playlistgen/fetchPlaylistsFailure')<void, {json: any}, Error>()
+
 export const shuffleTracks = createAsyncAction('playlistgen/shuffleTracksRequest', 'playlistgen/shuffleTracksSuccess', 'playlistgen/shuffleTracksFailure')<{
     tracks: List<Track>
     lens: Lens<AlbumShuffleSelector, AlbumSelectors>
