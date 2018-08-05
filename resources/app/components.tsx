@@ -449,17 +449,45 @@ export const ConnectedPlaylistComponent = connect(
     },
 )(PlaylistComponent)
 
-class TimefillSelectorComponent extends React.PureComponent<{
-    name: string
+const TargetsComponent = ((props: {
     targets: List<string>
-    playlists: List<Playlist>
-    selectState: PlaylistTrackSelection
-    onChangeName: typeof actions.changeName
     onAddTarget: typeof actions.addTarget
     onChangeTarget: typeof actions.changeTarget
-    onKeyboardAvailable: typeof actions.setKeyboardAvailability
+    keyb: KeyboardEvents,
+}) => {
+    return <section>
+        <button onClick={() => props.onAddTarget({})}>Add target</button>
+        {props.targets.map((target, e) => {
+            return <input key={e} type="text" placeholder="Target..." value={target} onChange={ev => {
+                props.onChangeTarget({index: e, value: ev.target.value})
+            }} {...props.keyb} />
+        })}
+    </section>
+})
+
+export const ConnectedTargetsComponent = connect(
+    (top: TimefillSelector) => ({targets: top.targets}),
+    (d: Dispatch) => bindActionCreators({
+        onAddTarget: actions.addTarget,
+        onChangeTarget: actions.changeTarget,
+        onKeyboardAvailable: actions.setKeyboardAvailability,
+    }, d),
+    (props, dispatch, ownProps) => Object.assign(
+            keyboardEvents(dispatch), props, dispatch, ownProps) as any,
+    {
+        areStatesEqual: (x, y) => x.targets === y.targets,
+        areStatePropsEqual: (x, y) => x.targets === y.targets,
+    },
+)(TargetsComponent)
+
+class TimefillSelectorComponent extends React.PureComponent<{
+    name: string
+    playlists: List<Playlist>
+    selectState: PlaylistTrackSelection
+    keyb: KeyboardEvents,
+    onChangeName: typeof actions.changeName
     onLoad: typeof actions.fetchTracks.request
-    onSelect: typeof actions.runTimefill.request
+    onSelect: () => void
 }> {
     componentDidMount() {
         this.props.onLoad()
@@ -474,18 +502,11 @@ class TimefillSelectorComponent extends React.PureComponent<{
         }
         return <div className={classes.join(' ')}>
             <section>
-                <textarea onChange={ev => this.props.onChangeName({name: ev.target.value})}>{this.props.name}</textarea>
+                <textarea onChange={ev => this.props.onChangeName({name: ev.target.value})} value={this.props.name} {...this.props.keyb} />
             </section>
+            <ConnectedTargetsComponent />
             <section>
-                <button onClick={() => this.props.onAddTarget({})}>Add target</button>
-                {this.props.targets.map((target, e) => {
-                    return <input key={e} type="text" placeholder="Target..." value={target} onChange={ev => {
-                        this.props.onChangeTarget({index: e, value: ev.target.value})
-                    }} onFocus={() => this.props.onKeyboardAvailable({available: false})} onBlur={() => this.props.onKeyboardAvailable({available: true})}  />
-                })}
-            </section>
-            <section>
-                <button onClick={() => this.props.onSelect({targets: this.props.targets})}>Select new</button>
+                <button onClick={this.props.onSelect}>Select new</button>
             </section>
             <section className="playlists">
                 {this.props.playlists.map((pl, e) => <ConnectedPlaylistComponent key={e} idxTop={e} />)}
@@ -494,18 +515,32 @@ class TimefillSelectorComponent extends React.PureComponent<{
     }
 }
 
+type KeyboardEvents = {keyb: {onFocus: () => void, onBlur: () => void}}
+function keyboardEvents(dispatch: {onKeyboardAvailable: typeof actions.setKeyboardAvailability}): KeyboardEvents {
+    return {
+        keyb: {
+            onFocus: () => dispatch.onKeyboardAvailable({available: false}),
+            onBlur: () => dispatch.onKeyboardAvailable({available: true}),
+        }
+    }
+}
+
 export const ConnectedTimefillSelectorComponent = connect(
     (top: TimefillSelector = new TimefillSelector()) => {
         let { name, targets, playlists } = top
-        let selectState = top.currentSelection()
-        return { name, targets, playlists, selectState }
+        return {
+            name, targets, playlists,
+            selectState: top.currentSelection(),
+        }
     },
     (d: Dispatch) => bindActionCreators({
         onChangeName: actions.changeName,
-        onAddTarget: actions.addTarget,
-        onChangeTarget: actions.changeTarget,
         onKeyboardAvailable: actions.setKeyboardAvailability,
         onLoad: actions.fetchTracks.request,
         onSelect: actions.runTimefill.request,
     }, d),
+    (props, dispatch, ownProps) => Object.assign(
+        keyboardEvents(dispatch),
+        {onSelect: () => dispatch.onSelect({targets: props.targets})},
+        props, dispatch, ownProps),
 )(TimefillSelectorComponent)
