@@ -1,0 +1,299 @@
+[[package]]
+category = "main"
+description = "Better dates and times for Python"
+name = "arrow"
+optional = false
+platform = "*"
+python-versions = "*"
+version = "0.12.1"
+
+[package.dependencies]
+python-dateutil = "*"
+
+[package.dependencies."backports.functools_lru_cache"]
+python = ">=2.7,<2.8"
+version = ">=1.2.1"
+
+[[package]]
+category = "main"
+description = "Classes Without Boilerplate"
+name = "attrs"
+optional = false
+platform = "*"
+python-versions = "*"
+version = "18.1.0"
+
+[[package]]
+category = "main"
+description = "Self-service finite-state machines for the programmer on the go."
+name = "automat"
+optional = false
+platform = "*"
+python-versions = "*"
+version = "0.7.0"
+
+[package.dependencies]
+attrs = ">=16.1.0"
+six = "*"
+
+[[package]]
+category = "main"
+description = "backports.functools_lru_cache"
+name = "backports.functools-lru-cache"
+optional = false
+platform = "*"
+python-versions = ">=2.6"
+version = "1.5"
+
+[package.requirements]
+python = ">=2.7,<2.8"
+
+[[package]]
+category = "main"
+description = "statistics backport 2.6 - 3.3"
+name = "backports.statistics"
+optional = false
+platform = "platform independent"
+python-versions = "*"
+version = "0.1.0"
+
+[[package]]
+category = "main"
+description = "A simple wrapper around optparse for powerful command line utilities."
+name = "click"
+optional = false
+platform = "*"
+python-versions = "*"
+version = "6.7"
+
+[[package]]
+category = "main"
+description = "Symbolic constants in Python"
+name = "constantly"
+optional = false
+platform = "UNKNOWN"
+python-versions = "*"
+version = "15.1.0"
+
+[[package]]
+category = "main"
+description = "A featureful, immutable, and correct URL for Python."
+name = "hyperlink"
+optional = false
+platform = "any"
+python-versions = "*"
+version = "18.0.0"
+
+[package.dependencies]
+idna = ">=2.5"
+
+[[package]]
+category = "main"
+description = "Internationalized Domain Names in Applications (IDNA)"
+name = "idna"
+optional = false
+platform = "*"
+python-versions = "*"
+version = "2.7"
+
+[[package]]
+category = "main"
+description = ""
+name = "incremental"
+optional = false
+platform = "*"
+python-versions = "*"
+version = "17.5.0"
+
+[[package]]
+category = "main"
+description = "werkzeug + twisted.web"
+name = "klein"
+optional = false
+platform = "*"
+python-versions = "*"
+version = "17.10.0"
+
+[package.dependencies]
+Twisted = ">=15.5"
+incremental = "*"
+six = "*"
+werkzeug = "*"
+
+[[package]]
+category = "main"
+description = "NumPy: array processing for numbers, strings, records, and objects."
+name = "numpy"
+optional = false
+platform = "Windows"
+python-versions = ">=2.7,!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*"
+version = "1.15.0"
+
+[[package]]
+category = "main"
+description = "An easy-to-use Python wrapper for NSAppleScript, allowing Python scripts to communicate with AppleScripts and AppleScriptable applications."
+name = "py-applescript"
+optional = false
+platform = "Mac OS X"
+python-versions = "*"
+version = "1.0.1"
+
+[[package]]
+category = "main"
+description = "Hamcrest framework for matcher objects"
+name = "pyhamcrest"
+optional = false
+platform = "All"
+python-versions = "*"
+version = "1.9.0"
+
+[package.dependencies]
+setuptools = "*"
+six = "*"
+
+[[package]]
+category = "main"
+description = "Python<->ObjC Interoperability Module"
+name = "pyobjc-core"
+optional = false
+platform = "MacOS X"
+python-versions = "*"
+version = "4.2.2"
+
+[[package]]
+category = "main"
+description = "Wrappers for the framework AppleScriptKit on macOS"
+name = "pyobjc-framework-applescriptkit"
+optional = false
+platform = "MacOS X"
+python-versions = "*"
+version = "4.2.2"
+
+[package.dependencies]
+pyobjc-core = ">=4.2.2"
+pyobjc-framework-Cocoa = ">=4.2.2"
+
+[[package]]
+category = "main"
+description = "Wrappers for the Cocoa frameworks on macOS"
+name = "pyobjc-framework-cocoa"
+optional = false
+platform = "MacOS X"
+python-versions = "*"
+version = "4.2.2"
+
+[package.dependencies]
+pyobjc-core = ">=4.2.2"
+
+[[package]]
+category = "main"
+description = "Extensions to the standard Python datetime module"
+name = "python-dateutil"
+optional = false
+platform = "*"
+python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*"
+version = "2.7.3"
+
+[package.dependencies]
+six = ">=1.5"
+
+[[package]]
+category = "main"
+description = "Python 2 and 3 compatibility utilities"
+name = "six"
+optional = false
+platform = "*"
+python-versions = "*"
+version = "1.11.0"
+
+[[package]]
+category = "main"
+description = "Fast, Extensible Progress Meter"
+name = "tqdm"
+optional = false
+platform = "any"
+python-versions = ">=2.6, !=3.0.*, !=3.1.*"
+version = "4.24.0"
+
+[[package]]
+category = "main"
+description = "An asynchronous networking framework written in Python"
+name = "twisted"
+optional = false
+platform = "*"
+python-versions = "*"
+version = "18.7.0"
+
+[package.dependencies]
+Automat = ">=0.3.0"
+PyHamcrest = ">=1.9.0"
+attrs = ">=17.4.0"
+constantly = ">=15.1"
+hyperlink = ">=17.1.1"
+incremental = ">=16.10.1"
+"zope.interface" = ">=4.4.2"
+
+[[package]]
+category = "main"
+description = "Spinneret is a collection of higher-level utility classes and functions for Twisted Web."
+name = "txspinneret"
+optional = false
+platform = "UNKNOWN"
+python-versions = "*"
+version = "0.1.3"
+
+[package.dependencies]
+twisted = ">=13.2.0"
+"zope.interface" = ">=3.6.0"
+
+[[package]]
+category = "main"
+description = "The comprehensive WSGI web application library."
+name = "werkzeug"
+optional = false
+platform = "any"
+python-versions = "*"
+version = "0.14.1"
+
+[[package]]
+category = "main"
+description = "Interfaces for Python"
+name = "zope.interface"
+optional = false
+platform = "*"
+python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*"
+version = "4.5.0"
+
+[package.dependencies]
+setuptools = "*"
+
+[metadata]
+content-hash = "b9b14d9e165234a90f636f496a58b5c443761235096a0b04ed987313edec58d9"
+platform = "*"
+python-versions = "^2.7"
+
+[metadata.hashes]
+arrow = ["a558d3b7b6ce7ffc74206a86c147052de23d3d4ef0e17c210dd478c53575c4cd"]
+attrs = ["4b90b09eeeb9b88c35bc642cbac057e45a5fd85367b985bd2809c62b7b939265", "e0d0eb91441a3b53dab4d9b743eafc1ac44476296a2053b6ca3af0b139faf87b"]
+automat = ["cbd78b83fa2d81fe2a4d23d258e1661dd7493c9a50ee2f1a5b2cac61c1793b0e", "fdccab66b68498af9ecfa1fa43693abe546014dd25cf28543cbe9d1334916a58"]
+"backports.functools-lru-cache" = ["9d98697f088eb1b0fa451391f91afb5e3ebde16bbdb272819fd091151fda4f1a", "f0b0e4eba956de51238e17573b7087e852dfe9854afd2e9c873f73fc0ca0a6dd"]
+"backports.statistics" = ["2732e003151620762ba3ea25b881b5ca0debe2fcbf41b32b6eaff5842a8b99d7", "714ab29b9b9937c6ec65d8c6a3dcc39ee4972f929d55977b018bb9f204ba1f98"]
+click = ["29f99fc6125fbc931b758dc053b3114e55c77a6e4c6c3a2674a2dc986016381d", "f15516df478d5a56180fbf80e68f206010e6d160fc39fa508b65e035fd75130b"]
+constantly = ["586372eb92059873e29eba4f9dec8381541b4d3834660707faf8ba59146dfc35", "dd2fa9d6b1a51a83f0d7dd76293d734046aa176e384bf6e33b7e44880eb37c5d"]
+hyperlink = ["98da4218a56b448c7ec7d2655cb339af1f7d751cf541469bb4fc28c4a4245b34", "f01b4ff744f14bc5d0a22a6b9f1525ab7d6312cb0ff967f59414bbac52f0a306"]
+idna = ["156a6814fb5ac1fc6850fb002e0852d56c0c8d2531923a51032d1b70760e186e", "684a38a6f903c1d71d6d5fac066b58d7768af4de2b832e426ec79c30daa94a16"]
+incremental = ["717e12246dddf231a349175f48d74d93e2897244939173b01974ab6661406b9f", "7b751696aaf36eebfab537e458929e194460051ccad279c72b755a167eebd4b3"]
+klein = ["30aaf0d78a987d5dbfe0968a07367ad0c73e02823cc8eef4c54f80ab848370d0", "8fcb5ee33906c9094bbf9edee19fbcb2d2cf864053def32e5d73946e8d275050"]
+numpy = ["14fb76bde161c87dcec52d91c78f65aa8a23aa2e1530a71f412dabe03927d917", "21041014b7529237994a6b578701c585703fbb3b1bea356cdb12a5ea7804241c", "24f3bb9a5f6c3936a8ccd4ddfc1210d9511f4aeb879a12efd2e80bec647b8695", "34033b581bc01b1135ca2e3e93a94daea7c739f21a97a75cca93e29d9f0c8e71", "3fbccb399fe9095b1c1d7b41e7c7867db8aa0d2347fc44c87a7a180cedda112b", "50718eea8e77a1bedcc85befd22c8dbf5a24c9d2c0c1e36bbb8d7a38da847eb3", "55daf757e5f69aa75b4477cf4511bf1f96325c730e4ad32d954ccb593acd2585", "61efc65f325770bbe787f34e00607bc124f08e6c25fdf04723848585e81560dc", "62cb836506f40ce2529bfba9d09edc4b2687dd18c56cf4457e51c3e7145402fd", "64c6acf5175745fd1b7b7e17c74fdbfb7191af3b378bc54f44560279f41238d3", "674ea7917f0657ddb6976bd102ac341bc493d072c32a59b98e5b8c6eaa2d5ec0", "73a816e441dace289302e04a7a34ec4772ed234ab6885c968e3ca2fc2d06fe2d", "78c35dc7ad184aebf3714dbf43f054714c6e430e14b9c06c49a864fb9e262030", "7f17efe9605444fcbfd990ba9b03371552d65a3c259fc2d258c24fb95afdd728", "816645178f2180be257a576b735d3ae245b1982280b97ae819550ce8bcdf2b6b", "924f37e66db78464b4b85ed4b6d2e5cda0c0416e657cac7ccbef14b9fa2c40b5", "a17a8fd5df4fec5b56b4d11c9ba8b9ebfb883c90ec361628d07be00aaa4f009a", "aaa519335a71f87217ca8a680c3b66b61960e148407bdf5c209c42f50fe30f49", "ae3864816287d0e86ead580b69921daec568fe680857f07ee2a87bf7fd77ce24", "b5f8c15cb9173f6cdf0f994955e58d1265331029ae26296232379461a297e5f2", "c3ac359ace241707e5a48fe2922e566ac666aacacf4f8031f2994ac429c31344", "c7c660cc0209fdf29a4e50146ca9ac9d8664acaded6b6ae2f5d0ae2e91a0f0cd", "d690a2ff49f6c3bc35336693c9924fe5916be3cc0503fe1ea6c7e2bf951409ee", "e2317cf091c2e7f0dacdc2e72c693cc34403ca1f8e3807622d0bb653dc978616", "f28e73cf18d37a413f7d5de35d024e6b98f14566a10d82100f9dc491a7d449f9", "f2a778dd9bb3e4590dbe3bbac28e7c7134280c4ec97e3bf8678170ee58c67b21", "f5a758252502b466b9c2b201ea397dae5a914336c987f3a76c3741a82d43c96e", "fb4c33a404d9eff49a0cdc8ead0af6453f62f19e071b60d283f9dc05581e4134"]
+py-applescript = ["efb6ee624aee3b296f2d49b8739243a19641afb7da20ebd187e4f79b2866ae47"]
+pyhamcrest = ["6b672c02fdf7470df9674ab82263841ce8333fb143f32f021f6cb26f0e512420", "7a4bdade0ed98c699d728191a058a60a44d2f9c213c51e2dd1e6fb42f2c6128a", "8ffaa0a53da57e89de14ced7185ac746227a8894dbd5a3c718bf05ddbd1d56cd", "bac0bea7358666ce52e3c6c85139632ed89f115e9af52d44b3c36e0bf8cf16a9", "f30e9a310bcc1808de817a92e95169ffd16b60cbc5a016a49c8d0e8ababfae79"]
+pyobjc-core = ["198b0490b50d261aa155295b6b9f7d154a52a6bb6a67b8e3704bb29820512a6c", "19b98162bb42de01b05bb6c3c32e2c533085ce98799c6451177550416430188a", "30098aa6242b873c35546e8771e13989685d9310de76cf32d5c4d35355394899", "313f8868d5125d740a579e9565c777342b4676afce312073f84e292de0896b0e", "4a2703684d90ac323261bc4155ca839e924986354a1c23a4bb35c4da9219d37b", "9f63e76e1e1ff345aa00436247a6c914c1b2e54b1b192fe65b17496dc866f544", "aa63dd6bc1a45d0ec247088a92dad1d39a7b9282835823ea9cb79c02c23e9d0f", "f76ed67ae902ea4bf6b673962520334b0ae26910c294b6ffbd2ac1af9b62ea0f"]
+pyobjc-framework-applescriptkit = ["6cacfdb736ea2b844a92e8e453db961bc2d567d2e88c0ab43f13baa383cb4717", "fcf59b5e23c04c239e573feb881acc86ee6dbdeeb92477dd276529b754fdbf22"]
+pyobjc-framework-cocoa = ["15c0f28b39ff638d73d2f1c400c92ec8cb4904193e2650ce51dd9b8bd4435362", "38001a7cbc49452e844fef011546322683f3fe782f84c62cc1e03c79341dff42", "58691c40df5d7e1a8baf6cf68b579a6b1fe3b7d9ab735c6015cc0e03a146fd38", "80610ece3ff537c41f31c5a149e4253caa75ce46e6a6bfc2e00fcaff154f8a7d", "99b33ab038b90e8866e4cb510213f235c3010982fa425d8f34850c45ece30c43", "c1b7f5418848faf0106dbd06462f37e0fa3cade8fba869e7299f282f89651cc8", "d97fd162a60e4dc8384b4fe2cc4916039f3a8b6c8545d9df0ad35c580c1424ea", "e11c70043c5adb2acb275773396f0e4899f987749de92081e6d32f68a6abb8ed"]
+python-dateutil = ["1adb80e7a782c12e52ef9a8182bebeb73f1d7e24e374397af06fb4956c8dc5c0", "e27001de32f627c22380a688bcc43ce83504a7bc5da472209b4c70f02829f0b8"]
+six = ["70e8a77beed4562e7f14fe23a786b54f6296e34344c23bc42f07b15018ff98e9", "832dc0e10feb1aa2c68dcc57dbb658f1c7e65b9b61af69048abc87a2db00a0eb"]
+tqdm = ["536e5a0205b6401d8aaf04b21469949c178dbe3642e3c76d3bb494a83cb22a10", "60bbaa6700e87a250f6abcbbd7ddb33243ad592240ba46afce5305b15b406fad"]
+twisted = ["5de7b79b26aee64efe63319bb8f037af88c21287d1502b39706c818065b3d5a4", "95ae985716e8107816d8d0df249d558dbaabb677987cc2ace45272c166b267e4"]
+txspinneret = ["a622ab277e7a654050c800ad4959a13a268eb8e48ab77374684ec04d79bbdf30", "f14ea83d5e9734283eba5af8d0c540cd13f0cf082447a0687b7a861a5e3f9f37"]
+werkzeug = ["c3fd7a7d41976d9f44db327260e263132466836cef6f91512889ed60ad26557c", "d5da73735293558eb1651ee2fddc4d0dedcfa06538b8813a2e20011583c9e49b"]
+"zope.interface" = ["21506674d30c009271fe68a242d330c83b1b9d76d62d03d87e1e9528c61beea6", "3d184aff0756c44fff7de69eb4cd5b5311b6f452d4de28cb08343b3f21993763", "467d364b24cb398f76ad5e90398d71b9325eb4232be9e8a50d6a3b3c7a1c8789", "57c38470d9f57e37afb460c399eb254e7193ac7fb8042bd09bdc001981a9c74c", "9ada83f4384bbb12dedc152bcdd46a3ac9f5f7720d43ac3ce3e8e8b91d733c10", "a1daf9c5120f3cc6f2b5fef8e1d2a3fb7bbbb20ed4bfdc25bc8364bc62dcf54b", "e6b77ae84f2b8502d99a7855fa33334a1eb6159de45626905cb3e454c023f339", "e881ef610ff48aece2f4ee2af03d2db1a146dc7c705561bd6089b2356f61641f", "f41037260deaacb875db250021fe883bf536bf6414a4fd25b25059b02e31b120"]

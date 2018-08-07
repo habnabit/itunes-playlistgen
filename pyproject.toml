@@ -1,0 +1,22 @@
+[tool.poetry]
+name = "playlistgen"
+version = "0.1.0"
+description = ""
+authors = ["Harold Abnabit <_@habnab.it>"]
+
+[tool.poetry.dependencies]
+python = "^2.7"
+"backports.statistics" = "^0.1.0"
+arrow = "^0.12.1"
+attrs = "^18.1"
+click = "^6.7"
+klein = "^17.10"
+numpy = "^1.15"
+py-applescript = "^1.0"
+pyobjc-framework-applescriptkit = "^4.2"
+tqdm = "^4.24"
+twisted = "^18.7"
+txspinneret = "^0.1.3"
+
+[tool.poetry.scripts]
+playlistgen = "playlistgen:main"
