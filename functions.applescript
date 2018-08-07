@@ -78,7 +78,7 @@ on fill_tracks(plns, tl, ctrl)
 		set pl to my nested_playlist(plns)
 		delete tracks of pl
 		repeat with t in tl
-			duplicate (the first track whose persistent ID is t) to pl
+			duplicate (the first track whose persistent ID is t) to the end of pl
 		end repeat
 		if ctrl then play pl
 	end tell
@@ -95,7 +95,7 @@ on get_playlists()
 	set ret to {}
 	tell application "iTunes"
 		repeat with pl in (every playlist whose special kind is none)
-			if (the tracks of pl exists) and pl's smart is false and pl's genius is false then
+			if (the tracks of pl exists) and pl's smart is false and pl's genius is false and pl's name does not start with "<" then
 				copy {the name of pl, the persistent ID of tracks of pl} to the end of ret
 			end if
 		end repeat
