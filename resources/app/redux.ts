@@ -144,19 +144,29 @@ function albumShuffleReducer(state = new AlbumShuffleSelector(), action: AllActi
 
 function timefillReducer(state = new TimefillSelector(), action: AllActions): TimefillSelector {
     switch (action.type) {
-    case getType(actions.changeName):
-        let { name } = action.payload
-        return state.set('name', name)
+    case getType(actions.changeControlTimefill): {
+        let { lens, value } = action.payload
+        return lens.set(value)(state)
+    }
 
     case getType(actions.addTarget):
         return state.update('targets', l => l.push(''))
 
-    case getType(actions.changeTarget):
-        let { index, value } = action.payload
-        return state.update('targets', l => l.set(index, value))
+    case getType(actions.addWeight):
+        let first = state.albums.keySeq().first()
+        return state.update('weights', l => l.push([first, '']))
 
-    case getType(actions.fetchTracks.success):
-        return state.withTracksResponse(action.payload.json)
+    case getType(actions.changeWeight): {
+        let { index, event } = action.payload
+        return state.update('weights', l => l.update(index, ([key, weight]) => {
+            if (event.target instanceof HTMLInputElement) {
+                weight = event.target.value
+            } else if (event.target instanceof HTMLSelectElement) {
+                key = state.albums.toIndexedSeq().get(event.target.selectedIndex).key
+            }
+            return [key, weight]
+        }))
+    }
 
     case getType(actions.togglePlaylistTrack):
         let { lens, track } = action.payload
@@ -176,6 +186,17 @@ function timefillReducer(state = new TimefillSelector(), action: AllActions): Ti
         } else {
             return state
         }
+
+    case getType(actions.setHash):
+        location.hash = "#" + JSON.stringify({
+            name: state.name,
+            targets: state.targets.toArray(),
+            weights: state.weights.map(([k, w]) => [k.toJSON(), w]).toArray(),
+        })
+        return state
+
+    case getType(actions.fetchTracks.success):
+        return state.withTracksResponse(action.payload.json)
 
     case getType(actions.runTimefill.success):
         return state.withTimefillResponse(action.payload.json, action.payload.replace)

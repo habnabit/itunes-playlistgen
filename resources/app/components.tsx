@@ -1,5 +1,5 @@
 import { SvgProperties, StandardProperties } from 'csstype'
-import { List, Map, Seq, Set } from 'immutable'
+import { List, Map, Seq, Set, OrderedSet, OrderedMap } from 'immutable'
 import { Lens } from 'monocle-ts'
 import * as React from 'react'
 import { connect } from 'react-redux'
@@ -10,6 +10,7 @@ import * as actions from './actions'
 import { lensFromImplicitAccessors } from './extlens'
 import { Album, AlbumKey, AlbumSelector, AlbumShuffleSelector, Track, TrackId, AlbumSelectors, isoTrackId, TimefillSelector, Playlist, PlaylistTrackSelection } from './types'
 import xstreamConfig from 'recompose/xstreamObservableConfig';
+import { albumShuffleStore } from './redux';
 
 
 const colorOrder = [
@@ -162,7 +163,7 @@ const AlbumSelectorComponent = onlyUpdateForKeys(
 
     return <div className={classes.join(' ')}>
         <header>
-            <h3 style={{background: props.color}}>{album.key.album}; {album.key.artist}</h3>
+            <h3 style={{background: props.color}}>{album.key.prettyName()}</h3>
             <h5 className="playlists">{allPlaylists.join('; ')}</h5>
             {controls}
         </header>
@@ -384,7 +385,7 @@ const PlaylistTrackComponent = onlyUpdateForKeys(
 }) => {
     let key = props.track.albumKey()
     return <li className={props.selected || ''} onClick={props.onToggle}>
-        <DurationComponent duration={props.track.t('pDur')} /> {props.track.t('pnam')} ({key.album}; {key.artist})
+        <DurationComponent duration={props.track.t('pDur')} /> {props.track.t('pnam')} ({key.prettyName()})
     </li>
 })
 
@@ -436,7 +437,7 @@ export const ConnectedPlaylistComponent = connect(
             onToggle: (track: TrackId) => () => dispatchProps.onToggle({lens, track}),
             onReroll: () => {
                 let selections = playlist.selectionMap()
-                dispatchProps.onReroll({targets: top.targets, selections, replace: lens})
+                dispatchProps.onReroll({targets: top.allTargets(), selections, replace: lens})
             },
             onSave: () => {
                 dispatchProps.onSave({name: top.name, tracks: playlist.tracks})
@@ -451,41 +452,97 @@ export const ConnectedPlaylistComponent = connect(
 
 const TargetsComponent = ((props: {
     targets: List<string>
+    targetsLens: Lens<TimefillSelector, List<string>>
     onAddTarget: typeof actions.addTarget
-    onChangeTarget: typeof actions.changeTarget
+    onChangeControl: typeof actions.changeControlTimefill
     keyb: KeyboardEvents,
 }) => {
     return <section>
         <button onClick={() => props.onAddTarget({})}>Add target</button>
         {props.targets.map((target, e) => {
-            return <input key={e} type="text" placeholder="Target..." value={target} onChange={ev => {
-                props.onChangeTarget({index: e, value: ev.target.value})
+            let lens: Lens<TimefillSelector, string> = props.targetsLens.compose(lensFromImplicitAccessors(e))
+            return <input key={e} type="text" placeholder="Target…" value={target} onChange={ev => {
+                props.onChangeControl({lens, value: ev.target.value})
             }} {...props.keyb} />
         })}
     </section>
 })
 
-export const ConnectedTargetsComponent = connect(
+const ConnectedTargetsComponent = connect(
     (top: TimefillSelector) => ({targets: top.targets}),
     (d: Dispatch) => bindActionCreators({
         onAddTarget: actions.addTarget,
-        onChangeTarget: actions.changeTarget,
+        onChangeControl: actions.changeControlTimefill,
         onKeyboardAvailable: actions.setKeyboardAvailability,
     }, d),
-    (props, dispatch, ownProps) => Object.assign(
-            keyboardEvents(dispatch), props, dispatch, ownProps) as any,
+    (props, dispatch, ownProps) => {
+        let targetsLens: Lens<TimefillSelector, List<string>> = new Lens(
+            o => o.get('targets', undefined),
+            v => o => o.set('targets', v))
+        return Object.assign(
+            {targetsLens}, keyboardEvents(dispatch), props, dispatch, ownProps) as any
+    },
     {
         areStatesEqual: (x, y) => x.targets === y.targets,
         areStatePropsEqual: (x, y) => x.targets === y.targets,
     },
 )(TargetsComponent)
 
+const WeightsComponent = ((props: {
+    albums: OrderedMap<AlbumKey, Album>
+    weights: List<[AlbumKey, string]>
+    onAddWeight: typeof actions.addWeight
+    onChangeWeight: typeof actions.changeWeight
+    keyb: KeyboardEvents,
+}) => {
+    return <section>
+        <button onClick={() => props.onAddWeight({})}>Add weight</button>
+        {props.weights.map(([selected, weight], i) => {
+            let events = Object.assign({
+                onChange: (event: React.ChangeEvent) => props.onChangeWeight({event, index: i}),
+            }, props.keyb)
+            var selIndex = 0
+            let albumOptions = props.albums.keySeq().map((album, j) => {
+                if (album.equals(selected)) {
+                    selIndex = j
+                }
+                return <option key={j} value={j.toString()}>{album.prettyName()}</option>
+            }).toList()
+            return <fieldset key={i}>
+                <select value={selIndex.toString()} {...events}>{albumOptions}</select>
+                <input type="number" placeholder="Weight…" value={weight} {...events} />
+            </fieldset>
+        })}
+    </section>
+})
+
+const ConnectedWeightsComponent = connect(
+    (top: TimefillSelector) => {
+        let { albums, weights } = top
+        return { albums, weights }
+    },
+    (d: Dispatch) => bindActionCreators({
+        onAddWeight: actions.addWeight,
+        onChangeWeight: actions.changeWeight,
+        onChangeControl: actions.changeControlTimefill,
+        onKeyboardAvailable: actions.setKeyboardAvailability,
+    }, d),
+    (props, dispatch, ownProps) => {
+        return Object.assign(
+            keyboardEvents(dispatch), props, dispatch, ownProps) as any
+    },
+    {
+        areStatesEqual: (x, y) => x.weights === y.weights && x.albums === y.albums,
+        areStatePropsEqual: (x, y) => x.weights === y.weights && x.albums === y.albums,
+    },
+)(WeightsComponent)
+
 class TimefillSelectorComponent extends React.PureComponent<{
     name: string
     playlists: List<Playlist>
     selectState: PlaylistTrackSelection
     keyb: KeyboardEvents,
-    onChangeName: typeof actions.changeName
+    onChangeName: (name: string) => void
     onLoad: typeof actions.fetchTracks.request
     onSelect: () => void
 }> {
@@ -502,9 +559,10 @@ class TimefillSelectorComponent extends React.PureComponent<{
         }
         return <div className={classes.join(' ')}>
             <section>
-                <textarea onChange={ev => this.props.onChangeName({name: ev.target.value})} value={this.props.name} {...this.props.keyb} />
+                <textarea onChange={ev => this.props.onChangeName(ev.target.value)} value={this.props.name} {...this.props.keyb} />
             </section>
             <ConnectedTargetsComponent />
+            <ConnectedWeightsComponent />
             <section>
                 <button onClick={this.props.onSelect}>Select new</button>
             </section>
@@ -515,6 +573,38 @@ class TimefillSelectorComponent extends React.PureComponent<{
     }
 }
 
+export const ConnectedTimefillSelectorComponent = connect(
+    (top: TimefillSelector = new TimefillSelector()) => {
+        let { name, targets, playlists } = top
+        return {
+            name, targets, playlists,
+            allTargets: top.allTargets(),
+            selectState: top.currentSelection(),
+        }
+    },
+    (d: Dispatch) => bindActionCreators({
+        onChangeControl: actions.changeControlTimefill,
+        onKeyboardAvailable: actions.setKeyboardAvailability,
+        onSetHash: actions.setHash,
+        onLoad: actions.fetchTracks.request,
+        onSelect: actions.runTimefill.request,
+    }, d),
+    (props, dispatch, ownProps) => {
+        let lens: Lens<TimefillSelector, string> = new Lens(
+            o => o.get('name', undefined),
+            v => o => o.set('name', v))
+        let extraProps = {
+            onSelect: () => {
+                dispatch.onSelect({targets: props.allTargets})
+                dispatch.onSetHash()
+            },
+            onChangeName: (value: string) => dispatch.onChangeControl({lens, value}),
+        }
+        return Object.assign(
+            keyboardEvents(dispatch), props, dispatch, ownProps, extraProps)
+    },
+)(TimefillSelectorComponent)
+
 type KeyboardEvents = {keyb: {onFocus: () => void, onBlur: () => void}}
 function keyboardEvents(dispatch: {onKeyboardAvailable: typeof actions.setKeyboardAvailability}): KeyboardEvents {
     return {
@@ -524,23 +614,3 @@ function keyboardEvents(dispatch: {onKeyboardAvailable: typeof actions.setKeyboa
         }
     }
 }
-
-export const ConnectedTimefillSelectorComponent = connect(
-    (top: TimefillSelector = new TimefillSelector()) => {
-        let { name, targets, playlists } = top
-        return {
-            name, targets, playlists,
-            selectState: top.currentSelection(),
-        }
-    },
-    (d: Dispatch) => bindActionCreators({
-        onChangeName: actions.changeName,
-        onKeyboardAvailable: actions.setKeyboardAvailability,
-        onLoad: actions.fetchTracks.request,
-        onSelect: actions.runTimefill.request,
-    }, d),
-    (props, dispatch, ownProps) => Object.assign(
-        keyboardEvents(dispatch),
-        {onSelect: () => dispatch.onSelect({targets: props.targets})},
-        props, dispatch, ownProps),
-)(TimefillSelectorComponent)

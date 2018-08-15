@@ -1,4 +1,4 @@
-import { List, Map, OrderedMap, Record, Seq, Set } from 'immutable'
+import { List, Map, OrderedMap, Record, Seq, Set, OrderedSet } from 'immutable'
 import { iso, Newtype } from 'newtype-ts'
 import { Lens } from '../node_modules/monocle-ts'
 
@@ -16,7 +16,9 @@ export class AlbumKey extends Record({
     album: undefined as string,
     artist: undefined as string,
 }) {
-
+    prettyName(): string {
+        return this.album + "; " + this.artist
+    }
 }
 
 export class Track {
@@ -204,6 +206,8 @@ export class TimefillSelector extends Record({
     tracks: Map<TrackId, Track>(),
     name: '',
     targets: List<string>(),
+    albums: OrderedMap<AlbumKey, Album>(),
+    weights: List<[AlbumKey, string]>(),
     playlists: List<Playlist>(),
     keyboardAvailable: true,
     keysDown: Map<string, boolean>(),
@@ -231,12 +235,15 @@ export class TimefillSelector extends Record({
     }
 
     withTracksResponse(j: any): this {
-        let tracks = Map<TrackId, Track>().withMutations(m => {
-            for (let t of j.data) {
+        let orderedTracks = OrderedMap<TrackId, Track>().withMutations(m => {
+            for (var t of j.data) {
                 m.set(isoTrackId.wrap(t.T_pPIS), new Track(t))
             }
         })
-        return this.set('tracks', tracks)
+        let tracks = orderedTracks.toMap()
+        let albums = collateAlbums(orderedTracks.values())
+            .sortBy(album => album.nameLower)
+        return this.merge({tracks, albums})
     }
 
     withTimefillResponse(j: any, replace?: Lens<TimefillSelector, Playlist>): TimefillSelector {
@@ -251,5 +258,15 @@ export class TimefillSelector extends Record({
         } else {
             return this.set('playlists', playlists)
         }
+    }
+
+    allTargets(): List<string> {
+        let targets = this.targets
+        if (!this.weights.isEmpty()) {
+            targets = targets.push('album-weight=' + JSON.stringify({
+                weights: this.weights.toJSON(),
+            }))
+        }
+        return targets
     }
 }

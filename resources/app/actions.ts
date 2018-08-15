@@ -31,15 +31,18 @@ export const updateSearch = createStandardAction('playlistgen/updateSearch')<{
     query: string
 }>()
 
-export const changeName = createStandardAction('playlistgen/changeName')<{
-    name: string
+export const changeControlTimefill = createStandardAction('playlistgen/changeControlTimefill')<{
+    lens: Lens<TimefillSelector, string>
+    value: string
 }>()
 
 export const addTarget = createStandardAction('playlistgen/addTarget')<{}>()
 
-export const changeTarget = createStandardAction('playlistgen/changeTarget')<{
+export const addWeight = createStandardAction('playlistgen/addWeight')<{}>()
+
+export const changeWeight = createStandardAction('playlistgen/changeWeight')<{
     index: number
-    value: string
+    event: React.ChangeEvent
 }>()
 
 export const togglePlaylistTrack = createStandardAction('playlistgen/togglePlaylistTrack')<{
@@ -55,6 +58,8 @@ export const changeKey = createStandardAction('playlistgen/changeKey')<{
     key: string
     down: boolean
 }>()
+
+export const setHash = createStandardAction('playlistgen/setHash')<void>()
 
 export const fetchTracks = createAsyncAction('playlistgen/fetchTracksRequest', 'playlistgen/fetchTracksSuccess', 'playlistgen/fetchTracksFailure')<void, {json: any}, Error>()
 

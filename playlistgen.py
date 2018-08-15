@@ -6,6 +6,7 @@ import datetime
 import functools
 import io
 import itertools
+import json
 import heapq
 import math
 import operator
@@ -194,6 +195,24 @@ class TargetAlbums(object):
             return tracks_per_album ** self.power
 
 
+@attr.s
+class TargetAlbumWeights(object):
+    weights = attr.ib()
+
+    @classmethod
+    def from_json(cls, data):
+        parsed = json.loads(data)
+        inputs = {}
+        inputs['weights'] = {
+            (d['album'], d['artist']): float(w) if w != '' else 1
+            for d, w in parsed['weights']}
+        return cls(**inputs)
+
+    def score(self, tracks):
+        subscores = [self.weights.get(album_key(t), 1) for t in tracks]
+        return reduce(operator.mul, subscores, 1)
+
+
 def timefill_search_targets(rng, tracks, targets, pull_prev=None, keep=None, n_options=None, iterations=None, initial=()):
     pull_prev = pull_prev or 25
     keep = keep or 125
@@ -248,17 +267,25 @@ def timefill_search_targets(rng, tracks, targets, pull_prev=None, keep=None, n_o
     return results
 
 
-TARGETS = {cls.name: cls for cls in [
+TARGETS = {cls.name: (cls, True) for cls in [
     TargetTracks,
     TargetTime,
     TargetAlbums,
 ]}
 
+TARGETS['album-weight'] = (TargetAlbumWeights.from_json, False)
+
 
 def parse_target(value):
-    args = [arg.partition('=')[::2] for arg in value.split(',')]
-    target_name, first_arg = args.pop(0)
-    return TARGETS[target_name](first_arg, **dict(args))
+    target_name, _, rest = value.partition('=')
+    constructor, parse_equals = TARGETS[target_name]
+    if parse_equals:
+        values = rest.split(',')
+        first_arg = values.pop(0)
+        args = [values.partition('=')[::2] for value in values]
+        return constructor(first_arg, **dict(args))
+    else:
+        return constructor(rest)
 
 
 def unrecent_score_tracks(tracks, bias_recent_adds, unrecentness_days):
