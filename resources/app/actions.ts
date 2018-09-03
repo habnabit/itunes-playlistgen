@@ -27,9 +27,6 @@ export const changeControl = createStandardAction('playlistgen/controlChange')<{
     value: string
 }>()
 
-export const updateSearch = createStandardAction('playlistgen/updateSearch')<{
-    query: string
-}>()
 export const performSearch = createStandardAction('playlistgen/performSearch')()
 
 export const changeControlTimefill = createStandardAction('playlistgen/changeControlTimefill')<{

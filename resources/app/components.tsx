@@ -295,11 +295,9 @@ const AlbumSearchComponent = onlyUpdateForKeys(
     searchQuery: string
     searchResults: List<AlbumSelector>
     onChange: typeof actions.changeControl
-    onSearch: typeof actions.updateSearch
 }) => {
     return <div>
         <input type="search" placeholder="Album search..." value={props.searchQuery} onChange={(ev) => {
-            props.onSearch({query: ev.target.value})
             props.onChange({prop: 'searchQuery', value: ev.target.value})
         }} />
         <div className="album-source">
@@ -318,7 +316,6 @@ export const ConnectedAlbumSearchComponent = connect(
     (top: AlbumShuffleSelector) => (top || new AlbumShuffleSelector()).toObject(),
     (d: Dispatch) => bindActionCreators({
         onChange: actions.changeControl,
-        onSearch: actions.updateSearch,
     }, d),
     undefined,
     {

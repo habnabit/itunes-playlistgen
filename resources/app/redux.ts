@@ -2,8 +2,8 @@ import { List, Seq, Map } from 'immutable'
 import * as qs from 'qs'
 import { applyMiddleware, createStore, combineReducers, Reducer, Store, DeepPartial } from 'redux'
 import { createEpicMiddleware, Epic } from 'redux-observable'
-import { from } from 'rxjs'
-import { filter, switchMap } from 'rxjs/operators'
+import { from, timer } from 'rxjs'
+import { filter, switchMap, mergeMap, mapTo, debounceTime, map, tap } from 'rxjs/operators'
 import { ActionType, getType, isActionOf } from 'typesafe-actions'
 
 import * as actions from './actions'
@@ -98,6 +98,20 @@ const savePlaylistEpic: Epic<AllActions, AllActions> = (action$) => (
     )
 )
 
+const searchDebounceEpic: Epic<AllActions, AllActions> = (action$) => (
+    action$.pipe(
+        mergeMap((action) => {
+            if (isActionOf(actions.changeControl, action) && action.payload.prop == 'searchQuery') {
+                return [true]
+            } else {
+                return []
+            }
+        }),
+        debounceTime(250),
+        map((_true) => actions.performSearch()),
+    )
+)
+
 function albumShuffleReducer(state = new AlbumShuffleSelector(), action: AllActions): AlbumShuffleSelector {
     switch (action.type) {
     case getType(actions.toggleAlbumSelected):
@@ -120,9 +134,6 @@ function albumShuffleReducer(state = new AlbumShuffleSelector(), action: AllActi
     case getType(actions.changeControl):
         const { prop, value } = action.payload
         return state.set(prop, value)
-
-    case getType(actions.updateSearch):
-        return state.set('searchQuery', action.payload.query)
 
     case getType(actions.performSearch):
         return state.performSearch()
@@ -218,6 +229,7 @@ function makeStore<S>(reducer: Reducer<S>, state: DeepPartial<S>): Store<S> {
     epicMiddleware.run(shuffleTracksEpic)
     epicMiddleware.run(runTimefillEpic)
     epicMiddleware.run(savePlaylistEpic)
+    epicMiddleware.run(searchDebounceEpic)
 
     addEventListener('keydown', (ev) => store.dispatch(actions.changeKey({key: ev.key.toLowerCase(), down: true})))
     addEventListener('keyup', (ev) => store.dispatch(actions.changeKey({key: ev.key.toLowerCase(), down: false})))
