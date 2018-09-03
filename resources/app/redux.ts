@@ -15,11 +15,11 @@ type AllActions = ActionType<typeof actions>
 const fetchTracksEpic: Epic<AllActions, AllActions> = (action$) => (
     action$.pipe(
         filter(isActionOf(actions.fetchTracks.request)),
-        switchMap(action => from(
+        switchMap((action) => from(
             fetch('/_api/all-tracks')
-                .then(resp => resp.json())
+                .then((resp) => resp.json())
                 .then(
-                    json => actions.fetchTracks.success({json}),
+                    (json) => actions.fetchTracks.success({json}),
                     actions.fetchTracks.failure)
         ))
     )
@@ -28,11 +28,11 @@ const fetchTracksEpic: Epic<AllActions, AllActions> = (action$) => (
 const fetchPlaylistsEpic: Epic<AllActions, AllActions> = (action$) => (
     action$.pipe(
         filter(isActionOf(actions.fetchPlaylists.request)),
-        switchMap(action => from(
+        switchMap((action) => from(
             fetch('/_api/playlists')
-                .then(resp => resp.json())
+                .then((resp) => resp.json())
                 .then(
-                    json => actions.fetchPlaylists.success({json}),
+                    (json) => actions.fetchPlaylists.success({json}),
                     actions.fetchPlaylists.failure)
         ))
     )
@@ -41,15 +41,15 @@ const fetchPlaylistsEpic: Epic<AllActions, AllActions> = (action$) => (
 const shuffleTracksEpic: Epic<AllActions, AllActions> = (action$) => (
     action$.pipe(
         filter(isActionOf(actions.shuffleTracks.request)),
-        switchMap(action => {
-            let { lens } = action.payload
-            let tracks = action.payload.tracks.map(t => isoTrackId.unwrap(t.id)).toArray()
-            let params = qs.stringify({tracks}, {arrayFormat: 'repeat'})
+        switchMap((action) => {
+            const { lens } = action.payload
+            const tracks = action.payload.tracks.map((t) => isoTrackId.unwrap(t.id)).toArray()
+            const params = qs.stringify({tracks}, {arrayFormat: 'repeat'})
             return from(
                 fetch('/_api/shuffle-together-albums?' + params)
-                    .then(resp => resp.json())
+                    .then((resp) => resp.json())
                     .then(
-                        json => actions.shuffleTracks.success({json, lens}),
+                        (json) => actions.shuffleTracks.success({json, lens}),
                         actions.shuffleTracks.failure)
             )
         })
@@ -59,15 +59,15 @@ const shuffleTracksEpic: Epic<AllActions, AllActions> = (action$) => (
 const runTimefillEpic: Epic<AllActions, AllActions> = (action$) => (
     action$.pipe(
         filter(isActionOf(actions.runTimefill.request)),
-        switchMap(action => {
-            let { replace } = action.payload
-            let targets = action.payload.targets.toArray()
-            let params = qs.stringify(Object.assign({targets}, action.payload.selections), {arrayFormat: 'repeat'})
+        switchMap((action) => {
+            const { replace } = action.payload
+            const targets = action.payload.targets.toArray()
+            const params = qs.stringify({targets, ...action.payload.selections}, {arrayFormat: 'repeat'})
             return from(
                 fetch('/_api/timefill-targets?' + params)
-                    .then(resp => resp.json())
+                    .then((resp) => resp.json())
                     .then(
-                        json => actions.runTimefill.success({json, replace}),
+                        (json) => actions.runTimefill.success({json, replace}),
                         actions.runTimefill.failure)
             )
         })
@@ -77,17 +77,17 @@ const runTimefillEpic: Epic<AllActions, AllActions> = (action$) => (
 const savePlaylistEpic: Epic<AllActions, AllActions> = (action$) => (
     action$.pipe(
         filter(isActionOf(actions.savePlaylist.request)),
-        switchMap(action => {
-            let { name, tracks } = action.payload
-            let body = new FormData()
+        switchMap((action) => {
+            const { name, tracks } = action.payload
+            const body = new FormData()
             body.append('name', name)
-            for (let t of tracks) {
+            for (const t of tracks) {
                 body.append('tracks', isoTrackId.unwrap(t.id))
             }
             return from(
                 fetch('/_api/save-and-exit', {method: 'POST', body})
-                    .then(resp => resp.json())
-                    .then(json => {
+                    .then((resp) => resp.json())
+                    .then((json) => {
                         if (json.data) {
                             window.close()
                         }
@@ -107,22 +107,25 @@ function albumShuffleReducer(state = new AlbumShuffleSelector(), action: AllActi
 
     case getType(actions.removeAlbum):
         return action.payload.lens.modify((sels: AlbumSelectors) =>
-            sels.update('selectors', selsList =>
-                selsList.filter(sel => sel.album.key != action.payload.album))
+            sels.update('selectors', (selsList) =>
+                selsList.filter((sel) => sel.album.key != action.payload.album))
         )(state)
 
     case getType(actions.newAlbumSelector):
-        return state.update('selectorses', l => l.push(action.payload.initial || new AlbumSelectors()))
+        return state.update('selectorses', (l) => l.push(action.payload.initial || new AlbumSelectors()))
 
     case getType(actions.addSelectionTo):
         return state.addSelection(action.payload.lens)
 
     case getType(actions.changeControl):
-        let { prop, value } = action.payload
+        const { prop, value } = action.payload
         return state.set(prop, value)
 
     case getType(actions.updateSearch):
-        return state.updateSearch(action.payload.query)
+        return state.set('searchQuery', action.payload.query)
+
+    case getType(actions.performSearch):
+        return state.performSearch()
 
     case getType(actions.fetchTracks.success):
         return state.withTracksResponse(action.payload.json)
@@ -131,11 +134,11 @@ function albumShuffleReducer(state = new AlbumShuffleSelector(), action: AllActi
         return state.withPlaylistsResponse(action.payload.json)
 
     case getType(actions.shuffleTracks.success):
-        let { lens, json } = action.payload
-        let shuffled = Seq.Indexed.of(...json.data.tracks as TrackId[])
-            .map(tid => state.tracks.get(tid))
+        const { lens, json } = action.payload
+        const shuffled = Seq.Indexed.of(...json.data.tracks as TrackId[])
+            .map((tid) => state.tracks.get(tid))
             .toList()
-        return lens.modify(sel => sel.withShuffleResponse(shuffled, json))(state)
+        return lens.modify((sel) => sel.withShuffleResponse(shuffled, json))(state)
 
     default:
         return state
@@ -145,20 +148,20 @@ function albumShuffleReducer(state = new AlbumShuffleSelector(), action: AllActi
 function timefillReducer(state = new TimefillSelector(), action: AllActions): TimefillSelector {
     switch (action.type) {
     case getType(actions.changeControlTimefill): {
-        let { lens, value } = action.payload
+        const { lens, value } = action.payload
         return lens.set(value)(state)
     }
 
     case getType(actions.addTarget):
-        return state.update('targets', l => l.push(''))
+        return state.update('targets', (l) => l.push(''))
 
     case getType(actions.addWeight):
-        let first = state.albums.keySeq().first()
-        return state.update('weights', l => l.push([first, '']))
+        const first = state.albums.keySeq().first()
+        return state.update('weights', (l) => l.push([first, '']))
 
     case getType(actions.changeWeight): {
-        let { index, event } = action.payload
-        return state.update('weights', l => l.update(index, ([key, weight]) => {
+        const { index, event } = action.payload
+        return state.update('weights', (l) => l.update(index, ([key, weight]) => {
             if (event.target instanceof HTMLInputElement) {
                 weight = event.target.value
             } else if (event.target instanceof HTMLSelectElement) {
@@ -169,11 +172,11 @@ function timefillReducer(state = new TimefillSelector(), action: AllActions): Ti
     }
 
     case getType(actions.togglePlaylistTrack):
-        let { lens, track } = action.payload
-        let selection = state.currentSelection()
-        return lens.modify(pl =>
-            pl.update('selected', m =>
-                m.update(track, undefined, cur => cur === selection? undefined : selection))
+        const { lens, track } = action.payload
+        const selection = state.currentSelection()
+        return lens.modify((pl) =>
+            pl.update('selected', (m) =>
+                m.update(track, undefined, (cur) => cur === selection? undefined : selection))
         )(state)
 
     case getType(actions.setKeyboardAvailability):
@@ -181,7 +184,7 @@ function timefillReducer(state = new TimefillSelector(), action: AllActions): Ti
 
     case getType(actions.changeKey):
         if (state.keyboardAvailable) {
-            return state.update('keysDown', m =>
+            return state.update('keysDown', (m) =>
                 m.set(action.payload.key, action.payload.down))
         } else {
             return state

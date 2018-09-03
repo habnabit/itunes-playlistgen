@@ -30,6 +30,7 @@ export const changeControl = createStandardAction('playlistgen/controlChange')<{
 export const updateSearch = createStandardAction('playlistgen/updateSearch')<{
     query: string
 }>()
+export const performSearch = createStandardAction('playlistgen/performSearch')()
 
 export const changeControlTimefill = createStandardAction('playlistgen/changeControlTimefill')<{
     lens: Lens<TimefillSelector, string>

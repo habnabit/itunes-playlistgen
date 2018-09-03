@@ -3,7 +3,7 @@ import { List, Record } from 'immutable'
 import { Lens, Optional } from 'monocle-ts'
 
 export function lensFromRecordProp<TProps, T extends Record<TProps>, P extends keyof TProps>(prop: P): Lens<T, TProps[P]> {
-    return new Lens(r => r.get(prop, undefined), v => r => r.set(prop, v))
+    return new Lens((r) => r.get(prop, undefined), (v) => (r) => r.set(prop, v))
 }
 
 export function lensFromListIndex<T>(index: number): Lens<List<T>, T> {
@@ -16,7 +16,7 @@ export function lensFromIndex<T>(index: number): Lens<T[], T> {
     return new Lens(
         (a: T[]) => a[index],
         (v: T) => (a: T[]) => {
-            let a_ = a.slice()
+            const a_ = a.slice()
             a_[index] = v
             return a_
         })
@@ -28,7 +28,7 @@ interface ImplicitAccessors<K, V> {
 }
 
 export function lensFromImplicitAccessors<K, V, T extends ImplicitAccessors<K, V>>(key: K): Lens<T, V> {
-    return new Lens(o => o.get(key), v => o => o.set(key, v))
+    return new Lens((o) => o.get(key), (v) => (o) => o.set(key, v))
 }
 
 interface NullableImplicitAccessors<K, V> {
@@ -37,11 +37,11 @@ interface NullableImplicitAccessors<K, V> {
 }
 
 export function lensFromNullableImplicitAccessorsAndConstructor<K, V, T extends NullableImplicitAccessors<K, V>>(key: K, constructor: () => V): Lens<T, V> {
-    return new Lens(o => o.get(key) || constructor(), (v: V) => (o: T) => o.set(key, v))
+    return new Lens((o) => o.get(key) || constructor(), (v: V) => (o: T) => o.set(key, v))
 }
 
 export function optionalFromNullableImplicitAccessors<K, V, T extends NullableImplicitAccessors<K, V>>(key: K): Optional<T, V> {
-    return new Optional(o => fromNullable(o.get(key)), (v: V) => (o: T) => o.set(key, v))
+    return new Optional((o) => fromNullable(o.get(key)), (v: V) => (o: T) => o.set(key, v))
 }
 
 export class ComponentLens<P, S, C extends React.Component<P, S>, A> {
@@ -58,11 +58,11 @@ export class ComponentLens<P, S, C extends React.Component<P, S>, A> {
     }
 
     set(v: A) {
-        this.bound.setState(s => this.lens.set(v)(s))
+        this.bound.setState((s) => this.lens.set(v)(s))
     }
 
     modify(f: (x: A) => A) {
-        this.bound.setState(s => this.lens.modify(f)(s))
+        this.bound.setState((s) => this.lens.modify(f)(s))
     }
 
     compose<U>(over: Lens<A, U>): ComponentLens<P, S, C, U> {

@@ -13,13 +13,13 @@ import { TimefillSelector, AlbumKey } from './types';
 
 function makeRootElement(): JSX.Element {
     if (location.pathname == '/timefill') {
-        let initial = {
+        const initial = {
             targets: undefined as List<string>,
             name: undefined as string,
             weights: undefined as List<[AlbumKey, string]>,
         }
         if (location.hash.length > 1) {
-            let parsed: {
+            const parsed: {
                 targets?: string[]
                 name?: string
                 weights?: [{album: string, artist: string}, string][]
@@ -34,7 +34,7 @@ function makeRootElement(): JSX.Element {
                     .toList()
             }
         }
-        let state = new TimefillSelector(initial)
+        const state = new TimefillSelector(initial)
         return <Provider store={stores.timefillStore(state)}>
             <ConnectedTimefillSelectorComponent />
         </Provider>

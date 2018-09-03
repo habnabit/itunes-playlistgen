@@ -46,7 +46,7 @@ export class Album extends Record({
     tracks: List<Track>(),
 }) {
     constructor(key: AlbumKey) {
-        let nameLower = (key.album + ' ' + key.artist).toLowerCase()
+        const nameLower = (key.album + ' ' + key.artist).toLowerCase()
         super({ key, nameLower })
     }
 
@@ -56,10 +56,10 @@ export class Album extends Record({
 }
 
 export function collateAlbums(tracks: IterableIterator<Track>, collated: Map<AlbumKey, Album> = Map()): Map<AlbumKey, Album> {
-    return collated.withMutations(collated => {
-        for (let t of tracks) {
-            let key = t.albumKey()
-            collated.update(key, undefined, album => {
+    return collated.withMutations((collated) => {
+        for (const t of tracks) {
+            const key = t.albumKey()
+            collated.update(key, undefined, (album) => {
                 if (!album) {
                     album = new Album(key)
                 }
@@ -95,67 +95,67 @@ export class AlbumShuffleSelector extends Record({
     nAlbums: '4',
     nChoices: '5',
     searchQuery: '',
+    activeSearch: '',
     searchResults: List<AlbumSelector>(),
     sources: Map<string, string>(),
     sourcingGenius: false,
     pickingAlbums: false,
 }) {
     withTracksResponse(j: any): this {
-        let orderedTracks = OrderedMap<TrackId, Track>().withMutations(m => {
-            for (var t of j.data) {
+        const orderedTracks = OrderedMap<TrackId, Track>().withMutations((m) => {
+            for (const t of j.data) {
                 m.set(isoTrackId.wrap(t.T_pPIS), new Track(t))
             }
         })
-        let tracks = orderedTracks.toMap()
-        let albums = collateAlbums(orderedTracks.values())
+        const tracks = orderedTracks.toMap()
+        const albums = collateAlbums(orderedTracks.values())
         return this.merge({tracks, albums})
     }
 
     withPlaylistsResponse(j: any): this {
-        let tracksMap = Map<TrackId, Set<string>>().withMutations(m => {
-            for (let [album, tracks] of j.data) {
-                for (let track of tracks) {
-                    m.update(track, Set(), l => l.add(album))
+        const tracksMap = Map<TrackId, Set<string>>().withMutations((m) => {
+            for (const [album, tracks] of j.data) {
+                for (const track of tracks) {
+                    m.update(track, Set(), (l) => l.add(album))
                 }
             }
         })
         return this.set('existingPlaylists', tracksMap)
     }
 
-    updateSearch(query: string): this {
-        if (query.length < 2) {
-            return this.set('searchResults', List())
-        }
-        let needle = query.toLowerCase()
-        return this.set(
-            'searchResults',
-            this.albums
+    performSearch(): this {
+        const activeSearch = this.searchQuery
+        let searchResults = List()
+        if (activeSearch.length >= 2) {
+            const needle = activeSearch.toLowerCase()
+            searchResults = this.albums
                 .valueSeq()
-                .filter(album => album.nameLower.includes(needle))
+                .filter((album) => album.nameLower.includes(needle))
                 .map((album) => new AlbumSelector({album}))
                 .toList()
-        )
+        }
+        return this.merge({activeSearch, searchResults})
     }
 
     allSelected(): Seq.Indexed<[AlbumSelector, Lens<AlbumShuffleSelector, AlbumSelector>]> {
         return this.searchResults.valueSeq()
             .map((sel, e) => {
-                let lens1: Lens<AlbumShuffleSelector, List<AlbumSelector>> = new Lens(
-                    o => o.get('searchResults', undefined),
-                    v => o => o.set('searchResults', v))
-                let lens2: Lens<AlbumShuffleSelector, AlbumSelector> = lens1.compose(lensFromImplicitAccessors(e))
+                const lens1: Lens<AlbumShuffleSelector, List<AlbumSelector>> = new Lens(
+                    (o) => o.get('searchResults', undefined),
+                    (v) => (o) => o.set('searchResults', v))
+                const lens2: Lens<AlbumShuffleSelector, AlbumSelector> = lens1.compose(lensFromImplicitAccessors(e))
                 return [sel, lens2] as [AlbumSelector, null]
             })
             .concat(this.selectorses.valueSeq().flatMap((sels, i) => {
-                let lens1: Lens<AlbumShuffleSelector, List<AlbumSelectors>> = new Lens(
-                    o => o.get('selectorses', undefined),
-                    v => o => o.set('selectorses', v))
-                let lens2: Lens<AlbumShuffleSelector, AlbumSelectors> = lens1.compose(lensFromImplicitAccessors(i))
+                const lens1: Lens<AlbumShuffleSelector, List<AlbumSelectors>> = new Lens(
+                    (o) => o.get('selectorses', undefined),
+                    (v) => (o) => o.set('selectorses', v))
+                const lens2: Lens<AlbumShuffleSelector, AlbumSelectors> = lens1.compose(lensFromImplicitAccessors(i))
                 return sels.selectors.map((sel, j) => {
-                    let lens3: Lens<AlbumShuffleSelector, List<AlbumSelector>> = lens2.compose(new Lens(
-                        o => o.get('selectors', undefined),
-                        v => o => o.set('selectors', v)))
-                    let lens4: Lens<AlbumShuffleSelector, AlbumSelector> = lens3.compose(lensFromImplicitAccessors(j))
+                    const lens3: Lens<AlbumShuffleSelector, List<AlbumSelector>> = lens2.compose(new Lens(
+                        (o) => o.get('selectors', undefined),
+                        (v) => (o) => o.set('selectors', v)))
+                    const lens4: Lens<AlbumShuffleSelector, AlbumSelector> = lens3.compose(lensFromImplicitAccessors(j))
                     return [sel, lens4] as [AlbumSelector, null]
                 })
             }))
@@ -163,23 +163,23 @@ export class AlbumShuffleSelector extends Record({
     }
 
     hasSelection(): boolean {
-        return this.allSelected().some(_t => true)
+        return this.allSelected().some((_t) => true)
     }
 
     addSelection(selectors: Lens<AlbumShuffleSelector, AlbumSelectors>): AlbumShuffleSelector {
-        let newSelectors = this.allSelected()
+        const newSelectors = this.allSelected()
             .map(([sel, _lens]) => new AlbumSelector({album: sel.album}))
             .toList()
-        return selectors.modify(sels =>
-            sels.update('selectors', selsList =>
+        return selectors.modify((sels) =>
+            sels.update('selectors', (selsList) =>
                 selsList.concat(newSelectors))
         )(this).clearSelected()
     }
 
     clearSelected(): AlbumShuffleSelector {
         return this.allSelected().reduce((ret, [_sel, lens]) => {
-            return lens.modify(sel => sel.set('selected', false))(ret)
-        }, this)
+            return lens.modify((sel) => sel.set('selected', false))(ret)
+        }, this as AlbumShuffleSelector)
     }
 }
 
@@ -192,7 +192,7 @@ export class Playlist extends Record({
     scores: [] as number[],
 }) {
     selectionMap(): {[K in PlaylistTrackSelection]: TrackId[]} {
-        let ret = {include: [] as TrackId[], exclude: [] as TrackId[]}
+        const ret = {include: [] as TrackId[], exclude: [] as TrackId[]}
         this.selected.forEach((sel, tid) => {
             if (sel) {
                 ret[sel].push(tid)
@@ -223,8 +223,8 @@ export class TimefillSelector extends Record({
     }
 
     selectionMap(): {[K in PlaylistTrackSelection]: TrackId[]} {
-        let ret = {include: [] as TrackId[], exclude: [] as TrackId[]}
-        this.playlists.forEach(pl => {
+        const ret = {include: [] as TrackId[], exclude: [] as TrackId[]}
+        this.playlists.forEach((pl) => {
             pl.selected.forEach((sel, tid) => {
                 if (sel) {
                     ret[sel].push(tid)
@@ -235,26 +235,26 @@ export class TimefillSelector extends Record({
     }
 
     withTracksResponse(j: any): this {
-        let orderedTracks = OrderedMap<TrackId, Track>().withMutations(m => {
-            for (var t of j.data) {
+        const orderedTracks = OrderedMap<TrackId, Track>().withMutations((m) => {
+            for (const t of j.data) {
                 m.set(isoTrackId.wrap(t.T_pPIS), new Track(t))
             }
         })
-        let tracks = orderedTracks.toMap()
-        let albums = collateAlbums(orderedTracks.values())
-            .sortBy(album => album.nameLower)
+        const tracks = orderedTracks.toMap()
+        const albums = collateAlbums(orderedTracks.values())
+            .sortBy((album) => album.nameLower)
         return this.merge({tracks, albums})
     }
 
     withTimefillResponse(j: any, replace?: Lens<TimefillSelector, Playlist>): TimefillSelector {
-        let playlists = List(j.data.playlists as {tracks: TrackId[], score: number, scores: number[]}[])
-            .map(p => {
-                let initial = Object.assign(p, {tracks: List(p.tracks).map(tid => this.tracks.get(tid))})
+        const playlists = List(j.data.playlists as {tracks: TrackId[], score: number, scores: number[]}[])
+            .map((p) => {
+                const initial = {...p, tracks: List(p.tracks).map((tid) => this.tracks.get(tid))}
                 return new Playlist(initial)
             })
         if (replace) {
-            let toInsert = playlists.first()
-            return replace.modify(pl => toInsert.set('selected', pl.selected))(this)
+            const toInsert = playlists.first()
+            return replace.modify((pl) => toInsert.set('selected', pl.selected))(this)
         } else {
             return this.set('playlists', playlists)
         }

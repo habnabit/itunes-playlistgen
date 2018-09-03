@@ -9,8 +9,6 @@ import { bindActionCreators, Dispatch } from 'redux'
 import * as actions from './actions'
 import { lensFromImplicitAccessors } from './extlens'
 import { Album, AlbumKey, AlbumSelector, AlbumShuffleSelector, Track, TrackId, AlbumSelectors, isoTrackId, TimefillSelector, Playlist, PlaylistTrackSelection } from './types'
-import xstreamConfig from 'recompose/xstreamObservableConfig';
-import { albumShuffleStore } from './redux';
 
 
 const colorOrder = [
@@ -24,40 +22,40 @@ class ShuffleInfoComponent extends React.PureComponent<{
     colorByAlbum: Map<AlbumKey, string>
 }> {
     colorByAlbumIndex(): Map<number, string> {
-        let seq = Seq.Indexed.of(...this.props.response.data.info.albums as string[][])
+        const seq = Seq.Indexed.of(...this.props.response.data.info.albums as string[][])
             .map(([album, artist], e) => {
-                let key = new AlbumKey({album, artist})
+                const key = new AlbumKey({album, artist})
                 return [e, this.props.colorByAlbum.get(key)] as [number, string]
             })
         return Map(seq)
     }
 
     matGroup(): {xMax: number, yMax: number, element: JSX.Element} {
-        let lineStyle: SvgProperties = {
+        const lineStyle: SvgProperties = {
             stroke: 'rgba(0, 0, 0, 0.75)',
             strokeWidth: '0.05',
         }
 
-        let circleStyle: SvgProperties = {
+        const circleStyle: SvgProperties = {
             stroke: 'rgba(0, 0, 0, 0.5)',
             strokeWidth: lineStyle.strokeWidth,
         }
 
-        let info = this.props.response.data.info
-        let colors = this.colorByAlbumIndex()
-        let coords: number[][] = info.coords || []
-        let postPicks: number[] = info.post_picks || []
+        const info = this.props.response.data.info
+        const colors = this.colorByAlbumIndex()
+        const coords: number[][] = info.coords || []
+        const postPicks: number[] = info.post_picks || []
         let elementIdx = 0
-        let circles: JSX.Element[] = []
-        let lines: JSX.Element[] = []
-        let flatCircles: {x: number, y: number, style: SvgProperties}[] = []
+        const circles: JSX.Element[] = []
+        const lines: JSX.Element[] = []
+        const flatCircles: {x: number, y: number, style: SvgProperties}[] = []
         let xMax = 0
         coords.forEach((xs, y) => {
-            let fill = colors.get(y)
-            for (let x of xs) {
+            const fill = colors.get(y)
+            for (const x of xs) {
                 let style: SvgProperties = {}
                 flatCircles.push(({x: Math.floor(x), y, style}))
-                style = Object.assign({fill, opacity: 0.5}, circleStyle)
+                style = {fill, opacity: 0.5, ...circleStyle}
                 circles.push(<circle cx={x} cy={y} r="0.25" key={elementIdx++} style={style} />)
                 xMax = Math.max(xMax, x)
             }
@@ -67,12 +65,12 @@ class ShuffleInfoComponent extends React.PureComponent<{
             flatCircles[e].style.fill = colors.get(pick)
         })
         let lastCircle: typeof flatCircles[number]
-        for (let c of flatCircles) {
-            let {x, y, style: localCircleStyle} = c
-            localCircleStyle = Object.assign({}, circleStyle, localCircleStyle)
+        for (const c of flatCircles) {
+            const {x, y} = c
+            const localCircleStyle = {...c.style, ...circleStyle}
             circles.push(<circle cx={x} cy={y} r="0.125" key={elementIdx++} style={localCircleStyle} />)
             if (lastCircle !== undefined) {
-                let {x: x1, y: y1} = lastCircle
+                const {x: x1, y: y1} = lastCircle
                 lines.push(<line x1={x1} y1={y1} x2={x} y2={y} key={elementIdx++} style={lineStyle} />)
             }
             lastCircle = c
@@ -88,8 +86,8 @@ class ShuffleInfoComponent extends React.PureComponent<{
             return <></>
         }
 
-        let {xMax, yMax, element} = this.matGroup()
-        let viewBox = "0 0 " + (xMax + 2) + " " + (yMax + 2)
+        const {xMax, yMax, element} = this.matGroup()
+        const viewBox = "0 0 " + (xMax + 2) + " " + (yMax + 2)
         let style: StandardProperties = {}
         if (xMax == 0 || yMax == 0) {
             style = {display: 'none'}
@@ -108,7 +106,7 @@ const TrackComponent = onlyUpdateForKeys(
     track: Track
     color?: string
 }) => {
-    let style: StandardProperties = {}
+    const style: StandardProperties = {}
     if (props.color) {
         style.background = props.color
     }
@@ -123,7 +121,7 @@ const TracksComponent = onlyUpdateForKeys(
     tracks: List<Track>
     colorByAlbum?: Map<AlbumKey, string>
 }) => {
-    let colorByAlbum = props.colorByAlbum || Map()
+    const colorByAlbum = props.colorByAlbum || Map()
     return <ol className="tracklist">
         {props.tracks.map((track, e) => <TrackComponent track={track} color={colorByAlbum.get(track.albumKey())} key={e} />)}
     </ol>
@@ -140,14 +138,14 @@ const AlbumSelectorComponent = onlyUpdateForKeys(
     onToggleSelected: typeof actions.toggleAlbumSelected
     onRemove: typeof actions.removeAlbum
 }) => {
-    let album = props.selector.album
-    let classes = ['album']
+    const album = props.selector.album
+    const classes = ['album']
     if (props.selector.fading) {
         classes.push('fading')
     }
 
-    let allPlaylists = props.selector.album.tracks
-        .flatMap(t => props.playlists.get(t.id, []))
+    const allPlaylists = props.selector.album.tracks
+        .flatMap((t) => props.playlists.get(t.id, []))
         .toSet()
         .sort()
 
@@ -186,7 +184,7 @@ export const ConnectedAlbumSelectorComponent = connect(
         onToggleSelected: actions.toggleAlbumSelected,
         onRemove: actions.removeAlbum,
     }, d),
-    (props, dispatch, ownProps) => Object.assign({}, props, dispatch, ownProps),
+    (props, dispatch, ownProps) => ({...props, ...dispatch, ...ownProps}),
     {
         areStatesEqual: (x, y) => x.searchResults === y.searchResults && x.selectorses === y.selectorses && x.existingPlaylists === y.existingPlaylists,
         areOwnPropsEqual: (x, y) => x.selector.album === y.selector.album && x.selector.fading === y.selector.fading && x.selector.selected == y.selector.selected,
@@ -212,24 +210,24 @@ class AlbumSelectorsComponent extends React.PureComponent<{
     }
 
     shuffle() {
-        let tracks = this.props.selectors.selectors
-            .flatMap(sel => sel.album.tracks)
+        const tracks = this.props.selectors.selectors
+            .flatMap((sel) => sel.album.tracks)
             .toList()
         this.props.onShuffle({tracks, lens: this.props.lens})
     }
 
     save() {
-        let albumNames = this.props.selectors.selectors
-            .map(sel => sel.album.key.album)
+        const albumNames = this.props.selectors.selectors
+            .map((sel) => sel.album.key.album)
             .sort()
-        let name = '\u203b Album Shuffle\n' + albumNames.join(' \u2715 ')
+        const name = '\u203b Album Shuffle\n' + albumNames.join(' \u2715 ')
         this.props.onSave({name, tracks: this.props.selectors.shuffled})
     }
 
     render () {
-        let colors = this.colorByAlbum()
+        const colors = this.colorByAlbum()
         let shuffledDisplay = <></>
-        let shuffled = this.shuffled()
+        const shuffled = this.shuffled()
         if (!shuffled.isEmpty()) {
             shuffledDisplay = <>
                 <TracksComponent tracks={shuffled} colorByAlbum={colors} />
@@ -240,11 +238,11 @@ class AlbumSelectorsComponent extends React.PureComponent<{
         return <div className="albums-selector">
             <button onClick={() => { this.props.onAddSelection({lens: this.props.lens}) }} disabled={!this.props.allowAdd}>Add albums</button>
             {this.props.selectors.selectors.map((selector, e) => {
-                let color = colors.get(selector.album.key)
-                let lens1: Lens<AlbumShuffleSelector, List<AlbumSelector>> = this.props.lens.compose(new Lens(
-                    o => o.get('selectors', undefined),
-                    v => o => o.set('selectors', v)))
-                let selectorLens: Lens<AlbumShuffleSelector, AlbumSelector> = lens1.compose(lensFromImplicitAccessors(e))
+                const color = colors.get(selector.album.key)
+                const lens1: Lens<AlbumShuffleSelector, List<AlbumSelector>> = this.props.lens.compose(new Lens(
+                    (o) => o.get('selectors', undefined),
+                    (v) => (o) => o.set('selectors', v)))
+                const selectorLens: Lens<AlbumShuffleSelector, AlbumSelector> = lens1.compose(lensFromImplicitAccessors(e))
                 return <ConnectedAlbumSelectorComponent key={e} selectorsLens={this.props.lens} {...{selector, color, selectorLens}} />
             })}
             <button onClick={() => this.shuffle()}>Shuffle tracks</button>
@@ -256,10 +254,10 @@ class AlbumSelectorsComponent extends React.PureComponent<{
 
 export const ConnectedAlbumSelectorsComponent = connect(
     (top: AlbumShuffleSelector, ownProps: {idxTop: number}) => {
-        let lens1: Lens<AlbumShuffleSelector, List<AlbumSelectors>> = new Lens(
-            o => o.get('selectorses', undefined),
-            v => o => o.set('selectorses', v))
-        let lens2: Lens<AlbumShuffleSelector, AlbumSelectors> = lens1.compose(
+        const lens1: Lens<AlbumShuffleSelector, List<AlbumSelectors>> = new Lens(
+            (o) => o.get('selectorses', undefined),
+            (v) => (o) => o.set('selectorses', v))
+        const lens2: Lens<AlbumShuffleSelector, AlbumSelectors> = lens1.compose(
             lensFromImplicitAccessors(ownProps.idxTop))
         return {
             tracks: top.tracks,
@@ -273,7 +271,7 @@ export const ConnectedAlbumSelectorsComponent = connect(
         onShuffle: actions.shuffleTracks.request,
         onSave: actions.savePlaylist.request,
     }, d),
-    (props, dispatch, ownProps) => Object.assign({}, props, dispatch, ownProps),
+    (props, dispatch, ownProps) => ({...props, ...dispatch, ...ownProps}),
     {
         areOwnPropsEqual: (x, y) => {
             return shallowEqual(x, y)
@@ -300,16 +298,16 @@ const AlbumSearchComponent = onlyUpdateForKeys(
     onSearch: typeof actions.updateSearch
 }) => {
     return <div>
-        <input type="search" placeholder="Album search..." value={props.searchQuery} onChange={ev => {
+        <input type="search" placeholder="Album search..." value={props.searchQuery} onChange={(ev) => {
             props.onSearch({query: ev.target.value})
             props.onChange({prop: 'searchQuery', value: ev.target.value})
         }} />
         <div className="album-source">
             {props.searchResults.map((sel, e) => {
-                let lens1: Lens<AlbumShuffleSelector, List<AlbumSelector>> = new Lens(
-                    o => o.get('searchResults', undefined),
-                    v => o => o.set('searchResults', v))
-                let lens2: Lens<AlbumShuffleSelector, AlbumSelector> = lens1.compose(lensFromImplicitAccessors(e))
+                const lens1: Lens<AlbumShuffleSelector, List<AlbumSelector>> = new Lens(
+                    (o) => o.get('searchResults', undefined),
+                    (v) => (o) => o.set('searchResults', v))
+                const lens2: Lens<AlbumShuffleSelector, AlbumSelector> = lens1.compose(lensFromImplicitAccessors(e))
                 return <ConnectedAlbumSelectorComponent key={e} selector={sel} selectorLens={lens2} />
             })}
         </div>
@@ -350,8 +348,8 @@ class AlbumShuffleSelectorComponent extends React.PureComponent<{
     render() {
         return <div>
             <ConnectedAlbumSearchComponent />
-            <label># albums <input type="number" placeholder="# albums" value={this.props.nAlbums} onChange={ev => { this.props.onChange({prop: 'nAlbums', value: ev.target.value}) }} /></label>
-            <label># choices <input type="number" placeholder="# choices" value={this.props.nChoices} onChange={ev => { this.props.onChange({prop: 'nChoices', value: ev.target.value}) }} /></label>
+            <label># albums <input type="number" placeholder="# albums" value={this.props.nAlbums} onChange={(ev) => { this.props.onChange({prop: 'nAlbums', value: ev.target.value}) }} /></label>
+            <label># choices <input type="number" placeholder="# choices" value={this.props.nChoices} onChange={(ev) => { this.props.onChange({prop: 'nChoices', value: ev.target.value}) }} /></label>
             <button onClick={() => this.props.onNewAlbumSelector({})}>New selector</button>
             {this.props.selectorses.map((_sels, e) => <ConnectedAlbumSelectorsComponent key={e} idxTop={e} />)}
         </div>
@@ -371,8 +369,8 @@ export const ConnectedAlbumShuffleSelectorComponent = connect(
 const DurationComponent = pure((props: {
     duration: number
 }) => {
-    let minutes = Math.floor(props.duration / 60)
-    let seconds = Math.floor(props.duration % 60).toLocaleString('en', {minimumIntegerDigits: 2})
+    const minutes = Math.floor(props.duration / 60)
+    const seconds = Math.floor(props.duration % 60).toLocaleString('en', {minimumIntegerDigits: 2})
     return <>⟨{minutes}:{seconds}⟩</>
 })
 
@@ -383,7 +381,7 @@ const PlaylistTrackComponent = onlyUpdateForKeys(
     selected: PlaylistTrackSelection
     onToggle: () => void
 }) => {
-    let key = props.track.albumKey()
+    const key = props.track.albumKey()
     return <li className={props.selected || ''} onClick={props.onToggle}>
         <DurationComponent duration={props.track.t('pDur')} /> {props.track.t('pnam')} ({key.prettyName()})
     </li>
@@ -397,15 +395,15 @@ const PlaylistComponent = onlyUpdateForKeys(
     onReroll: () => void
     onSave: () => void
 }) => {
-    let { playlist } = props
-    let totalDuration = playlist.tracks.reduce((totalDuration, track) => totalDuration + track.t('pDur') as number, 0)
+    const { playlist } = props
+    const totalDuration = playlist.tracks.reduce((totalDuration, track) => totalDuration + track.t('pDur') as number, 0)
     return <div className="playlist">
-        <p>score: {playlist.score.toPrecision(2)}; scores: {playlist.scores.map(s => s.toPrecision(2)).join(' ')}</p>
+        <p>score: {playlist.score.toPrecision(2)}; scores: {playlist.scores.map((s) => s.toPrecision(2)).join(' ')}</p>
         <button onClick={() => props.onReroll()}>Reroll</button>
         <button onClick={() => props.onSave()}>Save</button>
         <ol className="fuller tracklist">
             {props.playlist.tracks.map((track, e) => {
-                let onToggle = props.onToggle(track.id)
+                const onToggle = props.onToggle(track.id)
                 return <PlaylistTrackComponent key={e} selected={playlist.selected.get(track.id)} {...{track, onToggle}} />
             })}
             <li className="total"><DurationComponent duration={totalDuration} /> total</li>
@@ -415,10 +413,10 @@ const PlaylistComponent = onlyUpdateForKeys(
 
 export const ConnectedPlaylistComponent = connect(
     (top: TimefillSelector, ownProps: {idxTop: number}) => {
-        let lens1: Lens<TimefillSelector, List<Playlist>> = new Lens(
-            o => o.get('playlists', undefined),
-            v => o => o.set('playlists', v))
-        let lens2: Lens<TimefillSelector, Playlist> = lens1.compose(
+        const lens1: Lens<TimefillSelector, List<Playlist>> = new Lens(
+            (o) => o.get('playlists', undefined),
+            (v) => (o) => o.set('playlists', v))
+        const lens2: Lens<TimefillSelector, Playlist> = lens1.compose(
             lensFromImplicitAccessors(ownProps.idxTop))
         return {
             playlist: top.playlists.get(ownProps.idxTop),
@@ -432,17 +430,18 @@ export const ConnectedPlaylistComponent = connect(
         onSave: actions.savePlaylist.request,
     }, d),
     (stateProps, dispatchProps, ownProps) => {
-        let { playlist, lens, top } = stateProps
-        return Object.assign({}, stateProps, ownProps, {
+        const { playlist, lens, top } = stateProps
+        return {
             onToggle: (track: TrackId) => () => dispatchProps.onToggle({lens, track}),
             onReroll: () => {
-                let selections = playlist.selectionMap()
+                const selections = playlist.selectionMap()
                 dispatchProps.onReroll({targets: top.allTargets(), selections, replace: lens})
             },
             onSave: () => {
                 dispatchProps.onSave({name: top.name, tracks: playlist.tracks})
             },
-        })
+            ...stateProps, ...ownProps,
+        }
     },
     {
         areStatesEqual: (x, y) => x.playlists === y.playlists,
@@ -450,18 +449,20 @@ export const ConnectedPlaylistComponent = connect(
     },
 )(PlaylistComponent)
 
-const TargetsComponent = ((props: {
+const TargetsComponent = onlyUpdateForKeys(
+    []
+)((props: {
     targets: List<string>
     targetsLens: Lens<TimefillSelector, List<string>>
     onAddTarget: typeof actions.addTarget
     onChangeControl: typeof actions.changeControlTimefill
-    keyb: KeyboardEvents,
+    keyb: KeyboardEvents
 }) => {
     return <section>
         <button onClick={() => props.onAddTarget({})}>Add target</button>
         {props.targets.map((target, e) => {
-            let lens: Lens<TimefillSelector, string> = props.targetsLens.compose(lensFromImplicitAccessors(e))
-            return <input key={e} type="text" placeholder="Target…" value={target} onChange={ev => {
+            const lens: Lens<TimefillSelector, string> = props.targetsLens.compose(lensFromImplicitAccessors(e))
+            return <input key={e} type="text" placeholder="Target…" value={target} onChange={(ev) => {
                 props.onChangeControl({lens, value: ev.target.value})
             }} {...props.keyb} />
         })}
@@ -476,11 +477,13 @@ const ConnectedTargetsComponent = connect(
         onKeyboardAvailable: actions.setKeyboardAvailability,
     }, d),
     (props, dispatch, ownProps) => {
-        let targetsLens: Lens<TimefillSelector, List<string>> = new Lens(
-            o => o.get('targets', undefined),
-            v => o => o.set('targets', v))
-        return Object.assign(
-            {targetsLens}, keyboardEvents(dispatch), props, dispatch, ownProps) as any
+        const targetsLens: Lens<TimefillSelector, List<string>> = new Lens(
+            (o) => o.get('targets', undefined),
+            (v) => (o) => o.set('targets', v))
+        return {
+            keyb: keyboardEvents(dispatch), targetsLens,
+            ...props, ...dispatch, ...ownProps,
+        }
     },
     {
         areStatesEqual: (x, y) => x.targets === y.targets,
@@ -498,11 +501,11 @@ const WeightsComponent = ((props: {
     return <section>
         <button onClick={() => props.onAddWeight({})}>Add weight</button>
         {props.weights.map(([selected, weight], i) => {
-            let events = Object.assign({
+            const events = {
                 onChange: (event: React.ChangeEvent) => props.onChangeWeight({event, index: i}),
-            }, props.keyb)
+                ...props.keyb}
             var selIndex = 0
-            let albumOptions = props.albums.keySeq().map((album, j) => {
+            const albumOptions = props.albums.keySeq().map((album, j) => {
                 if (album.equals(selected)) {
                     selIndex = j
                 }
@@ -518,7 +521,7 @@ const WeightsComponent = ((props: {
 
 const ConnectedWeightsComponent = connect(
     (top: TimefillSelector) => {
-        let { albums, weights } = top
+        const { albums, weights } = top
         return { albums, weights }
     },
     (d: Dispatch) => bindActionCreators({
@@ -528,8 +531,7 @@ const ConnectedWeightsComponent = connect(
         onKeyboardAvailable: actions.setKeyboardAvailability,
     }, d),
     (props, dispatch, ownProps) => {
-        return Object.assign(
-            keyboardEvents(dispatch), props, dispatch, ownProps) as any
+        return {...props, ...dispatch, ...ownProps, keyb: keyboardEvents(dispatch)}
     },
     {
         areStatesEqual: (x, y) => x.weights === y.weights && x.albums === y.albums,
@@ -551,7 +553,7 @@ class TimefillSelectorComponent extends React.PureComponent<{
     }
 
     render() {
-        let classes: string[] = []
+        const classes: string[] = []
         if (this.props.selectState === 'include') {
             classes.push('set-include')
         } else if (this.props.selectState === 'exclude') {
@@ -559,7 +561,7 @@ class TimefillSelectorComponent extends React.PureComponent<{
         }
         return <div className={classes.join(' ')}>
             <section>
-                <textarea onChange={ev => this.props.onChangeName(ev.target.value)} value={this.props.name} {...this.props.keyb} />
+                <textarea onChange={(ev) => this.props.onChangeName(ev.target.value)} value={this.props.name} {...this.props.keyb} />
             </section>
             <ConnectedTargetsComponent />
             <ConnectedWeightsComponent />
@@ -575,7 +577,7 @@ class TimefillSelectorComponent extends React.PureComponent<{
 
 export const ConnectedTimefillSelectorComponent = connect(
     (top: TimefillSelector = new TimefillSelector()) => {
-        let { name, targets, playlists } = top
+        const { name, targets, playlists } = top
         return {
             name, targets, playlists,
             allTargets: top.allTargets(),
@@ -590,27 +592,25 @@ export const ConnectedTimefillSelectorComponent = connect(
         onSelect: actions.runTimefill.request,
     }, d),
     (props, dispatch, ownProps) => {
-        let lens: Lens<TimefillSelector, string> = new Lens(
-            o => o.get('name', undefined),
-            v => o => o.set('name', v))
-        let extraProps = {
+        const lens: Lens<TimefillSelector, string> = new Lens(
+            (o) => o.get('name', undefined),
+            (v) => (o) => o.set('name', v))
+        const extraProps = {
             onSelect: () => {
                 dispatch.onSelect({targets: props.allTargets})
                 dispatch.onSetHash()
             },
             onChangeName: (value: string) => dispatch.onChangeControl({lens, value}),
+            keyb: keyboardEvents(dispatch),
         }
-        return Object.assign(
-            keyboardEvents(dispatch), props, dispatch, ownProps, extraProps)
+        return {...props, ...dispatch, ...ownProps, ...extraProps}
     },
 )(TimefillSelectorComponent)
 
-type KeyboardEvents = {keyb: {onFocus: () => void, onBlur: () => void}}
+type KeyboardEvents = {onFocus: () => void, onBlur: () => void}
 function keyboardEvents(dispatch: {onKeyboardAvailable: typeof actions.setKeyboardAvailability}): KeyboardEvents {
     return {
-        keyb: {
-            onFocus: () => dispatch.onKeyboardAvailable({available: false}),
-            onBlur: () => dispatch.onKeyboardAvailable({available: true}),
-        }
+        onFocus: () => dispatch.onKeyboardAvailable({available: false}),
+        onBlur: () => dispatch.onKeyboardAvailable({available: true}),
     }
 }
