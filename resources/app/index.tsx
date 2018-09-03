@@ -1,6 +1,5 @@
 import { List, Seq } from 'immutable';
 import * as promiseFinally from 'promise.prototype.finally'
-import * as qs from 'qs'
 import * as React from 'react'
 import * as ReactDOM from 'react-dom'
 import { Provider } from 'react-redux'
@@ -8,7 +7,7 @@ import { Provider } from 'react-redux'
 import { ConnectedAlbumShuffleSelectorComponent, ConnectedTimefillSelectorComponent } from './components'
 import * as stores from './redux'
 import './site.sass'
-import { TimefillSelector, AlbumKey } from './types';
+import { AlbumKey, TimefillSelector } from './types';
 
 
 function makeRootElement(): JSX.Element {

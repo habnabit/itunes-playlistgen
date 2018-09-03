@@ -1,4 +1,4 @@
-import { List, Map, OrderedMap, Record, Seq, Set, OrderedSet } from 'immutable'
+import { List, Map, OrderedMap, Record, Seq, Set } from 'immutable'
 import { iso, Newtype } from 'newtype-ts'
 import { Lens } from '../node_modules/monocle-ts'
 

@@ -1,14 +1,14 @@
-import { SvgProperties, StandardProperties } from 'csstype'
-import { List, Map, Seq, Set, OrderedSet, OrderedMap } from 'immutable'
+import { StandardProperties, SvgProperties } from 'csstype'
+import { List, Map, OrderedMap, Seq, Set } from 'immutable'
 import { Lens } from 'monocle-ts'
 import * as React from 'react'
 import { connect } from 'react-redux'
-import { onlyUpdateForKeys, pure, shouldUpdate, shallowEqual } from 'recompose'
+import { onlyUpdateForKeys, pure, shallowEqual } from 'recompose'
 import { bindActionCreators, Dispatch } from 'redux'
 
 import * as actions from './actions'
 import { lensFromImplicitAccessors } from './extlens'
-import { Album, AlbumKey, AlbumSelector, AlbumShuffleSelector, Track, TrackId, AlbumSelectors, isoTrackId, TimefillSelector, Playlist, PlaylistTrackSelection } from './types'
+import { Album, AlbumKey, AlbumSelector, AlbumSelectors, AlbumShuffleSelector, Playlist, PlaylistTrackSelection, TimefillSelector, Track, TrackId } from './types'
 
 
 const colorOrder = [

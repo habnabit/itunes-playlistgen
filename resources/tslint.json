@@ -16,7 +16,10 @@
             }
         ],
         "max-classes-per-file": false,
-        "arrow-parens": true
+        "arrow-parens": true,
+        "ordered-imports": true,
+        "import-spacing": true,
+        "no-unused-expression": true
     },
     "rulesDirectory": []
 }

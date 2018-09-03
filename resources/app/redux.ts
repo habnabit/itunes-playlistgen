@@ -1,13 +1,13 @@
-import { List, Seq, Map } from 'immutable'
+import { Map, Seq } from 'immutable'
 import * as qs from 'qs'
-import { applyMiddleware, createStore, combineReducers, Reducer, Store, DeepPartial } from 'redux'
+import { applyMiddleware, createStore, DeepPartial, Reducer, Store } from 'redux'
 import { createEpicMiddleware, Epic } from 'redux-observable'
-import { from, timer } from 'rxjs'
-import { filter, switchMap, mergeMap, mapTo, debounceTime, map, tap } from 'rxjs/operators'
+import { from } from 'rxjs'
+import { debounceTime, filter, map, mergeMap, switchMap } from 'rxjs/operators'
 import { ActionType, getType, isActionOf } from 'typesafe-actions'
 
 import * as actions from './actions'
-import { AlbumSelector, AlbumShuffleSelector, AlbumSelectors, isoTrackId, TrackId, TimefillSelector } from './types'
+import { AlbumSelector, AlbumSelectors, AlbumShuffleSelector, isoTrackId, TimefillSelector, TrackId } from './types'
 
 
 type AllActions = ActionType<typeof actions>
