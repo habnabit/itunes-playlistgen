@@ -13,6 +13,7 @@ import itertools
 import json
 import math
 import operator
+import pkg_resources
 import random
 import statistics
 import tqdm
@@ -96,8 +97,8 @@ class LazyAppleScript(object):
         return self._compiled.call(name, *args)
 
 
-with io.open('functions.applescript', encoding='mac-roman') as infile:
-    scripts = LazyAppleScript(infile.read())
+scripts = LazyAppleScript(
+    pkg_resources.resource_string(__name__, 'functions.applescript').decode('mac-roman'))
 
 
 def timefill_search(rng, tracks, duration, fuzz, ideal_length,
