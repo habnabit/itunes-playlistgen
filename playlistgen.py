@@ -618,7 +618,7 @@ def album_shuffle(tracks, playlist_pattern, n_albums, source_genius):
 @click.pass_obj
 @click.option('--duration', default=43200, metavar='SECONDS',
               help='Total duration.')
-@click.option('--playlist-pattern', default=u'※ Daily\n{now:%Y-%m-%d}',
+@click.option('--playlist-pattern', default=u'※ Daily\n%Y-%m-%d',
               metavar='PATTERN', help='strftime-style pattern for playlists.')
 @click.option('--delete-older-than', default=None, type=int, metavar='DAYS',
               help='How old of playlists to delete.')
@@ -627,8 +627,9 @@ def daily_unrecent(tracks, duration, playlist_pattern, delete_older_than):
     Build a playlist of non-recently played things.
     """
 
-    tracks.set_default_dest(playlist_pattern.format(
-        now=datetime.datetime.now()))
+    date_bytes = datetime.datetime.now().strftime(
+        playlist_pattern.encode('utf-8'))
+    tracks.set_default_dest(date_bytes.decode('utf-8'))
     playlist = unrecent_search(
         tracks.rng, tracks.score_tracks(tracks.get_tracks()), duration)
     show_playlist(playlist)
