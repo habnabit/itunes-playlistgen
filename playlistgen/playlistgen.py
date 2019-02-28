@@ -1,24 +1,25 @@
 # -*- coding: utf-8 -*-
 
+import applescript
+import attr
 import bisect
+import click
 import collections
 import datetime
 import functools
+import heapq
 import io
 import itertools
 import json
-import heapq
 import math
 import operator
 import random
-
-from backports import statistics
-import applescript
-import attr
-import click
+import statistics
 import tqdm
 
-import _album_shuffle
+from . import _album_shuffle
+
+zeroth = operator.itemgetter(0)
 
 
 @attr.s
@@ -67,7 +68,7 @@ class IDGen(object):
     _cls = attr.ib()
 
     def __getattr__(self, attr):
-        r = self._cls(attr.ljust(4, ' '))
+        r = self._cls(attr.ljust(4, ' ').encode())
         setattr(self, attr, r)
         return r
 
@@ -105,7 +106,7 @@ def timefill_search(rng, tracks, duration, fuzz, ideal_length,
     iteration = [0]
     tracks = [
         (t[typ.pDur], t) for t in tracks if t[typ.pDur] < duration + fuzz]
-    tracks.sort()
+    tracks.sort(key=zeroth)
 
     def add(tt):
         score = -statistics.pvariance(itertools.chain(
@@ -131,7 +132,7 @@ def timefill_search(rng, tracks, duration, fuzz, ideal_length,
 
     while not aux((), len(tracks), duration):
         pass
-    results.sort()
+    results.sort(key=zeroth)
     return results
 
 
@@ -213,7 +214,7 @@ class TargetAlbumWeights(object):
 
     def score(self, tracks):
         subscores = [self.weights.get(album_key(t), 1) for t in tracks]
-        return reduce(operator.mul, subscores, 1)
+        return functools.reduce(operator.mul, subscores, 1)
 
 
 def timefill_search_targets(rng, tracks, targets, pull_prev=None, keep=None, n_options=None, iterations=None, initial=()):
@@ -231,7 +232,7 @@ def timefill_search_targets(rng, tracks, targets, pull_prev=None, keep=None, n_o
         if indexes:
             candidate = [tracks[i] for i in indexes]
             scores = [target.score(candidate) for target in targets]
-            score = reduce(operator.mul, scores, 1)
+            score = functools.reduce(operator.mul, scores, 1)
         else:
             scores = []
             score = 0
@@ -256,12 +257,12 @@ def timefill_search_targets(rng, tracks, targets, pull_prev=None, keep=None, n_o
 
     previous = [score(initial)] * pull_prev
 
-    for _ in xrange(iterations):
+    for _ in range(iterations):
         if not previous:
             prune()
             previous = safe_sample(results, pull_prev)
         prev_score, _, indexes = previous.pop()
-        options = [an_option(indexes) for _ in xrange(n_options)]
+        options = [an_option(indexes) for _ in range(n_options)]
         options = [(sc, scs, i) for sc, scs, i in options if sc >= prev_score]
         if options:
             results.append(rng.choice(options))
@@ -299,7 +300,7 @@ def unrecent_score_tracks(tracks, bias_recent_adds, unrecentness_days):
     now = datetime.datetime.now()
     unrecentness = datetime.timedelta(days=unrecentness_days)
     tracks = [(date_for(t), t) for t in tracks]
-    tracks.sort()
+    tracks.sort(key=zeroth)
     bounding_index = bisect.bisect_left(tracks, (now - unrecentness,))
     del tracks[bounding_index:]
 
@@ -310,7 +311,7 @@ def unrecent_score_tracks(tracks, bias_recent_adds, unrecentness_days):
         return score
 
     tracks = [(score(played, track), track) for played, track in tracks]
-    tracks.sort()
+    tracks.sort(key=zeroth)
     scale = 1 / tracks[0][0]
     return [(scale * a, b) for a, b in tracks]
 
@@ -395,7 +396,7 @@ def collate_album_score(rng, tracks):
         album_score = rng.choice(album_scores)
         ret.append((album_score, album_name, album_tracks))
 
-    ret.sort()
+    ret.sort(key=lambda t: t[:2])
     return ret
 
 
@@ -423,7 +424,7 @@ def pick_albums(rng, tracks, n_albums, n_choices, iterations=10000):
         return True
 
     pool = [frozenset()]
-    for _ in xrange(iterations):
+    for _ in range(iterations):
         root = random.choice(pool)
         score = rng.uniform(bottom_score, top_score)
         index = bisect.bisect_left(all_albums, (score,))
@@ -433,7 +434,7 @@ def pick_albums(rng, tracks, n_albums, n_choices, iterations=10000):
         if not maybe_add(cur):
             pool.append(cur)
 
-    results.sort()
+    results.sort(key=lambda t: t[:2])
     return results
 
 
@@ -636,9 +637,8 @@ def daily_unrecent(tracks, duration, playlist_pattern, delete_older_than):
     Build a playlist of non-recently played things.
     """
 
-    date_bytes = datetime.datetime.now().strftime(
-        playlist_pattern.encode('utf-8'))
-    tracks.set_default_dest(date_bytes.decode('utf-8'))
+    date = datetime.datetime.now().strftime(playlist_pattern)
+    tracks.set_default_dest(date)
     playlist = unrecent_search(
         tracks.rng, tracks.score_tracks(tracks.get_tracks()), duration)
     show_playlist(playlist)
@@ -655,7 +655,7 @@ def web(tracks):
     Do it in a browser.
     """
 
-    import playlistweb
+    from . import playlistweb
     playlistweb.run(tracks)
 
 

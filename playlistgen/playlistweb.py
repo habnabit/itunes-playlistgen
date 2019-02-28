@@ -6,12 +6,12 @@ import attr
 import datetime
 import functools
 import json
-import playlistgen
 import random
 import sys
 import webbrowser
+from . import playlistgen
+from .playlistgen import typ
 from klein import Klein
-from playlistgen import typ
 from twisted import logger
 from twisted.internet import defer, endpoints
 from twisted.internet.task import react
