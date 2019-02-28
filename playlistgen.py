@@ -194,6 +194,9 @@ class TargetAlbums(object):
             tracks_per_album = float(len(tracks)) / len(albums)
             return tracks_per_album ** self.power
 
+        elif self.spread == 'distinct':
+            return 0 if len(albums) != len(tracks) else 1
+
 
 @attr.s
 class TargetAlbumWeights(object):
