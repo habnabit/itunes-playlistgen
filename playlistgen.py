@@ -285,7 +285,7 @@ def parse_target(value):
     if parse_equals:
         values = rest.split(',')
         first_arg = values.pop(0)
-        args = [values.partition('=')[::2] for value in values]
+        args = [value.partition('=')[::2] for value in values]
         return constructor(first_arg, **dict(args))
     else:
         return constructor(rest)
@@ -587,9 +587,15 @@ def timefill_targets(tracks, targets):
 
     tracks.set_default_dest(u'targets')
     track_list = tracks.get_tracks()
-    playlists = timefill_search_targets(tracks.rng, track_list, targets)
-    show_playlists(([a] + b, [(None, track_list[t]) for t in c]) for a, b, c in reversed(playlists[:10]))
-    #tracks.set_tracks(track_list[t] for t in playlists[0][-1])
+
+    def search():
+        playlists = timefill_search_targets(tracks.rng, track_list, targets)
+        return [
+            ([a] + b, [(None, track_list[t]) for t in c])
+            for a, b, c in reversed(playlists[:10])]
+
+    _, playlist = search_and_choose(search)
+    tracks.set_tracks(b for a, b in playlist)
 
 
 @main.command('album-shuffle')
