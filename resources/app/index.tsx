@@ -11,7 +11,7 @@ import { AlbumKey, TimefillSelector } from './types';
 
 
 function makeRootElement(): JSX.Element {
-    if (location.pathname == '/timefill') {
+    if (location.search == '?timefill') {
         const initial = {
             targets: undefined as List<string>,
             name: undefined as string,

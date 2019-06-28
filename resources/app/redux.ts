@@ -7,7 +7,7 @@ import { debounceTime, filter, map, mergeMap, switchMap } from 'rxjs/operators'
 import { ActionType, getType, isActionOf } from 'typesafe-actions'
 
 import * as actions from './actions'
-import { AlbumSelector, AlbumSelectors, AlbumShuffleSelector, isoTrackId, TimefillSelector, TrackId } from './types'
+import { AlbumKey, AlbumSelector, AlbumSelectors, AlbumShuffleSelector, isoTrackId, TimefillSelector, TrackId } from './types'
 
 
 type AllActions = ActionType<typeof actions>
@@ -167,7 +167,7 @@ function timefillReducer(state = new TimefillSelector(), action: AllActions): Ti
         return state.update('targets', (l) => l.push(''))
 
     case getType(actions.addWeight):
-        const first = state.albums.keySeq().first()
+        const first = state.albums.keySeq().first<AlbumKey>()
         return state.update('weights', (l) => l.push([first, '']))
 
     case getType(actions.changeWeight): {

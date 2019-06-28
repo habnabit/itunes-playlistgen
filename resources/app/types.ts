@@ -253,7 +253,7 @@ export class TimefillSelector extends Record({
                 return new Playlist(initial)
             })
         if (replace) {
-            const toInsert = playlists.first()
+            const toInsert = playlists.first<Playlist>()
             return replace.modify((pl) => toInsert.set('selected', pl.selected))(this)
         } else {
             return this.set('playlists', playlists)

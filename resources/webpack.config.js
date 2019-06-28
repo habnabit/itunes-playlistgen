@@ -6,7 +6,7 @@ module.exports = {
   entry: "./app/index.tsx",
   output: {
     filename: "site.js",
-    path: path.resolve(__dirname, "dist"),
+    path: path.resolve(__dirname, "../playlistgen/static"),
   },
   resolve: {
     extensions: [".ts", ".tsx", ".js", ".json"],
