@@ -5,66 +5,23 @@ import arrow
 import attr
 import datetime
 import functools
-import json
+import marshmallow
 import random
+import simplejson
 import sys
+import waitress
 import webbrowser
+from cornice import Service
+from cornice.validators import marshmallow_validator
+from marshmallow import Schema, fields
+from pyramid.config import Configurator
+from pyramid.request import Request
+from pyramid.response import Response
+from pyramid.renderers import JSON
+from pyramid.view import view_config
+
 from . import playlistgen
 from .playlistgen import typ
-from klein import Klein
-from twisted import logger
-from twisted.internet import defer, endpoints
-from twisted.internet.task import react
-from twisted.web.http import HTTPChannel
-from twisted.web.server import Request, Site
-from twisted.web.static import File
-from txspinneret import query as q
-
-
-log = logger.Logger()
-
-
-class reify(object):
-    """ Use as a class method decorator.  It operates almost exactly like the
-    Python ``@property`` decorator, but it puts the result of the method it
-    decorates into the instance dict after the first call, effectively
-    replacing the function it decorates with an instance variable.  It is, in
-    Python parlance, a non-data descriptor.  The following is an example and
-    its usage:
-
-    .. doctest::
-
-        >>> from pyramid.decorator import reify
-
-        >>> class Foo(object):
-        ...     @reify
-        ...     def jammy(self):
-        ...         print('jammy called')
-        ...         return 1
-
-        >>> f = Foo()
-        >>> v = f.jammy
-        jammy called
-        >>> print(v)
-        1
-        >>> f.jammy
-        1
-        >>> # jammy func not called the second time; it replaced itself with 1
-        >>> # Note: reassignment is possible
-        >>> f.jammy = 2
-        >>> f.jammy
-        2
-    """
-    def __init__(self, wrapped):
-        self.wrapped = wrapped
-        functools.update_wrapper(self, wrapped)
-
-    def __get__(self, inst, objtype=None):
-        if inst is None:
-            return self
-        val = self.wrapped(inst)
-        setattr(inst, self.wrapped.__name__, val)
-        return val
 
 
 def applescript_as_json(obj):
@@ -74,12 +31,12 @@ def applescript_as_json(obj):
         return {applescript_as_json(k): applescript_as_json(v)
                 for k, v in obj.items()}
     elif isinstance(obj, applescript.AEType):
-        return ('T_{}'.format(obj.code.strip()))
+        return 'T_{}'.format(obj.code.strip().decode())
     elif isinstance(obj, applescript.AEEnum):
         if obj.code == 'kNon':
             return None
         else:
-            return 'E_{}'.format(obj.code.strip())
+            return 'E_{}'.format(obj.code.strip().decode())
     elif isinstance(obj, datetime.datetime):
         return (arrow.get(obj)
                 .replace(tzinfo='local')
@@ -89,197 +46,252 @@ def applescript_as_json(obj):
         return obj
 
 
-def as_json(func):
-    @functools.wraps(func)
-    def wrapper(self, request, *a, **kw):
-        request.setHeader('Content-Type', 'application/json')
-        resp = func(self, request, *a, **kw)
-        return json.dumps({
-            'data': resp,
-            'error': None,
-        })
-
-    return wrapper
+def serialize_applescript(obj, *a, **kw):
+    return simplejson.dumps(applescript_as_json(obj), *a, **kw)
 
 
-@attr.s(hash=False)
-class TrackWeb(object):
-    app = Klein()
-    log = logger.Logger()
+def track_methods(tracks):
+    tracks_list = tracks.get_tracks()
+    tracks_by_id = {t[typ.pPIS]: t for t in tracks_list}
 
-    tracks_obj = attr.ib()
-    static_resource = attr.ib()
-    done = attr.ib(default=attr.Factory(defer.Deferred))
+    def configurate(config):
+        config.add_request_method(lambda _: tracks, name='tracks_obj', reify=True)
+        config.add_request_method(lambda _: tracks_list, name='tracks', reify=True)
+        config.add_request_method(lambda _: tracks_by_id, name='tracks_by_id', reify=True)
 
-    @reify
-    def tracks(self):
-        return self.tracks_obj.get_tracks()
+    return configurate
 
-    @reify
-    def tracks_by_id(self):
-        return {t[typ.pPIS]: t for t in self.tracks}
 
-    @reify
-    def tracks_as_json(self):
-        return applescript_as_json(self.tracks)
+@view_config(route_name='index')
+def index(request):
+    subreq = Request.blank('/_static/site.html')
+    response = request.invoke_subrequest(subreq)
+    return response
 
-    @reify
-    def playlists(self):
-        return playlistgen.scripts.call('get_playlists')
 
-    @app.route('/', branch=True)
-    def index(self, request):
-        request.prepath.append(request.postpath.pop())
-        return self.static_resource.getChild('site.html', request)
+@view_config(route_name='genius_albums', renderer='json')
+def genius_albums(request):
+    tracks = playlistgen.filter_tracks_to_genius_albums(
+        [(0, t) for t in self.tracks])
+    return [t[typ.pPIS] for _, t in tracks]
 
-    @app.route('/_static/', branch=True)
-    def static(self, request):
-        return self.static_resource
 
-    @app.route('/_api/all-tracks')
-    @as_json
-    def all_tracks(self, request):
-        return self.tracks_as_json
+@view_config(route_name='playlists', renderer='json')
+def playlists(request):
+    return playlistgen.scripts.call('get_playlists')
 
-    @app.route('/_api/pick-albums')
-    @as_json
-    def pick_albums(self, request):
-        parsed = q.parse({
-            'n_albums': q.one(q.Integer),
-            'n_choices': q.one(q.Integer),
-            'scoring': q.one(playlistgen.SCORING.get),
-            'unrecentness': q.one(q.Integer),
-        }, request.args)
-        scoring_cls = parsed.pop('scoring') or playlistgen.ScoreUniform
-        scoring = playlistgen.make(
-            scoring_cls, rng=random, unrecentess=parsed.pop('unrecentness'))
-        tracks = scoring.score(self.tracks)
-        picks = [
-            {
-                'score': score,
-                'albums': [
-                    {
-                        'score': score,
-                        'name': name,
-                        'tracks': [t[typ.pPIS] for t in tracks],
-                    }
-                    for score, name, tracks in albums
-                ]
-            }
-            for score, _, albums
-            in playlistgen.pick_albums(random, tracks, **parsed)
-        ]
-        return picks
 
-    @app.route('/_api/shuffle-together-albums')
-    @as_json
-    def shuffle_together_albums(self, request):
-        parsed = q.parse({
-            'tracks': q.many(self.tracks_by_id.get),
-        }, request.args)
-        albums_dict = {}
-        for track in parsed['tracks']:
-            key = playlistgen.album_key(track)
-            albums_dict.setdefault(key, []).append(track)
-        albums_list = [(0, key, tracks) for key, tracks in albums_dict.iteritems()]
-        info, playlist = playlistgen.shuffle_together_album_tracks(random, albums_list)
-        return {
-            'info': info,
-            'tracks': [t[typ.pPIS] for t in playlist],
+class TrackField(fields.Field):
+    def _serialize(self, value, attr, obj, **kwargs):
+        raise NotImplementedError()
+
+    def _deserialize(self, value, attr, data, **kwargs):
+        return self.context['request'].tracks_by_id[value]
+
+
+class DelimitedString(fields.Field):
+    def __init__(self, delimiter, instance_factory, **kwargs):
+        super().__init__(**kwargs)
+        self.delimiter = delimiter
+        self.instance_factory = instance_factory
+
+    def _bind_to_schema(self, field_name, schema):
+        super()._bind_to_schema(field_name, schema)
+        self.inner = self.instance_factory()
+        self.inner.parent = self
+        self.inner.name = field_name
+
+    def _serialize(self, value, attr, obj, **kwargs):
+        if value is None:
+            return None
+        items = [self.inner._serialize(each, attr, obj, **kwargs) for each in value]
+        return self.delimiter.join(items)
+
+    def _deserialize(self, value, attr, data, **kwargs):
+        splut = value.split(self.delimiter)
+        return [self.inner._deserialize(each, attr, data, **kwargs) for each in splut]
+
+
+tracks_service = Service(name='tracks', path='/_api/tracks')
+
+
+class TracksQuerySchema(Schema):
+    from_idx = fields.Integer(missing=0)
+    count = fields.Integer(missing=250)
+    by_id = DelimitedString(',', TrackField)
+
+
+class TracksSchema(Schema):
+    class Meta:
+        unknown = marshmallow.EXCLUDE
+
+    querystring = fields.Nested(TracksQuerySchema)
+
+
+@tracks_service.get(schema=TracksSchema, validators=(marshmallow_validator,))
+def tracks(request):
+    parsed = request.validated['querystring']
+    if 'by_id' in parsed:
+        tracks = parsed['by_id']
+    else:
+        from_idx = parsed['from_idx']
+        tracks = request.tracks[from_idx : from_idx + parsed['count']]
+    return {'tracks': tracks}
+
+
+pick_albums_service = Service(name='pick_albums', path='/_api/pick-albums')
+
+
+class PickAlbumsBodySchema(Schema):
+    n_albums = fields.Integer(missing=5)
+    n_choices = fields.Integer(missing=5)
+    unrecentness = fields.Integer(missing=None)
+    scoring_cls = fields.Method(
+        deserialize='load_scoring_cls', missing=lambda: playlistgen.ScoreUniform)
+
+    def load_scoring_cls(self, value):
+        return playlistgen.SCORING[value]
+
+
+class PickAlbumsSchema(Schema):
+    class Meta:
+        unknown = marshmallow.EXCLUDE
+
+    body = fields.Nested(PickAlbumsBodySchema)
+
+
+@pick_albums_service.post(schema=PickAlbumsSchema, validators=(marshmallow_validator,))
+def pick_albums(request):
+    parsed = request.validated['body']
+    scoring = playlistgen.make(
+        parsed.pop('scoring_cls'), unrecentess=parsed.pop('unrecentness'), rng=random)
+    tracks = scoring.score(request.tracks)
+    picks = [
+        {
+            'score': score,
+            'albums': [
+                {
+                    'score': score,
+                    'name': name,
+                    'tracks': [t[typ.pPIS] for t in tracks],
+                }
+                for score, name, tracks in albums
+            ],
         }
+        for score, _, albums
+        in playlistgen.pick_albums(random, tracks, **parsed)
+    ]
+    return {'picks': picks}
 
-    @app.route('/_api/genius-albums')
-    @as_json
-    def genius_albums(self, request):
-        tracks = playlistgen.filter_tracks_to_genius_albums(
-            [(0, t) for t in self.tracks])
-        return [t[typ.pPIS] for _, t in tracks]
 
-    @app.route('/_api/playlists')
-    @as_json
-    def playlists_api(self, request):
-        return self.playlists
+shuffle_together_albums_service = Service(
+    name='shuffle_together_albums', path='/_api/shuffle-together-albums')
 
-    @app.route('/_api/timefill-targets')
-    @as_json
-    def timefill_targets(self, request):
-        parsed = q.parse({
-            'targets': q.many(playlistgen.parse_target),
-            'pull_prev': q.one(q.Integer),
-            'keep': q.one(q.Integer),
-            'n_options': q.one(q.Integer),
-            'iterations': q.one(q.Integer),
-            'include': q.many(self.tracks_by_id.get),
-            'exclude': q.many(self.tracks_by_id.get),
-        }, request.args)
-        to_exclude = {t[typ.pPIS] for t in parsed.pop('exclude', ())}
-        local_tracks = [t for t in self.tracks if t[typ.pPIS] not in to_exclude]
-        include_indexes = tuple({local_tracks.index(t) for t in parsed.pop('include', ())})
-        playlists = playlistgen.timefill_search_targets(
-            random, local_tracks, initial=include_indexes, **parsed)
-        playlists = [{
+
+class ShuffleTogetherBodySchema(Schema):
+    tracks = fields.List(TrackField(), required=True)
+
+
+class ShuffleTogetherSchema(Schema):
+    class Meta:
+        unknown = marshmallow.EXCLUDE
+
+    body = fields.Nested(ShuffleTogetherBodySchema)
+
+
+@shuffle_together_albums_service.post(schema=ShuffleTogetherSchema, validators=(marshmallow_validator,))
+def shuffle_together_albums(request):
+    print((type(request.validated), request.validated))
+    return {"bogus": True}
+    albums_dict = {}
+    for track in parsed['tracks']:
+        key = playlistgen.album_key(track)
+        albums_dict.setdefault(key, []).append(track)
+    albums_list = [(0, key, tracks) for key, tracks in albums_dict.iteritems()]
+    info, playlist = playlistgen.shuffle_together_album_tracks(random, albums_list)
+    return {
+        'info': info,
+        'tracks': [t[typ.pPIS] for t in playlist],
+    }
+
+
+timefill_targets_service = Service(name='timefill_targets', path='/_api/timefill-targets')
+
+
+class TimefillTargetsBodySchema(Schema):
+    pull_prev = fields.Integer()
+    keep = fields.Integer()
+    n_options = fields.Integer()
+    iterations = fields.Integer()
+    include = fields.List(TrackField(), missing=())
+    exclude = fields.List(TrackField(), missing=())
+    targets = fields.List(
+        fields.Function(deserialize=playlistgen.parse_target), missing=())
+
+
+class TimefillTargetsSchema(Schema):
+    class Meta:
+        unknown = marshmallow.EXCLUDE
+
+    body = fields.Nested(TimefillTargetsBodySchema)
+
+
+@timefill_targets_service.post(schema=TimefillTargetsSchema, validators=(marshmallow_validator,))
+def timefill_targets(request):
+    parsed = request.validated['body']
+    to_exclude = {t[typ.pPIS] for t in parsed.pop('exclude')}
+    local_tracks = [t for t in request.tracks if t[typ.pPIS] not in to_exclude]
+    include_indexes = tuple({local_tracks.index(t) for t in parsed.pop('include')})
+    playlists = playlistgen.timefill_search_targets(
+        random, local_tracks, initial=include_indexes, **parsed)
+    playlists = [{
         'score': score,
-            'scores': scores,
-            'tracks': [local_tracks[t][typ.pPIS] for t in tracks]
-        } for score, scores, tracks in playlists]
-        return {'playlists': playlists}
-
-    @app.route('/_api/save-and-exit', methods=['POST'])
-    @as_json
-    def save_and_exit(self, request):
-        parsed = q.parse({
-            'name': q.one(q.Text),
-            'tracks': q.many(self.tracks_by_id.get),
-        }, request.args)
-        self.tracks_obj.set_default_dest(parsed['name'])
-        self.tracks_obj.set_tracks(parsed['tracks'])
-        request.notifyClose().chainDeferred(self.done)
-        return True
+        'scores': scores,
+        'tracks': [local_tracks[t][typ.pPIS] for t in tracks]
+    } for score, scores, tracks in playlists]
+    return {'playlists': playlists}
 
 
-class OnCloseRequest(Request):
-    def notifyClose(self):
-        self.setHeader('connection', 'close')
-        d = self.channel._closeDeferred = defer.Deferred()
-        return d
+save_and_exit_service = Service(name='save_and_exit', path='/_api/save-and-exit')
 
 
-class OnCloseHttpChannel(HTTPChannel):
-    _closeDeferred = None
-
-    def connectionLost(self, reason):
-        if self._closeDeferred is not None:
-            self._closeDeferred.errback(reason)
-        HTTPChannel.connectionLost(self, reason)
+class SaveAndExitBodySchema(Schema):
+    name = fields.String(required=True)
+    tracks = fields.List(TrackField(), required=True)
 
 
-class OnCloseSite(Site):
-    requestFactory = OnCloseRequest
-    protocol = OnCloseHttpChannel
+class SaveAndExitSchema(Schema):
+    class Meta:
+        unknown = marshmallow.EXCLUDE
+
+    body = fields.Nested(SaveAndExitBodySchema)
 
 
-def webbrowser_open(port):
-    url = 'http://localhost:{0.port}/'.format(port.getHost())
-    log.info('listening at {url}', url=url)
-    webbrowser.open(url)
+@save_and_exit_service.post(schema=SaveAndExitSchema, validators=(marshmallow_validator,))
+def save_and_exit(request):
+    parsed = request.validated['body']
+    request.tracks_obj.set_default_dest(parsed['name'])
+    request.tracks_obj.set_tracks(parsed['tracks'])
+    return {'done': True}
 
 
-def _run(reactor, tracks):
-    static = File('./resources/dist')
-    web = TrackWeb(tracks_obj=tracks, static_resource=static)
-    web.tracks_as_json
-    web.playlists
+def build_app(tracks):
+    with Configurator() as config:
+        config.include('cornice')
+        config.include(track_methods(tracks))
+        config.add_renderer('json', JSON(serialize_applescript))
+        config.scan()
 
-    logger.globalLogBeginner.beginLoggingTo([
-        logger.textFileLogObserver(sys.stderr)])
+        config.add_route('index', '')
+        config.add_route('genius_albums', '_api/genius-albums')
+        config.add_route('playlists', '_api/playlists')
 
-    site = OnCloseSite(web.app.resource())
-    endpoint = endpoints.TCP6ServerEndpoint(reactor, 0, interface='::1')
-    d = endpoint.listen(site)
-    d.addCallback(webbrowser_open)
-    d.addCallback(lambda ign: web.done)
-    return d
+        config.add_static_view(name='_static', path='playlistgen:static')
+
+        app = config.make_wsgi_app()
+    return app
 
 
-def run(*args):
-    react(_run, args)
+def run(tracks, listen):
+    app = build_app(tracks)
+    waitress.serve(app, listen=listen)

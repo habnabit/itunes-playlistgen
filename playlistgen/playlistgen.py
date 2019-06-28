@@ -392,7 +392,7 @@ def collate_album_score(rng, tracks):
         albums.setdefault(key, []).append((score, track))
 
     ret = []
-    for album_name, album_scores_tracks in albums.iteritems():
+    for album_name, album_scores_tracks in albums.items():
         album_scores, album_tracks = zip(*album_scores_tracks)
         album_score = rng.choice(album_scores)
         ret.append((album_score, album_name, album_tracks))
@@ -653,13 +653,14 @@ def daily_unrecent(tracks, duration, playlist_pattern, delete_older_than):
 
 @main.command()
 @click.pass_obj
-def web(tracks):
+@click.option('--listen', default='[::1]:0', metavar='HOST')
+def web(tracks, listen):
     """
     Do it in a browser.
     """
 
     from . import playlistweb
-    playlistweb.run(tracks)
+    playlistweb.run(tracks, listen)
 
 
 if __name__ == '__main__':
