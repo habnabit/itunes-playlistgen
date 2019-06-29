@@ -2,12 +2,15 @@ import { Map, Seq } from 'immutable'
 import * as qs from 'qs'
 import { applyMiddleware, createStore, DeepPartial, Reducer, Store } from 'redux'
 import { createEpicMiddleware, Epic } from 'redux-observable'
-import { from } from 'rxjs'
-import { debounceTime, filter, map, mergeMap, switchMap } from 'rxjs/operators'
+import { from, generate, interval, never, of } from 'rxjs'
+import { concatMap, debounceTime, filter, map, mergeMap, mergeScan, switchMap } from 'rxjs/operators'
 import { ActionType, getType, isActionOf } from 'typesafe-actions'
 
 import * as actions from './actions'
-import { AlbumKey, AlbumSelector, AlbumSelectors, AlbumShuffleSelector, isoTrackId, TimefillSelector, TrackId } from './types'
+import timefillEpics from './timefill/epics'
+import timefillReducer from './timefill/reducer'
+import { TimefillSelector } from './timefill/types'
+import { AlbumKey, AlbumSelector, AlbumSelectors, AlbumShuffleSelector, isoTrackId, TrackId } from './types'
 
 
 type AllActions = ActionType<typeof actions>
@@ -15,13 +18,33 @@ type AllActions = ActionType<typeof actions>
 const fetchTracksEpic: Epic<AllActions, AllActions> = (action$) => (
     action$.pipe(
         filter(isActionOf(actions.fetchTracks.request)),
-        switchMap((action) => from(
-            fetch('/_api/all-tracks')
-                .then((resp) => resp.json())
-                .then(
-                    (json) => actions.fetchTracks.success({json}),
-                    actions.fetchTracks.failure)
-        ))
+        switchMap((action) => {
+            var done = false;
+            var offset = 0;
+            const tracks: any[] = [];
+            return interval(0).pipe(
+                concatMap(() => {
+                    if (done) {
+                        return never()
+                    }
+                    const params = qs.stringify({offset})
+                    return from(
+                        fetch('/_api/tracks?' + params)
+                            .then((resp) => resp.json())
+                            .then((json) => {
+                                if (json.tracks.length === 0) {
+                                    done = true;
+                                    return actions.fetchTracks.success({tracks})
+                                } else {
+                                    offset += json.tracks.length
+                                    tracks.push(json.tracks)
+                                    return actions.fetchTracksProgress({offset})
+                                }
+                            })
+                    )
+                }),
+            )
+        }),
     )
 )
 
@@ -51,24 +74,6 @@ const shuffleTracksEpic: Epic<AllActions, AllActions> = (action$) => (
                     .then(
                         (json) => actions.shuffleTracks.success({json, lens}),
                         actions.shuffleTracks.failure)
-            )
-        })
-    )
-)
-
-const runTimefillEpic: Epic<AllActions, AllActions> = (action$) => (
-    action$.pipe(
-        filter(isActionOf(actions.runTimefill.request)),
-        switchMap((action) => {
-            const { replace } = action.payload
-            const targets = action.payload.targets.toArray()
-            const params = qs.stringify({targets, ...action.payload.selections}, {arrayFormat: 'repeat'})
-            return from(
-                fetch('/_api/timefill-targets?' + params)
-                    .then((resp) => resp.json())
-                    .then(
-                        (json) => actions.runTimefill.success({json, replace}),
-                        actions.runTimefill.failure)
             )
         })
     )
@@ -139,7 +144,7 @@ function albumShuffleReducer(state = new AlbumShuffleSelector(), action: AllActi
         return state.performSearch()
 
     case getType(actions.fetchTracks.success):
-        return state.withTracksResponse(action.payload.json)
+        return state.withTracksResponse(action.payload.tracks)
 
     case getType(actions.fetchPlaylists.success):
         return state.withPlaylistsResponse(action.payload.json)
@@ -156,80 +161,16 @@ function albumShuffleReducer(state = new AlbumShuffleSelector(), action: AllActi
     }
 }
 
-function timefillReducer(state = new TimefillSelector(), action: AllActions): TimefillSelector {
-    switch (action.type) {
-    case getType(actions.changeControlTimefill): {
-        const { lens, value } = action.payload
-        return lens.set(value)(state)
-    }
-
-    case getType(actions.addTarget):
-        return state.update('targets', (l) => l.push(''))
-
-    case getType(actions.addWeight):
-        const first = state.albums.keySeq().first<AlbumKey>()
-        return state.update('weights', (l) => l.push([first, '']))
-
-    case getType(actions.changeWeight): {
-        const { index, event } = action.payload
-        return state.update('weights', (l) => l.update(index, ([key, weight]) => {
-            if (event.target instanceof HTMLInputElement) {
-                weight = event.target.value
-            } else if (event.target instanceof HTMLSelectElement) {
-                key = state.albums.toIndexedSeq().get(event.target.selectedIndex).key
-            }
-            return [key, weight]
-        }))
-    }
-
-    case getType(actions.togglePlaylistTrack):
-        const { lens, track } = action.payload
-        const selection = state.currentSelection()
-        return lens.modify((pl) =>
-            pl.update('selected', (m) =>
-                m.update(track, undefined, (cur) => cur === selection? undefined : selection))
-        )(state)
-
-    case getType(actions.setKeyboardAvailability):
-        return state.merge({keyboardAvailable: action.payload.available, keysDown: Map()})
-
-    case getType(actions.changeKey):
-        if (state.keyboardAvailable) {
-            return state.update('keysDown', (m) =>
-                m.set(action.payload.key, action.payload.down))
-        } else {
-            return state
-        }
-
-    case getType(actions.setHash):
-        location.hash = "#" + JSON.stringify({
-            name: state.name,
-            targets: state.targets.toArray(),
-            weights: state.weights.map(([k, w]) => [k.toJSON(), w]).toArray(),
-        })
-        return state
-
-    case getType(actions.fetchTracks.success):
-        return state.withTracksResponse(action.payload.json)
-
-    case getType(actions.runTimefill.success):
-        return state.withTimefillResponse(action.payload.json, action.payload.replace)
-
-    default:
-        return state
-    }
-}
-
-function makeStore<S>(reducer: Reducer<S>, state: DeepPartial<S>): Store<S> {
+function makeStore<S>(reducer: Reducer<S>, state: DeepPartial<S>, epics: Epic): Store<S> {
     const epicMiddleware = createEpicMiddleware()
     const store = createStore(reducer, state, applyMiddleware(epicMiddleware))
 
     epicMiddleware.run(fetchTracksEpic)
     epicMiddleware.run(fetchPlaylistsEpic)
     epicMiddleware.run(shuffleTracksEpic)
-    epicMiddleware.run(runTimefillEpic)
     epicMiddleware.run(savePlaylistEpic)
     epicMiddleware.run(searchDebounceEpic)
+    epicMiddleware.run(epics)
 
     addEventListener('keydown', (ev) => store.dispatch(actions.changeKey({key: ev.key.toLowerCase(), down: true})))
     addEventListener('keyup', (ev) => store.dispatch(actions.changeKey({key: ev.key.toLowerCase(), down: false})))
@@ -237,5 +178,5 @@ function makeStore<S>(reducer: Reducer<S>, state: DeepPartial<S>): Store<S> {
     return store
 }
 
-export const albumShuffleStore = (state = new AlbumShuffleSelector()) => makeStore(albumShuffleReducer, state)
-export const timefillStore = (state = new TimefillSelector()) => makeStore(timefillReducer, state)
+//export const albumShuffleStore = (state = new AlbumShuffleSelector()) => makeStore(albumShuffleReducer, state)
+export const timefillStore = (state = new TimefillSelector()) => makeStore(timefillReducer, state, timefillEpics)

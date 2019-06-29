@@ -116,7 +116,7 @@ tracks_service = Service(name='tracks', path='/_api/tracks')
 
 
 class TracksQuerySchema(Schema):
-    from_idx = fields.Integer(missing=0)
+    offset = fields.Integer(missing=0)
     count = fields.Integer(missing=250)
     by_id = DelimitedString(',', TrackField)
 
@@ -134,8 +134,8 @@ def tracks(request):
     if 'by_id' in parsed:
         tracks = parsed['by_id']
     else:
-        from_idx = parsed['from_idx']
-        tracks = request.tracks[from_idx : from_idx + parsed['count']]
+        offset = parsed['offset']
+        tracks = request.tracks[offset : offset + parsed['count']]
     return {'tracks': tracks}
 
 

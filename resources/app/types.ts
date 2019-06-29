@@ -2,6 +2,7 @@ import { List, Map, OrderedMap, Record, Seq, Set } from 'immutable'
 import { iso, Newtype } from 'newtype-ts'
 import { Lens } from '../node_modules/monocle-ts'
 
+import * as actions from './actions'
 import { lensFromImplicitAccessors } from './extlens'
 
 
@@ -183,90 +184,10 @@ export class AlbumShuffleSelector extends Record({
     }
 }
 
-export type PlaylistTrackSelection = 'include' | 'exclude' | undefined
-
-export class Playlist extends Record({
-    tracks: List<Track>(),
-    selected: Map<TrackId, PlaylistTrackSelection>(),
-    score: 0,
-    scores: [] as number[],
-}) {
-    selectionMap(): {[K in PlaylistTrackSelection]: TrackId[]} {
-        const ret = {include: [] as TrackId[], exclude: [] as TrackId[]}
-        this.selected.forEach((sel, tid) => {
-            if (sel) {
-                ret[sel].push(tid)
-            }
-        })
-        return ret
-    }
-}
-
-export class TimefillSelector extends Record({
-    tracks: Map<TrackId, Track>(),
-    name: '',
-    targets: List<string>(),
-    albums: OrderedMap<AlbumKey, Album>(),
-    weights: List<[AlbumKey, string]>(),
-    playlists: List<Playlist>(),
-    keyboardAvailable: true,
-    keysDown: Map<string, boolean>(),
-}) {
-    currentSelection(): PlaylistTrackSelection {
-        if (this.keysDown.get('z')) {
-            return 'include'
-        } else if (this.keysDown.get('x')) {
-            return 'exclude'
-        } else {
-            return undefined
-        }
-    }
-
-    selectionMap(): {[K in PlaylistTrackSelection]: TrackId[]} {
-        const ret = {include: [] as TrackId[], exclude: [] as TrackId[]}
-        this.playlists.forEach((pl) => {
-            pl.selected.forEach((sel, tid) => {
-                if (sel) {
-                    ret[sel].push(tid)
-                }
-            })
-        })
-        return ret
-    }
-
-    withTracksResponse(j: any): this {
-        const orderedTracks = OrderedMap<TrackId, Track>().withMutations((m) => {
-            for (const t of j.data) {
-                m.set(isoTrackId.wrap(t.T_pPIS), new Track(t))
-            }
-        })
-        const tracks = orderedTracks.toMap()
-        const albums = collateAlbums(orderedTracks.values())
-            .sortBy((album) => album.nameLower)
-        return this.merge({tracks, albums})
-    }
-
-    withTimefillResponse(j: any, replace?: Lens<TimefillSelector, Playlist>): TimefillSelector {
-        const playlists = List(j.data.playlists as {tracks: TrackId[], score: number, scores: number[]}[])
-            .map((p) => {
-                const initial = {...p, tracks: List(p.tracks).map((tid) => this.tracks.get(tid))}
-                return new Playlist(initial)
-            })
-        if (replace) {
-            const toInsert = playlists.first<Playlist>()
-            return replace.modify((pl) => toInsert.set('selected', pl.selected))(this)
-        } else {
-            return this.set('playlists', playlists)
-        }
-    }
-
-    allTargets(): List<string> {
-        let targets = this.targets
-        if (!this.weights.isEmpty()) {
-            targets = targets.push('album-weight=' + JSON.stringify({
-                weights: this.weights.toJSON(),
-            }))
-        }
-        return targets
+export type KeyboardEvents = {onFocus: () => void, onBlur: () => void}
+export function keyboardEvents(dispatch: {onKeyboardAvailable: typeof actions.setKeyboardAvailability}): KeyboardEvents {
+    return {
+        onFocus: () => dispatch.onKeyboardAvailable({available: false}),
+        onBlur: () => dispatch.onKeyboardAvailable({available: true}),
     }
 }

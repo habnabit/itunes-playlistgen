@@ -2,7 +2,7 @@ import { List } from 'immutable'
 import { Lens } from 'monocle-ts'
 import { createAsyncAction, createStandardAction } from 'typesafe-actions'
 
-import { AlbumKey, AlbumSelector, AlbumSelectors, AlbumShuffleSelector, Playlist, PlaylistTrackSelection, SubsetKeys, TimefillSelector, Track, TrackId } from './types'
+import { AlbumKey, AlbumSelector, AlbumSelectors, AlbumShuffleSelector, SubsetKeys, Track, TrackId } from './types'
 
 
 export const toggleAlbumSelected = createStandardAction('playlistgen/toggleAlbumSelected')<{
@@ -29,11 +29,6 @@ export const changeControl = createStandardAction('playlistgen/controlChange')<{
 
 export const performSearch = createStandardAction('playlistgen/performSearch')()
 
-export const changeControlTimefill = createStandardAction('playlistgen/changeControlTimefill')<{
-    lens: Lens<TimefillSelector, string>
-    value: string
-}>()
-
 export const addTarget = createStandardAction('playlistgen/addTarget')<{}>()
 
 export const addWeight = createStandardAction('playlistgen/addWeight')<{}>()
@@ -41,11 +36,6 @@ export const addWeight = createStandardAction('playlistgen/addWeight')<{}>()
 export const changeWeight = createStandardAction('playlistgen/changeWeight')<{
     index: number
     event: React.ChangeEvent
-}>()
-
-export const togglePlaylistTrack = createStandardAction('playlistgen/togglePlaylistTrack')<{
-    lens: Lens<TimefillSelector, Playlist>
-    track: TrackId
 }>()
 
 export const setKeyboardAvailability = createStandardAction('playlistgen/setKeyboardAvailability')<{
@@ -59,7 +49,13 @@ export const changeKey = createStandardAction('playlistgen/changeKey')<{
 
 export const setHash = createStandardAction('playlistgen/setHash')<void>()
 
-export const fetchTracks = createAsyncAction('playlistgen/fetchTracksRequest', 'playlistgen/fetchTracksSuccess', 'playlistgen/fetchTracksFailure')<void, {json: any}, Error>()
+export const fetchTracks = createAsyncAction('playlistgen/fetchTracksRequest', 'playlistgen/fetchTracksSuccess', 'playlistgen/fetchTracksFailure')<void, {
+    tracks: any[]
+}, Error>()
+
+export const fetchTracksProgress = createStandardAction('playlistgen/fetchTracksProgress')<{
+    offset: number
+}>()
 
 export const fetchPlaylists = createAsyncAction('playlistgen/fetchPlaylistsRequest', 'playlistgen/fetchPlaylistsSuccess', 'playlistgen/fetchPlaylistsFailure')<void, {json: any}, Error>()
 
@@ -69,15 +65,6 @@ export const shuffleTracks = createAsyncAction('playlistgen/shuffleTracksRequest
 }, {
     json: any
     lens: Lens<AlbumShuffleSelector, AlbumSelectors>
-}, Error>()
-
-export const runTimefill = createAsyncAction('playlistgen/runTimefillRequest', 'playlistgen/runTimefillSuccess', 'playlistgen/runTimefillFailure')<{
-    targets: List<string>
-    selections?: {[K in PlaylistTrackSelection]: TrackId[]}
-    replace?: Lens<TimefillSelector, Playlist>
-}, {
-    json: any
-    replace?: Lens<TimefillSelector, Playlist>
 }, Error>()
 
 export const savePlaylist = createAsyncAction('playlistgen/savePlaylistRequest', 'playlistgen/savePlaylistSuccess', 'playlistgen/savePlaylistFailure')<{
