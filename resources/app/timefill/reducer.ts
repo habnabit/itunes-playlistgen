@@ -13,14 +13,15 @@ import { AllActions, TimefillSelector } from './types'
 
 
 export default function timefillReducer(state = new TimefillSelector(), action: AllActions): TimefillSelector {
+    console.log(action)
     switch (action.type) {
     case getType(actions.changeControl): {
         const { lens, value } = action.payload
         return lens.set(value)(state)
     }
 
-    // case getType(actions.addTarget):
-    //     return state.update('targets', (l) => l.push(''))
+    case getType(actions.addTarget):
+        return state.update('targets', (l) => l.push(''))
 
     // case getType(actions.addWeight):
     //     const first = state.albums.keySeq().first<AlbumKey>()
@@ -38,24 +39,24 @@ export default function timefillReducer(state = new TimefillSelector(), action: 
     //     }))
     // }
 
-    // case getType(actions.togglePlaylistTrack):
-    //     const { lens, track } = action.payload
-    //     const selection = state.currentSelection()
-    //     return lens.modify((pl) =>
-    //         pl.update('selected', (m) =>
-    //             m.update(track, undefined, (cur) => cur === selection? undefined : selection))
-    //     )(state)
+    case getType(actions.toggleChoiceTrack):
+        const { lens, track } = action.payload
+        const selection = state.currentSelection()
+        return lens.modify((pl) =>
+            pl.update('selected', (m) =>
+                m.update(track, undefined, (cur) => cur === selection? undefined : selection))
+        )(state)
 
-    // case getType(actions.setKeyboardAvailability):
-    //     return state.merge({keyboardAvailable: action.payload.available, keysDown: Map()})
+    case getType(baseActions.setKeyboardAvailability):
+        return state.merge({keyboardAvailable: action.payload.available, keysDown: Map()})
 
-    // case getType(actions.changeKey):
-    //     if (state.keyboardAvailable) {
-    //         return state.update('keysDown', (m) =>
-    //             m.set(action.payload.key, action.payload.down))
-    //     } else {
-    //         return state
-    //     }
+    case getType(baseActions.changeKey):
+        if (state.keyboardAvailable) {
+            return state.update('keysDown', (m) =>
+                m.set(action.payload.key, action.payload.down))
+        } else {
+            return state
+        }
 
     // case getType(actions.setHash):
     //     location.hash = "#" + JSON.stringify({
@@ -66,7 +67,7 @@ export default function timefillReducer(state = new TimefillSelector(), action: 
     //     return state
 
     case getType(baseActions.fetchTracks.success):
-        return state.withTracksResponse(action.payload.json)
+        return state.withTracksResponse(action.payload.tracks)
 
     case getType(actions.runTimefill.success):
         return state.withTimefillResponse(action.payload.json, action.payload.replace)

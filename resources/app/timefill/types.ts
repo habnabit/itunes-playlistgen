@@ -60,10 +60,12 @@ export class TimefillSelector extends Record({
         return ret
     }
 
-    withTracksResponse(j: any): this {
+    withTracksResponse(j: any[][]): this {
         const orderedTracks = OrderedMap<TrackId, Track>().withMutations((m) => {
-            for (const t of j.data) {
-                m.set(isoTrackId.wrap(t.T_pPIS), new Track(t))
+            for (const ts of j) {
+                for (const t of ts) {
+                    m.set(isoTrackId.wrap(t.T_pPIS), new Track(t))
+                }
             }
         })
         const tracks = orderedTracks.toMap()
@@ -73,7 +75,7 @@ export class TimefillSelector extends Record({
     }
 
     withTimefillResponse(j: any, replace?: Lens<TimefillSelector, Choice>): TimefillSelector {
-        const choices = List(j.data.choices as {tracks: TrackId[], score: number, scores: number[]}[])
+        const choices = List(j.playlists as {tracks: TrackId[], score: number, scores: number[]}[])
             .map((p) => {
                 const initial = {...p, tracks: List(p.tracks).map((tid) => this.tracks.get(tid))}
                 return new Choice(initial)

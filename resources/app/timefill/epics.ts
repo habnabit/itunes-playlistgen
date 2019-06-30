@@ -18,9 +18,15 @@ const runTimefillEpic: Epic<AllActions, AllActions> = (action$) => (
         switchMap((action) => {
             const { replace } = action.payload
             const targets = action.payload.targets.toArray()
-            const params = qs.stringify({targets, ...action.payload.selections}, {arrayFormat: 'repeat'})
+            const data = {targets, ...action.payload.selections}
             return from(
-                fetch('/_api/timefill-targets?' + params)
+                fetch('/_api/timefill-targets', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(data),
+                })
                     .then((resp) => resp.json())
                     .then(
                         (json) => actions.runTimefill.success({json, replace}),

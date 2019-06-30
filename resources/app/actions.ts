@@ -50,7 +50,7 @@ export const changeKey = createStandardAction('playlistgen/changeKey')<{
 export const setHash = createStandardAction('playlistgen/setHash')<void>()
 
 export const fetchTracks = createAsyncAction('playlistgen/fetchTracksRequest', 'playlistgen/fetchTracksSuccess', 'playlistgen/fetchTracksFailure')<void, {
-    tracks: any[]
+    tracks: any[][]
 }, Error>()
 
 export const fetchTracksProgress = createStandardAction('playlistgen/fetchTracksProgress')<{

@@ -2,8 +2,8 @@ import { Map, Seq } from 'immutable'
 import * as qs from 'qs'
 import { applyMiddleware, createStore, DeepPartial, Reducer, Store } from 'redux'
 import { createEpicMiddleware, Epic } from 'redux-observable'
-import { from, generate, interval, never, of } from 'rxjs'
-import { concatMap, debounceTime, filter, map, mergeMap, mergeScan, switchMap } from 'rxjs/operators'
+import { EMPTY, from, generate, interval, never, of } from 'rxjs'
+import { concatMap, debounceTime, expand, filter, map, mergeMap, mergeScan, switchMap } from 'rxjs/operators'
 import { ActionType, getType, isActionOf } from 'typesafe-actions'
 
 import * as actions from './actions'
@@ -19,32 +19,32 @@ const fetchTracksEpic: Epic<AllActions, AllActions> = (action$) => (
     action$.pipe(
         filter(isActionOf(actions.fetchTracks.request)),
         switchMap((action) => {
-            var done = false;
-            var offset = 0;
-            const tracks: any[] = [];
-            return interval(0).pipe(
-                concatMap(() => {
-                    if (done) {
-                        return never()
+            return of({offset: 0, tracks: [], json: undefined}).pipe(
+                expand(({offset, tracks, json}) => {
+                    if (json) {
+                        if (json.tracks.length === 0) {
+                            return EMPTY
+                        } else {
+                            offset += json.tracks.length
+                            tracks.push(json.tracks)
+                        }
                     }
                     const params = qs.stringify({offset})
                     return from(
                         fetch('/_api/tracks?' + params)
                             .then((resp) => resp.json())
-                            .then((json) => {
-                                if (json.tracks.length === 0) {
-                                    done = true;
-                                    return actions.fetchTracks.success({tracks})
-                                } else {
-                                    offset += json.tracks.length
-                                    tracks.push(json.tracks)
-                                    return actions.fetchTracksProgress({offset})
-                                }
-                            })
+                            .then((json) => ({offset, tracks, json}))
                     )
                 }),
             )
         }),
+        map(({offset, tracks, json}) => {
+            if (json && json.tracks.length === 0) {
+                return actions.fetchTracks.success({tracks})
+            } else {
+                return actions.fetchTracksProgress({offset})
+            }
+        })
     )
 )
 
