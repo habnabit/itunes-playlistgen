@@ -186,11 +186,48 @@ const ConnectedTargetsComponent = connect(
 //     },
 // )(WeightsComponent)
 
+const SelectionsComponent = onlyUpdateForKeys(
+    ['tracks']
+)((props: {
+    selected: ChoiceTrackSelection
+    tracks: List<Track>
+    onToggle: (tid: TrackId) => () => void
+}) => {
+    return <div className="choice">
+        <ul className="fuller tracklist">
+            {props.tracks.map((track, e) => {
+                const onToggle = props.onToggle(track.id)
+                return <ChoiceTrackComponent key={e} selected={props.selected} {...{track, onToggle}} />
+            })}
+        </ul>
+    </div>
+})
+
+export const ConnectedSelectionsComponent = connect(
+    (top: TimefillSelector, ownProps: {}) => {
+        return {
+            top,
+        }
+    },
+    (d: Dispatch) => bindActionCreators({
+        onToggle: actions.clearChoiceTrack,
+    }, d),
+    (stateProps, dispatchProps, ownProps) => {
+        return {
+            onToggle: (track: TrackId) => () => dispatchProps.onToggle({track}),
+            ...stateProps, ...ownProps,
+        }
+    },
+    {
+    },
+)(SelectionsComponent)
+
 class TimefillSelectorComponent extends React.PureComponent<{
     name: string
     choices: List<Choice>
     selectState: ChoiceTrackSelection
     keyb: KeyboardEvents,
+    selectionMap: {[K in ChoiceTrackSelection]: List<Track>},
     onChangeName: (name: string) => void
     onLoad: typeof baseActions.fetchTracks.request
     onSelect: () => void
@@ -214,6 +251,10 @@ class TimefillSelectorComponent extends React.PureComponent<{
             <section>
                 <button onClick={this.props.onSelect}>Select new</button>
             </section>
+            <section>
+                <ConnectedSelectionsComponent selected="include" tracks={this.props.selectionMap.include} />
+                <ConnectedSelectionsComponent selected="exclude" tracks={this.props.selectionMap.exclude} />
+            </section>
             <section className="choices">
                 {this.props.choices.map((pl, e) => <ConnectedChoiceComponent key={e} idxTop={e} />)}
             </section>
@@ -224,8 +265,12 @@ class TimefillSelectorComponent extends React.PureComponent<{
 export const ConnectedTimefillSelectorComponent = connect(
     (top: TimefillSelector = new TimefillSelector()) => {
         const { name, targets, choices } = top
+        const _selectionMap = Map(top.selectionMap())
+            .map((tracks) => List(tracks).map((t) => top.tracks.get(t)))
+            .toObject()
+        const selectionMap = _selectionMap as {[K in ChoiceTrackSelection]: List<Track>}
         return {
-            name, targets, choices,
+            name, targets, choices, selectionMap,
             allTargets: top.allTargets(),
             selectState: top.currentSelection(),
         }

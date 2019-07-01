@@ -39,13 +39,19 @@ export default function timefillReducer(state = new TimefillSelector(), action: 
     //     }))
     // }
 
-    case getType(actions.toggleChoiceTrack):
+    case getType(actions.toggleChoiceTrack): {
         const { lens, track } = action.payload
         const selection = state.currentSelection()
         return lens.modify((pl) =>
             pl.update('selected', (m) =>
                 m.update(track, undefined, (cur) => cur === selection? undefined : selection))
         )(state)
+    }
+
+    case getType(actions.clearChoiceTrack): {
+        const { track } = action.payload
+        return state.withClearedSelection(track)
+    }
 
     case getType(baseActions.setKeyboardAvailability):
         return state.merge({keyboardAvailable: action.payload.available, keysDown: Map()})

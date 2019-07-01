@@ -27,6 +27,10 @@ export const toggleChoiceTrack = createStandardAction('playlistgen/toggleChoiceT
     track: TrackId
 }>()
 
+export const clearChoiceTrack = createStandardAction('playlistgen/clearChoiceTrack')<{
+    track: TrackId
+}>()
+
 // export const setKeyboardAvailability = createStandardAction('playlistgen/setKeyboardAvailability')<{
 //     available: boolean
 // }>()

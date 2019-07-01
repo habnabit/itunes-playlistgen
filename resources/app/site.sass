@@ -22,7 +22,13 @@ body
     opacity: 0.25
     transition: opacity 0.25s ease-in
 
-ol.tracklist
+ul.tracklist.fuller > li
+  list-style: square
+
+ol.tracklist.fuller > li
+  list-style: decimal
+
+.tracklist
   font-size: 0.75em
   display: flex
   flex-wrap: wrap
@@ -37,7 +43,6 @@ ol.tracklist
     flex-direction: column
     align-content: flex-start
     > li
-      list-style: decimal
       margin-left: 2em
       white-space: normal
       padding-left: 1em

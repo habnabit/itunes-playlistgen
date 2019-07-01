@@ -26,6 +26,10 @@ export class Choice extends Record({
         })
         return ret
     }
+
+    withClearedSelection(tid: TrackId): this {
+        return this.update('selected', (m) => m.delete(tid))
+    }
 }
 
 export class TimefillSelector extends Record({
@@ -96,5 +100,10 @@ export class TimefillSelector extends Record({
             }))
         }
         return targets
+    }
+
+    withClearedSelection(tid: TrackId): this {
+        return this.update('choices', (choices) =>
+            choices.map((choice) => choice.withClearedSelection(tid)))
     }
 }
