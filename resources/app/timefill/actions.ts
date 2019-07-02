@@ -35,7 +35,7 @@ export const clearChoiceTrack = createStandardAction('playlistgen/clearChoiceTra
 //     available: boolean
 // }>()
 
-export const runTimefill = createAsyncAction('playlistgen/timefill/runTimefillRequest', 'playlistgen/timefill/runTimefillSuccess', 'playlistgen/timefill/runTimefillFailure')<{
+export const runTimefill = createAsyncAction('playlistgen/timefill/runTimefill/request', 'playlistgen/timefill/runTimefill/success', 'playlistgen/timefill/runTimefill/failure')<{
     targets: List<string>
     selections?: {[K in ChoiceTrackSelection]: TrackId[]}
     replace?: Lens<TimefillSelector, Choice>

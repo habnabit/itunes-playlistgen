@@ -29,15 +29,6 @@ export const changeControl = createStandardAction('playlistgen/controlChange')<{
 
 export const performSearch = createStandardAction('playlistgen/performSearch')()
 
-export const addTarget = createStandardAction('playlistgen/addTarget')<{}>()
-
-export const addWeight = createStandardAction('playlistgen/addWeight')<{}>()
-
-export const changeWeight = createStandardAction('playlistgen/changeWeight')<{
-    index: number
-    event: React.ChangeEvent
-}>()
-
 export const setKeyboardAvailability = createStandardAction('playlistgen/setKeyboardAvailability')<{
     available: boolean
 }>()
@@ -49,17 +40,17 @@ export const changeKey = createStandardAction('playlistgen/changeKey')<{
 
 export const setHash = createStandardAction('playlistgen/setHash')<void>()
 
-export const fetchTracks = createAsyncAction('playlistgen/fetchTracksRequest', 'playlistgen/fetchTracksSuccess', 'playlistgen/fetchTracksFailure')<void, {
+export const fetchTracks = createAsyncAction('playlistgen/fetchTracks/request', 'playlistgen/fetchTracks/success', 'playlistgen/fetchTracks/failure')<void, {
     tracks: any[][]
 }, Error>()
 
-export const fetchTracksProgress = createStandardAction('playlistgen/fetchTracksProgress')<{
+export const fetchTracksProgress = createStandardAction('playlistgen/fetchTracks/progress')<{
     offset: number
 }>()
 
-export const fetchPlaylists = createAsyncAction('playlistgen/fetchPlaylistsRequest', 'playlistgen/fetchPlaylistsSuccess', 'playlistgen/fetchPlaylistsFailure')<void, {json: any}, Error>()
+export const fetchPlaylists = createAsyncAction('playlistgen/fetchPlaylists/request', 'playlistgen/fetchPlaylists/success', 'playlistgen/fetchPlaylists/failure')<void, {json: any}, Error>()
 
-export const shuffleTracks = createAsyncAction('playlistgen/shuffleTracksRequest', 'playlistgen/shuffleTracksSuccess', 'playlistgen/shuffleTracksFailure')<{
+export const shuffleTracks = createAsyncAction('playlistgen/shuffleTracks/request', 'playlistgen/shuffleTracks/success', 'playlistgen/shuffleTracks/failure')<{
     tracks: List<Track>
     lens: Lens<AlbumShuffleSelector, AlbumSelectors>
 }, {
@@ -67,7 +58,7 @@ export const shuffleTracks = createAsyncAction('playlistgen/shuffleTracksRequest
     lens: Lens<AlbumShuffleSelector, AlbumSelectors>
 }, Error>()
 
-export const savePlaylist = createAsyncAction('playlistgen/savePlaylistRequest', 'playlistgen/savePlaylistSuccess', 'playlistgen/savePlaylistFailure')<{
+export const savePlaylist = createAsyncAction('playlistgen/savePlaylist/request', 'playlistgen/savePlaylist/success', 'playlistgen/savePlaylist/failure')<{
     name: string
     tracks: List<Track>
 }, never, Error>()
