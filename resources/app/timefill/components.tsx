@@ -48,13 +48,15 @@ const ChoiceComponent = onlyUpdateForKeys(
         <p>score: {choice.score.toPrecision(2)}; scores: {choice.scores.map((s) => s.toPrecision(2)).join(' ')}</p>
         <button onClick={() => props.onReroll()}>Reroll</button>
         <button onClick={() => props.onSave()}>Save</button>
-        <ol className="fuller tracklist">
+        <ol className="fuller tracklist selectable fade">
             {props.choice.tracks.map((track, e) => {
                 const onToggle = props.onToggle(track.id)
                 return <ChoiceTrackComponent key={e} selected={choice.selected.get(track.id)} {...{track, onToggle}} />
             })}
-            <li className="total"><DurationComponent duration={totalDuration} /> total</li>
         </ol>
+        <ul className="fuller tracklist total">
+            <li><DurationComponent duration={totalDuration} /> total</li>
+        </ul>
     </div>
 })
 
@@ -193,8 +195,8 @@ const SelectionsComponent = onlyUpdateForKeys(
     tracks: List<Track>
     onToggle: (tid: TrackId) => () => void
 }) => {
-    return <div className="choice">
-        <ul className="fuller tracklist">
+    return <div className="selection">
+        <ul className="fuller tracklist selectable">
             {props.tracks.map((track, e) => {
                 const onToggle = props.onToggle(track.id)
                 return <ChoiceTrackComponent key={e} selected={props.selected} {...{track, onToggle}} />
@@ -251,11 +253,9 @@ class TimefillSelectorComponent extends React.PureComponent<{
             <section>
                 <button onClick={this.props.onSelect}>Select new</button>
             </section>
-            <section>
+            <section className="choices">
                 <ConnectedSelectionsComponent selected="include" tracks={this.props.selectionMap.include} />
                 <ConnectedSelectionsComponent selected="exclude" tracks={this.props.selectionMap.exclude} />
-            </section>
-            <section className="choices">
                 {this.props.choices.map((pl, e) => <ConnectedChoiceComponent key={e} idxTop={e} />)}
             </section>
         </div>

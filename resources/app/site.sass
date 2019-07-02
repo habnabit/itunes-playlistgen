@@ -28,10 +28,8 @@ ul.tracklist.fuller > li
 ol.tracklist.fuller > li
   list-style: decimal
 
-.tracklist
+ul.tracklist, ol.tracklist
   font-size: 0.75em
-  display: flex
-  flex-wrap: wrap
   margin: 0.5em
   padding: 0
   > li
@@ -39,43 +37,45 @@ ol.tracklist.fuller > li
     padding: 0.1em 0.75em
     white-space: nowrap
 
-  &.fuller
-    flex-direction: column
-    align-content: flex-start
-    > li
-      margin-left: 2em
-      white-space: normal
-      padding-left: 1em
-      text-indent: -1em
-      &.total
-        list-style: none
-        padding-top: 0.5em
-      &:not(.total)
-        cursor: pointer
-        transition: background 0.25s ease-out
-        &.include
-          background: hsla(95, 100%, 70%, 0.75)
-        &.exclude
-          background: hsla(45, 100%, 70%, 0.75)
+  &.fuller > li
+    margin-left: 2em
+    white-space: normal
+    padding-left: 1em
+    text-indent: -1em
 
-.set-include ol.tracklist.fuller > li:not(.total)
+  &.total > li
+    list-style: none
+    padding-top: 0.5em
+
+  &.selectable > li
+    cursor: pointer
+    transition: background 0.25s ease-out
+    &.include
+      background: hsla(95, 100%, 70%, 0.75)
+    &.exclude
+      background: hsla(45, 100%, 70%, 0.75)
+
+.set-include .tracklist.selectable.fade > li
   &:hover
     background: hsla(95, 100%, 70%, 0.5)
   &.include:hover
     background: hsla(95, 100%, 70%, 1)
 
-.set-exclude ol.tracklist.fuller > li:not(.total)
+.set-exclude .tracklist.selectable.fade > li
   &:hover
     background: hsla(45, 100%, 70%, 0.5)
   &.exclude:hover
     background: hsla(45, 100%, 70%, 1)
 
-.playlists
-  display: flex
-  flex-wrap: wrap
-  justify-content: space-evenly
-  .playlist
-    max-width: 30%
+.choices
+  display: grid
+  grid-template-columns: repeat(6, 1fr)
+  grid-column-gap: 1em
+
+  .selection
+    grid-column-end: span 3
+  .choice
+    grid-column-end: span 2
 
 .alerts
   .alert
