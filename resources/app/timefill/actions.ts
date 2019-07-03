@@ -14,6 +14,9 @@ export const changeControl = createStandardAction('playlistgen/timefill/changeCo
 }>()
 
 export const addTarget = createStandardAction('playlistgen/timefill/addTarget')<{}>()
+export const removeTarget = createStandardAction('playlistgen/timefill/removeTarget')<{
+    index: number
+}>()
 
 // export const addWeight = createStandardAction('playlistgen/addWeight')<{}>()
 

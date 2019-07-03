@@ -23,6 +23,11 @@ export default function timefillReducer(state = new TimefillSelector(), action: 
     case getType(actions.addTarget):
         return state.update('targets', (l) => l.push(''))
 
+    case getType(actions.removeTarget): {
+        const { index } = action.payload
+        return state.update('targets', (targets) => targets.remove(index))
+    }
+
     // case getType(actions.addWeight):
     //     const first = state.albums.keySeq().first<AlbumKey>()
     //     return state.update('weights', (l) => l.push([first, '']))

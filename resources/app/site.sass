@@ -22,6 +22,20 @@ body
     opacity: 0.25
     transition: opacity 0.25s ease-in
 
+.targets
+  max-width: 25em
+  display: grid
+  grid-template-columns: 1fr auto
+  grid-gap: 0.5em
+  align-items: center
+
+  > button
+    height: 2.5em
+    &.add-target
+      grid-column-end: span 2
+    &.remove-target
+      width: 2.5em
+
 ul.tracklist.fuller > li
   list-style: square
 
@@ -45,7 +59,6 @@ ul.tracklist, ol.tracklist
 
   &.total > li
     list-style: none
-    padding-top: 0.5em
 
   &.selectable > li
     cursor: pointer
@@ -70,12 +83,34 @@ ul.tracklist, ol.tracklist
 .choices
   display: grid
   grid-template-columns: repeat(6, 1fr)
-  grid-column-gap: 1em
+  grid-gap: 1em
 
   .selection
     grid-column-end: span 3
   .choice
     grid-column-end: span 2
+    background: #eee
+
+.choice .actions
+  display: grid
+  grid-template-columns: repeat(2, 1fr)
+  grid-column-gap: 0.5em
+  margin: 0 0.5em
+
+  > button
+    -webkit-appearance: none
+    border: 0
+    background: #ddd
+    height: 3em
+
+    &:hover
+      background: #ccc
+      cursor: pointer
+    &:focus
+      outline: 0
+      border: 0.25em olive inset
+    &:active
+      background: #aaa
 
 .alerts
   .alert

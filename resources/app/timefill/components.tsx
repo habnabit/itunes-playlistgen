@@ -44,10 +44,17 @@ const ChoiceComponent = onlyUpdateForKeys(
 }) => {
     const { choice } = props
     const totalDuration = choice.tracks.reduce((totalDuration, track) => totalDuration + track.t('pDur') as number, 0)
+    var product
+    if (choice.scores.length === 0) {
+        product = "∅"
+    } else {
+        product = "{" + choice.scores.map((s) => s.toPrecision(2)).join(', ') + "}"
+    }
     return <div className="choice">
-        <p>score: {choice.score.toPrecision(2)}; scores: {choice.scores.map((s) => s.toPrecision(2)).join(' ')}</p>
-        <button onClick={() => props.onReroll()}>Reroll</button>
-        <button onClick={() => props.onSave()}>Save</button>
+        <div className="actions">
+            <button onClick={() => props.onReroll()}>Reroll</button>
+            <button onClick={() => props.onSave()}>Save</button>
+        </div>
         <ol className="fuller tracklist selectable fade">
             {props.choice.tracks.map((track, e) => {
                 const onToggle = props.onToggle(track.id)
@@ -56,6 +63,7 @@ const ChoiceComponent = onlyUpdateForKeys(
         </ol>
         <ul className="fuller tracklist total">
             <li><DurationComponent duration={totalDuration} /> total</li>
+            <li>∏{product} = {choice.score.toPrecision(2)}</li>
         </ul>
     </div>
 })
@@ -99,21 +107,25 @@ export const ConnectedChoiceComponent = connect(
 )(ChoiceComponent)
 
 const TargetsComponent = onlyUpdateForKeys(
-    []
+    ['targets']
 )((props: {
     targets: List<string>
     targetsLens: Lens<TimefillSelector, List<string>>
     onAddTarget: typeof actions.addTarget
+    onRemoveTarget: typeof actions.removeTarget
     onChangeControl: typeof actions.changeControl
     keyb: KeyboardEvents
 }) => {
-    return <section>
-        <button onClick={() => props.onAddTarget({})}>Add target</button>
+    return <section className="targets">
+        <button className="add-target" onClick={() => props.onAddTarget({})}>Add target</button>
         {props.targets.map((target, e) => {
             const lens: Lens<TimefillSelector, string> = props.targetsLens.compose(lensFromImplicitAccessors(e))
-            return <input key={e} type="text" placeholder="Target…" value={target} onChange={(ev) => {
-                props.onChangeControl({lens, value: ev.target.value})
-            }} {...props.keyb} />
+            return <React.Fragment key={e}>
+                <input type="text" placeholder="Target…" value={target} onChange={(ev) => {
+                    props.onChangeControl({lens, value: ev.target.value})
+                }} {...props.keyb} />
+                <button className="remove-target" onClick={() => props.onRemoveTarget({index: e})}>❌</button>
+            </React.Fragment>
         })}
     </section>
 })
@@ -122,6 +134,7 @@ const ConnectedTargetsComponent = connect(
     (top: TimefillSelector) => ({targets: top.targets}),
     (d: Dispatch) => bindActionCreators({
         onAddTarget: actions.addTarget,
+        onRemoveTarget: actions.removeTarget,
         onChangeControl: actions.changeControl,
         onKeyboardAvailable: baseActions.setKeyboardAvailability,
     }, d),
