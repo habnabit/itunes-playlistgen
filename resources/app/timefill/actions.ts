@@ -1,4 +1,4 @@
-import { List } from 'immutable'
+import { List, Map, Set } from 'immutable'
 import { Lens } from 'monocle-ts'
 import { createAsyncAction, createStandardAction } from 'typesafe-actions'
 
@@ -40,7 +40,7 @@ export const clearChoiceTrack = createStandardAction('playlistgen/clearChoiceTra
 
 export const runTimefill = createAsyncAction('playlistgen/timefill/runTimefill/request', 'playlistgen/timefill/runTimefill/success', 'playlistgen/timefill/runTimefill/failure')<{
     targets: List<string>
-    selections?: {[K in ChoiceTrackSelection]: TrackId[]}
+    selections: Map<ChoiceTrackSelection, Set<TrackId>>
     replace?: Lens<TimefillSelector, Choice>
 }, {
     json: any

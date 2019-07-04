@@ -1,12 +1,14 @@
 import { Map, Seq } from 'immutable'
 import * as qs from 'qs'
-import { applyMiddleware, createStore, DeepPartial, Reducer, Store } from 'redux'
+import { applyMiddleware, combineReducers, createStore, DeepPartial, Reducer,Store } from 'redux'
 import { createEpicMiddleware, Epic } from 'redux-observable'
 import { EMPTY, from, generate, interval, never, of } from 'rxjs'
 import { concatMap, debounceTime, expand, filter, map, mergeMap, mergeScan, switchMap } from 'rxjs/operators'
 import { ActionType, getType, isActionOf } from 'typesafe-actions'
 
 import * as actions from './actions'
+import metaReducer from './meta/reducer'
+import { MetaState } from './meta/types'
 import timefillEpics from './timefill/epics'
 import timefillReducer from './timefill/reducer'
 import { TimefillSelector } from './timefill/types'
@@ -84,20 +86,19 @@ const savePlaylistEpic: Epic<AllActions, AllActions> = (action$) => (
         filter(isActionOf(actions.savePlaylist.request)),
         switchMap((action) => {
             const { name, tracks } = action.payload
-            const body = new FormData()
-            body.append('name', name)
-            for (const t of tracks) {
-                body.append('tracks', isoTrackId.unwrap(t.id))
-            }
+            const data = {name, tracks: tracks.toSeq().map((t) => t.id).toArray()}
             return from(
-                fetch('/_api/save-and-exit', {method: 'POST', body})
+                fetch('/_api/save-and-exit', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(data),
+                })
                     .then((resp) => resp.json())
-                    .then((json) => {
-                        if (json.data) {
-                            window.close()
-                        }
-                        return actions.shuffleTracks.failure(new Error("request failed to complete"))
-                    }, actions.shuffleTracks.failure)
+                    .then(
+                        (json) => actions.savePlaylist.success(),
+                        actions.savePlaylist.failure)
             )
         })
     )
@@ -161,9 +162,15 @@ function albumShuffleReducer(state = new AlbumShuffleSelector(), action: AllActi
     }
 }
 
-function makeStore<S>(reducer: Reducer<S>, state: DeepPartial<S>, epics: Epic): Store<S> {
+function makeStore<S>(reducer: Reducer<S>, state: DeepPartial<S>, epics: Epic): Store<{base: S, meta: MetaState}> {
     const epicMiddleware = createEpicMiddleware()
-    const store = createStore(reducer, state, applyMiddleware(epicMiddleware))
+    const store = createStore(combineReducers({
+        base: reducer,
+        meta: metaReducer,
+    }), {
+        base: state,
+        meta: new MetaState(),
+    }, applyMiddleware(epicMiddleware))
 
     epicMiddleware.run(fetchTracksEpic)
     epicMiddleware.run(fetchPlaylistsEpic)

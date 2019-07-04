@@ -13,7 +13,6 @@ import { AllActions, TimefillSelector } from './types'
 
 
 export default function timefillReducer(state = new TimefillSelector(), action: AllActions): TimefillSelector {
-    console.log(action)
     switch (action.type) {
     case getType(actions.changeControl): {
         const { lens, value } = action.payload

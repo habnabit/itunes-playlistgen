@@ -69,7 +69,7 @@ const ChoiceComponent = onlyUpdateForKeys(
 })
 
 export const ConnectedChoiceComponent = connect(
-    (top: TimefillSelector, ownProps: {idxTop: number}) => {
+    ({base: top}: {base: TimefillSelector}, ownProps: {idxTop: number}) => {
         const lens1: Lens<TimefillSelector, List<Choice>> = new Lens(
             (o) => o.get('choices', undefined),
             (v) => (o) => o.set('choices', v))
@@ -91,7 +91,7 @@ export const ConnectedChoiceComponent = connect(
         return {
             onToggle: (track: TrackId) => () => dispatchProps.onToggle({lens, track}),
             onReroll: () => {
-                const selections = choice.selectionMap()
+                const selections = choice.reversedSelection()
                 dispatchProps.onReroll({targets: top.allTargets(), selections, replace: lens})
             },
             onSave: () => {
@@ -101,7 +101,7 @@ export const ConnectedChoiceComponent = connect(
         }
     },
     {
-        areStatesEqual: (x, y) => x.choices === y.choices,
+        areStatesEqual: (x, y) => x.base.choices === y.base.choices,
         areStatePropsEqual: (x, y) => x.choice === y.choice,
     },
 )(ChoiceComponent)
@@ -131,7 +131,7 @@ const TargetsComponent = onlyUpdateForKeys(
 })
 
 const ConnectedTargetsComponent = connect(
-    (top: TimefillSelector) => ({targets: top.targets}),
+    ({base: top}: {base: TimefillSelector}) => ({targets: top.targets}),
     (d: Dispatch) => bindActionCreators({
         onAddTarget: actions.addTarget,
         onRemoveTarget: actions.removeTarget,
@@ -148,7 +148,7 @@ const ConnectedTargetsComponent = connect(
         }
     },
     {
-        areStatesEqual: (x, y) => x.targets === y.targets,
+        areStatesEqual: (x, y) => x.base.targets === y.base.targets,
         areStatePropsEqual: (x, y) => x.targets === y.targets,
     },
 )(TargetsComponent)
@@ -208,22 +208,22 @@ const SelectionsComponent = onlyUpdateForKeys(
     tracks: List<Track>
     onToggle: (tid: TrackId) => () => void
 }) => {
-    return <div className="selection">
-        <ul className="fuller tracklist selectable">
+    var tracks = null
+    if (props.tracks) {
+        tracks = <ul className="fuller tracklist selectable">
             {props.tracks.map((track, e) => {
                 const onToggle = props.onToggle(track.id)
                 return <ChoiceTrackComponent key={e} selected={props.selected} {...{track, onToggle}} />
             })}
         </ul>
+    }
+    return <div className="selection">
+        {tracks}
     </div>
 })
 
 export const ConnectedSelectionsComponent = connect(
-    (top: TimefillSelector, ownProps: {}) => {
-        return {
-            top,
-        }
-    },
+    (top: {}, ownProps: {}) => ({}),
     (d: Dispatch) => bindActionCreators({
         onToggle: actions.clearChoiceTrack,
     }, d),
@@ -233,57 +233,49 @@ export const ConnectedSelectionsComponent = connect(
             ...stateProps, ...ownProps,
         }
     },
-    {
-    },
 )(SelectionsComponent)
 
-class TimefillSelectorComponent extends React.PureComponent<{
+const TimefillSelectorComponent = onlyUpdateForKeys(
+    ['name', 'choices', 'selectState', 'selectionMap']
+)((props: {
     name: string
     choices: List<Choice>
     selectState: ChoiceTrackSelection
     keyb: KeyboardEvents,
     selectionMap: {[K in ChoiceTrackSelection]: List<Track>},
     onChangeName: (name: string) => void
-    onLoad: typeof baseActions.fetchTracks.request
     onSelect: () => void
-}> {
-    componentDidMount() {
-        this.props.onLoad()
+}) => {
+    const classes: string[] = []
+    if (props.selectState === 'include') {
+        classes.push('set-include')
+    } else if (props.selectState === 'exclude') {
+        classes.push('set-exclude')
     }
-
-    render() {
-        const classes: string[] = []
-        if (this.props.selectState === 'include') {
-            classes.push('set-include')
-        } else if (this.props.selectState === 'exclude') {
-            classes.push('set-exclude')
-        }
-        return <div className={classes.join(' ')}>
-            <section>
-                <textarea onChange={(ev) => this.props.onChangeName(ev.target.value)} value={this.props.name} {...this.props.keyb} />
-            </section>
-            <ConnectedTargetsComponent />
-            <section>
-                <button onClick={this.props.onSelect}>Select new</button>
-            </section>
-            <section className="choices">
-                <ConnectedSelectionsComponent selected="include" tracks={this.props.selectionMap.include} />
-                <ConnectedSelectionsComponent selected="exclude" tracks={this.props.selectionMap.exclude} />
-                {this.props.choices.map((pl, e) => <ConnectedChoiceComponent key={e} idxTop={e} />)}
-            </section>
-        </div>
-    }
-}
+    return <div className={classes.join(' ')}>
+        <ConnectedTargetsComponent />
+        <section className="controls">
+            <textarea placeholder="Playlist name…" onChange={(ev) => props.onChangeName(ev.target.value)} value={props.name} {...props.keyb} />
+            <button onClick={props.onSelect}>Select new</button>
+        </section>
+        <section className="choices">
+            <ConnectedSelectionsComponent selected="include" tracks={props.selectionMap.include} />
+            <ConnectedSelectionsComponent selected="exclude" tracks={props.selectionMap.exclude} />
+            {props.choices.map((pl, e) => <ConnectedChoiceComponent key={e} idxTop={e} />)}
+        </section>
+    </div>
+})
 
 export const ConnectedTimefillSelectorComponent = connect(
-    (top: TimefillSelector = new TimefillSelector()) => {
+    ({base: top}: {base: TimefillSelector}) => {
         const { name, targets, choices } = top
-        const _selectionMap = Map(top.selectionMap())
-            .map((tracks) => List(tracks).map((t) => top.tracks.get(t)))
+        const _selectionMap = top.reversedSelection()
+            .map((tracks) => tracks.toList().map((t) => top.tracks.get(t)))
             .toObject()
         const selectionMap = _selectionMap as {[K in ChoiceTrackSelection]: List<Track>}
         return {
             name, targets, choices, selectionMap,
+            selections: top.reversedSelection(),
             allTargets: top.allTargets(),
             selectState: top.currentSelection(),
         }
@@ -292,7 +284,6 @@ export const ConnectedTimefillSelectorComponent = connect(
         onChangeControl: actions.changeControl,
         onKeyboardAvailable: baseActions.setKeyboardAvailability,
         onSetHash: baseActions.setHash,
-        onLoad: baseActions.fetchTracks.request,
         onSelect: actions.runTimefill.request,
     }, d),
     (props, dispatch, ownProps) => {
@@ -301,7 +292,7 @@ export const ConnectedTimefillSelectorComponent = connect(
             (v) => (o) => o.set('name', v))
         const extraProps = {
             onSelect: () => {
-                dispatch.onSelect({targets: props.allTargets})
+                dispatch.onSelect({targets: props.allTargets, selections: props.selections})
                 dispatch.onSetHash()
             },
             onChangeName: (value: string) => dispatch.onChangeControl({lens, value}),

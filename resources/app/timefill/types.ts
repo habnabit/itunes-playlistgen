@@ -1,4 +1,4 @@
-import { List, Map, OrderedMap, Record, } from 'immutable'
+import { List, Map, OrderedMap, Record, Set, } from 'immutable'
 import { Lens } from 'monocle-ts'
 import { ActionType } from 'typesafe-actions'
 
@@ -9,7 +9,7 @@ import * as actions from './actions'
 
 export type AllActions = ActionType<typeof baseActions | typeof actions>
 
-export type ChoiceTrackSelection = 'include' | 'exclude' | undefined
+export type ChoiceTrackSelection = 'include' | 'exclude'
 
 export class Choice extends Record({
     tracks: List<Track>(),
@@ -17,14 +17,11 @@ export class Choice extends Record({
     score: 0,
     scores: [] as number[],
 }) {
-    selectionMap(): {[K in ChoiceTrackSelection]: TrackId[]} {
-        const ret = {include: [] as TrackId[], exclude: [] as TrackId[]}
-        this.selected.forEach((sel, tid) => {
-            if (sel) {
-                ret[sel].push(tid)
-            }
-        })
-        return ret
+    reversedSelection(): Map<ChoiceTrackSelection, Set<TrackId>> {
+        return this.selected.entrySeq()
+            .groupBy(([_, sel]) => sel)
+            .map((seq) => seq.valueSeq().map(([tid, _]) => tid).toSet())
+            .toMap()
     }
 
     withClearedSelection(tid: TrackId): this {
@@ -52,16 +49,18 @@ export class TimefillSelector extends Record({
         }
     }
 
-    selectionMap(): {[K in ChoiceTrackSelection]: TrackId[]} {
-        const ret = {include: [] as TrackId[], exclude: [] as TrackId[]}
-        this.choices.forEach((pl) => {
-            pl.selected.forEach((sel, tid) => {
-                if (sel) {
-                    ret[sel].push(tid)
-                }
-            })
-        })
-        return ret
+    condensedSelection(): Map<TrackId, ChoiceTrackSelection> {
+        const pairs = this.choices.toSeq()
+            .flatMap((choice) => choice.selected.entrySeq())
+        return Map(pairs)
+    }
+
+    reversedSelection(): Map<ChoiceTrackSelection, Set<TrackId>> {
+        return this.choices.toSeq()
+            .flatMap((choice) => choice.selected.entrySeq())
+            .groupBy(([_, sel]) => sel)
+            .map((seq) => seq.valueSeq().map(([tid, _]) => tid).toSet())
+            .toMap()
     }
 
     withTracksResponse(j: any[][]): this {
@@ -79,14 +78,14 @@ export class TimefillSelector extends Record({
     }
 
     withTimefillResponse(j: any, replace?: Lens<TimefillSelector, Choice>): TimefillSelector {
+        const selected = this.condensedSelection()
         const choices = List(j.playlists as {tracks: TrackId[], score: number, scores: number[]}[])
             .map((p) => {
-                const initial = {...p, tracks: List(p.tracks).map((tid) => this.tracks.get(tid))}
-                return new Choice(initial)
+                const tracks = List(p.tracks).map((tid) => this.tracks.get(tid))
+                return new Choice({...p, tracks, selected})
             })
         if (replace) {
-            const toInsert = choices.first<Choice>()
-            return replace.modify((pl) => toInsert.set('selected', pl.selected))(this)
+            return replace.set(choices.first())(this)
         } else {
             return this.set('choices', choices)
         }
