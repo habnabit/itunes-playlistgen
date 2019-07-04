@@ -2,8 +2,7 @@ import { List } from 'immutable'
 import { Lens } from 'monocle-ts'
 import { createAsyncAction, createStandardAction } from 'typesafe-actions'
 
-import { AlbumKey, AlbumSelector, AlbumSelectors, AlbumShuffleSelector, SubsetKeys, Track, TrackId } from './types'
-
+import { AlbumKey, AlbumSelector, AlbumSelectors, AlbumShuffleSelector, SubsetKeys, Track } from './types'
 
 export const toggleAlbumSelected = createStandardAction('playlistgen/toggleAlbumSelected')<{
     lens: Lens<AlbumShuffleSelector, AlbumSelector>

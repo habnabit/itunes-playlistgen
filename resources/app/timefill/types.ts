@@ -6,7 +6,6 @@ import * as baseActions from '../actions'
 import { Album, AlbumKey, collateAlbums, isoTrackId, Track, TrackId } from '../types'
 import * as actions from './actions'
 
-
 export type AllActions = ActionType<typeof baseActions | typeof actions>
 
 export type ChoiceTrackSelection = 'include' | 'exclude'

@@ -5,7 +5,6 @@ import { bindActionCreators, Dispatch } from 'redux'
 import * as baseActions from '../actions'
 import { Done, Loaded, Loading, MetaState, OverallState } from './types'
 
-
 class TopComponent extends React.PureComponent<{
     state: OverallState
     onLoad: typeof baseActions.fetchTracks.request

@@ -3,7 +3,6 @@ import { getType } from 'typesafe-actions'
 import * as baseActions from '../actions'
 import { AllActions, Done, Loaded, Loading, MetaState } from './types'
 
-
 export default function metaReducer(state = new MetaState(), action: AllActions): MetaState {
     switch (action.type) {
     case getType(baseActions.fetchTracksProgress): {

@@ -1,16 +1,9 @@
-import { Map, Seq } from 'immutable'
-import * as qs from 'qs'
-import { applyMiddleware, createStore, DeepPartial, Reducer, Store } from 'redux'
-import { createEpicMiddleware, Epic } from 'redux-observable'
-import { from } from 'rxjs'
-import { debounceTime, filter, map, mergeMap, switchMap } from 'rxjs/operators'
-import { ActionType, getType, isActionOf } from 'typesafe-actions'
+import { Map } from 'immutable'
+import { getType } from 'typesafe-actions'
 
 import * as baseActions from '../actions'
-import { AlbumKey, AlbumSelector, AlbumSelectors, AlbumShuffleSelector, isoTrackId, TrackId } from '../types'
 import * as actions from './actions'
 import { AllActions, TimefillSelector } from './types'
-
 
 export default function timefillReducer(state = new TimefillSelector(), action: AllActions): TimefillSelector {
     switch (action.type) {

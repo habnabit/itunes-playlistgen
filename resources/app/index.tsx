@@ -8,7 +8,6 @@ import * as stores from './redux'
 import './site.sass'
 import { ConnectedTimefillSelectorComponent } from './timefill/components'
 
-
 function makeRootElement(): JSX.Element {
     if (location.search == '?timefill') {
         return <Provider store={stores.timefillStore()}>

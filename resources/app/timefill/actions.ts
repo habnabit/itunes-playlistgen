@@ -2,9 +2,8 @@ import { List, Map, Set } from 'immutable'
 import { Lens } from 'monocle-ts'
 import { createAsyncAction, createStandardAction } from 'typesafe-actions'
 
-import { AlbumKey, AlbumSelector, AlbumSelectors, AlbumShuffleSelector, SubsetKeys, Track, TrackId } from '../types'
+import { TrackId } from '../types'
 import { Choice, ChoiceTrackSelection, TimefillSelector } from './types'
-
 
 export const performSearch = createStandardAction('playlistgen/timefill/performSearch')()
 
@@ -33,10 +32,6 @@ export const toggleChoiceTrack = createStandardAction('playlistgen/toggleChoiceT
 export const clearChoiceTrack = createStandardAction('playlistgen/clearChoiceTrack')<{
     track: TrackId
 }>()
-
-// export const setKeyboardAvailability = createStandardAction('playlistgen/setKeyboardAvailability')<{
-//     available: boolean
-// }>()
 
 export const runTimefill = createAsyncAction('playlistgen/timefill/runTimefill/request', 'playlistgen/timefill/runTimefill/success', 'playlistgen/timefill/runTimefill/failure')<{
     targets: List<string>

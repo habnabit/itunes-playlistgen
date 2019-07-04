@@ -1,17 +1,15 @@
-import { StandardProperties, SvgProperties } from 'csstype'
-import { List, Map, OrderedMap, Seq, Set } from 'immutable'
+import { List } from 'immutable'
 import { Lens } from 'monocle-ts'
 import * as React from 'react'
 import { connect } from 'react-redux'
-import { onlyUpdateForKeys, pure, shallowEqual } from 'recompose'
+import { onlyUpdateForKeys, pure } from 'recompose'
 import { bindActionCreators, Dispatch } from 'redux'
 
 import * as baseActions from '../actions'
 import { lensFromImplicitAccessors } from '../extlens'
-import { Album, AlbumKey, AlbumSelector, AlbumSelectors, AlbumShuffleSelector, keyboardEvents, KeyboardEvents, Track, TrackId } from '../types'
+import { keyboardEvents, KeyboardEvents, Track, TrackId } from '../types'
 import * as actions from './actions'
 import { Choice, ChoiceTrackSelection, TimefillSelector } from './types'
-
 
 const DurationComponent = pure((props: {
     duration: number

@@ -3,7 +3,6 @@ import { ActionType } from 'typesafe-actions'
 
 import * as baseActions from '../actions'
 
-
 export type AllActions = ActionType<typeof baseActions>
 
 export class Loading extends Record({
