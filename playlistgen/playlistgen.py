@@ -654,13 +654,14 @@ def daily_unrecent(tracks, duration, playlist_pattern, delete_older_than):
 @main.command()
 @click.pass_obj
 @click.option('--listen', default='[::1]:0', metavar='HOST')
-def web(tracks, listen):
+@click.argument('argv', nargs=-1)
+def web(tracks, listen, argv):
     """
     Do it in a browser.
     """
 
     from . import playlistweb
-    playlistweb.run(tracks, listen)
+    playlistweb.run(tracks, listen, argv)
 
 
 if __name__ == '__main__':

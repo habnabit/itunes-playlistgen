@@ -62,6 +62,16 @@ export class TimefillSelector extends Record({
             .toMap()
     }
 
+    withArgv(j: {
+        dest_playlist?: string
+        web_argv: string[]
+    }): this {
+        return this.merge({
+            name: j.dest_playlist || '',
+            targets: List(j.web_argv),
+        })
+    }
+
     withTracksResponse(j: any[][]): this {
         const orderedTracks = OrderedMap<TrackId, Track>().withMutations((m) => {
             for (const ts of j) {

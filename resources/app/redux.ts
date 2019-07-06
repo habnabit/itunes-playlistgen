@@ -16,6 +16,19 @@ import { AlbumSelector, AlbumSelectors, AlbumShuffleSelector, isoTrackId, TrackI
 
 type AllActions = ActionType<typeof actions>
 
+const fetchArgvEpic: Epic<AllActions, AllActions> = (action$) => (
+    action$.pipe(
+        filter(isActionOf(actions.fetchArgv.request)),
+        switchMap((action) => from(
+            fetch('/_api/argv')
+                .then((resp) => resp.json())
+                .then(
+                    (json) => actions.fetchArgv.success({json}),
+                    actions.fetchArgv.failure)
+        ))
+    )
+)
+
 const fetchTracksEpic: Epic<AllActions, AllActions> = (action$) => (
     action$.pipe(
         filter(isActionOf(actions.fetchTracks.request)),
@@ -171,6 +184,7 @@ function makeStore<S>(reducer: Reducer<S>, state: DeepPartial<S>, epics: Epic): 
         meta: new MetaState(),
     }, applyMiddleware(epicMiddleware))
 
+    epicMiddleware.run(fetchArgvEpic)
     epicMiddleware.run(fetchTracksEpic)
     epicMiddleware.run(fetchPlaylistsEpic)
     epicMiddleware.run(shuffleTracksEpic)

@@ -1,6 +1,7 @@
 import { List, Map, OrderedMap, Record, Seq, Set } from 'immutable'
+import { Lens } from 'monocle-ts'
 import { iso, Newtype } from 'newtype-ts'
-import { Lens } from '../node_modules/monocle-ts'
+import { CustomError } from 'ts-custom-error'
 
 import * as actions from './actions'
 import { lensFromImplicitAccessors } from './extlens'
@@ -189,5 +190,19 @@ export function keyboardEvents(dispatch: {onKeyboardAvailable: typeof actions.se
     return {
         onFocus: () => dispatch.onKeyboardAvailable({available: false}),
         onBlur: () => dispatch.onKeyboardAvailable({available: true}),
+    }
+}
+
+function messageFrom(response: Response, json: any): string {
+    return `${response.status} ${response.statusText}: ${JSON.stringify(json)}`
+}
+
+export class RemoteError extends CustomError {
+    public constructor(
+        public response: Response,
+        public json: any,
+        message: string = messageFrom(response, json),
+    ) {
+        super(message)
     }
 }

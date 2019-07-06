@@ -37,7 +37,13 @@ export const changeKey = createStandardAction('playlistgen/changeKey')<{
     down: boolean
 }>()
 
+export const showError = createStandardAction('playlistgen/showError')<Error>()
+
 export const setHash = createStandardAction('playlistgen/setHash')<void>()
+
+export const fetchArgv = createAsyncAction('playlistgen/fetchArgv/request', 'playlistgen/fetchArgv/success', 'playlistgen/fetchArgv/failure')<void, {
+    json: any
+}, Error>()
 
 export const fetchTracks = createAsyncAction('playlistgen/fetchTracks/request', 'playlistgen/fetchTracks/success', 'playlistgen/fetchTracks/failure')<void, {
     tracks: any[][]

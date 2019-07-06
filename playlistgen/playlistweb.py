@@ -15,6 +15,7 @@ from cornice import Service
 from cornice.validators import marshmallow_validator
 from marshmallow import Schema, fields
 from pyramid.config import Configurator
+from pyramid.httpexceptions import HTTPException
 from pyramid.request import Request
 from pyramid.response import Response
 from pyramid.renderers import JSON
@@ -50,11 +51,12 @@ def serialize_applescript(obj, *a, **kw):
     return simplejson.dumps(applescript_as_json(obj), *a, **kw)
 
 
-def track_methods(tracks):
+def track_methods(tracks, argv):
     tracks_list = tracks.get_tracks()
     tracks_by_id = {t[typ.pPIS]: t for t in tracks_list}
 
     def configurate(config):
+        config.add_request_method(lambda _: argv, name='web_argv', reify=True)
         config.add_request_method(lambda _: tracks, name='tracks_obj', reify=True)
         config.add_request_method(lambda _: tracks_list, name='tracks', reify=True)
         config.add_request_method(lambda _: tracks_by_id, name='tracks_by_id', reify=True)
@@ -67,6 +69,14 @@ def index(request):
     subreq = Request.blank('/_static/site.html')
     response = request.invoke_subrequest(subreq)
     return response
+
+
+@view_config(route_name='web_argv', renderer='json')
+def web_argv(request):
+    return {
+        'dest_playlist': request.tracks_obj.dest_playlist,
+        'web_argv': request.web_argv,
+    }
 
 
 @view_config(route_name='genius_albums', renderer='json')
@@ -275,23 +285,37 @@ def save_and_exit(request):
     return {'done': True}
 
 
-def build_app(tracks):
+def api_exception_view(exc, request):
+    resp = request.response
+    if isinstance(exc, HTTPException):
+        resp.status = exc.code
+    else:
+        resp.status = 500
+    return {
+        'error': True,
+    }
+
+
+def build_app(tracks, argv):
     with Configurator() as config:
         config.include('cornice')
-        config.include(track_methods(tracks))
+        config.include(track_methods(tracks, argv))
         config.add_renderer('json', JSON(serialize_applescript))
         config.scan()
 
         config.add_route('index', '')
-        config.add_route('genius_albums', '_api/genius-albums')
-        config.add_route('playlists', '_api/playlists')
-
         config.add_static_view(name='_static', path='playlistgen:static')
+
+        with config.route_prefix_context('_api'):
+            config.add_route('web_argv', 'argv')
+            config.add_route('genius_albums', 'genius-albums')
+            config.add_route('playlists', 'playlists')
+            config.add_exception_view(api_exception_view, renderer='json')
 
         app = config.make_wsgi_app()
     return app
 
 
-def run(tracks, listen):
-    app = build_app(tracks)
+def run(tracks, listen, argv):
+    app = build_app(tracks, argv)
     waitress.serve(app, listen=listen)

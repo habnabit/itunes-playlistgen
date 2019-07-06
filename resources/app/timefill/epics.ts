@@ -1,8 +1,10 @@
 import { combineEpics, Epic } from 'redux-observable'
-import { from } from 'rxjs'
-import { filter, switchMap } from 'rxjs/operators'
+import { from, of } from 'rxjs'
+import { catchError, filter, map, switchMap } from 'rxjs/operators'
 import { isActionOf } from 'typesafe-actions'
 
+import * as baseActions from '../actions'
+import { RemoteError } from '../types'
 import * as actions from './actions'
 import { AllActions } from './types'
 
@@ -23,12 +25,21 @@ const runTimefillEpic: Epic<AllActions, AllActions> = (action$) => (
                     },
                     body: JSON.stringify(data),
                 })
-                    .then((resp) => resp.json())
-                    .then(
-                        (json) => actions.runTimefill.success({json, replace}),
-                        actions.runTimefill.failure)
+                    .then((resp) => resp.json().then((json) => ({resp, json})))
+            ).pipe(
+                map(({resp, json}) => {
+                    if (resp.status !== 200) {
+                        throw new RemoteError(resp, json)
+                    } else {
+                        return actions.runTimefill.success({json, replace})
+                    }
+                }),
+                catchError((err) => of(
+                    actions.runTimefill.failure(err),
+                    baseActions.showError(err),
+                )),
             )
-        })
+        }),
     )
 )
 

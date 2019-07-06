@@ -5,6 +5,10 @@ import { AllActions, Done, Loaded, Loading, MetaState } from './types'
 
 export default function metaReducer(state = new MetaState(), action: AllActions): MetaState {
     switch (action.type) {
+    case getType(baseActions.fetchArgv.success): {
+        return state.set('gotArgv', true)
+    }
+
     case getType(baseActions.fetchTracksProgress): {
         const { offset } = action.payload
         return state.update('state', (s) => {
@@ -34,6 +38,15 @@ export default function metaReducer(state = new MetaState(), action: AllActions)
                 return s
             }
         })
+    }
+
+    case getType(baseActions.showError):
+    case getType(baseActions.fetchArgv.failure):
+    case getType(baseActions.fetchTracks.failure):
+    case getType(baseActions.fetchPlaylists.failure): {
+        const err = action.payload
+        const message = `${err.name}: ${err.message}; ${err.stack}`
+        return state.update('errors', (l) => l.push(message))
     }
 
     default:

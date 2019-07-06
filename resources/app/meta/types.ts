@@ -1,4 +1,4 @@
-import { Record } from 'immutable'
+import { List, Record } from 'immutable'
 import { ActionType } from 'typesafe-actions'
 
 import * as baseActions from '../actions'
@@ -25,6 +25,8 @@ export type OverallState = Loading | Loaded | Done
 
 export class MetaState extends Record({
     state: new Loading() as OverallState,
+    gotArgv: false,
+    errors: List<string>(),
 }) {
 
 }

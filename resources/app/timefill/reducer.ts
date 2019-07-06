@@ -69,6 +69,9 @@ export default function timefillReducer(state = new TimefillSelector(), action: 
     //     })
     //     return state
 
+    case getType(baseActions.fetchArgv.success):
+        return state.withArgv(action.payload.json)
+
     case getType(baseActions.fetchTracks.success):
         return state.withTracksResponse(action.payload.tracks)
 
