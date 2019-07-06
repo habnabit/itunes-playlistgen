@@ -28,7 +28,7 @@
     "immutable": "^4.0.0-rc.9",
     "lens.ts": "^0.5.1",
     "monocle-ts": "^1.2.0",
-    "newtype-ts": "^0.3.1",
+    "newtype-ts": "^0.2.1",
     "promise.prototype.finally": "^3.1.0",
     "qs": "^6.5.1",
     "react": "^16.2",
@@ -38,6 +38,7 @@
     "redux": "^4.0.0",
     "redux-observable": "^1.0.0",
     "rxjs": "^6.2.2",
+    "ts-custom-error": "^3.1.1",
     "typesafe-actions": "^5.0.0-2"
   }
 }
