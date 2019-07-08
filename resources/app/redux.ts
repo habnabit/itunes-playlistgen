@@ -100,7 +100,7 @@ const savePlaylistEpic: Epic<AllActions, AllActions> = (action$) => (
             const { name, tracks } = action.payload
             const data = {name, tracks: tracks.toSeq().map((t) => t.id).toArray()}
             return from(
-                fetch('/_api/save-and-exit', {
+                fetch('/_api/save', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',

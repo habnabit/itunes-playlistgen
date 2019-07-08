@@ -262,7 +262,7 @@ def timefill_targets(request):
     return {'playlists': playlists}
 
 
-save_and_exit_service = Service(name='save_and_exit', path='/_api/save-and-exit')
+save_service = Service(name='save', path='/_api/save')
 
 
 class SaveAndExitBodySchema(Schema):
@@ -277,8 +277,8 @@ class SaveAndExitSchema(Schema):
     body = fields.Nested(SaveAndExitBodySchema)
 
 
-@save_and_exit_service.post(schema=SaveAndExitSchema, validators=(marshmallow_validator,))
-def save_and_exit(request):
+@save_service.post(schema=SaveAndExitSchema, validators=(marshmallow_validator,))
+def save(request):
     parsed = request.validated['body']
     request.tracks_obj.set_default_dest(parsed['name'])
     request.tracks_obj.set_tracks(parsed['tracks'])
