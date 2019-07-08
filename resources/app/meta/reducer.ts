@@ -1,6 +1,7 @@
 import { getType } from 'typesafe-actions'
 
 import * as baseActions from '../actions'
+import * as actions from './actions'
 import { AllActions, Done, Loaded, Loading, MetaState } from './types'
 
 export default function metaReducer(state = new MetaState(), action: AllActions): MetaState {
@@ -34,9 +35,12 @@ export default function metaReducer(state = new MetaState(), action: AllActions)
     case getType(baseActions.fetchArgv.failure):
     case getType(baseActions.fetchTracks.failure):
     case getType(baseActions.fetchPlaylists.failure): {
-        const err = action.payload
-        const message = `${err.name}: ${err.message}; ${err.stack}`
-        return state.update('errors', (l) => l.push(message))
+        return state.update('errors', (l) => l.push(action.payload.stack))
+    }
+
+    case getType(actions.dismissError): {
+        const { index } = action.payload
+        return state.update('errors', (errors) => errors.remove(index))
     }
 
     default:

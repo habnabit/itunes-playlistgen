@@ -2,8 +2,9 @@ import { List, Record } from 'immutable'
 import { ActionType } from 'typesafe-actions'
 
 import * as baseActions from '../actions'
+import * as actions from './actions'
 
-export type AllActions = ActionType<typeof baseActions>
+export type AllActions = ActionType<typeof baseActions | typeof actions>
 
 export class Loading extends Record({
     tracks: 0,

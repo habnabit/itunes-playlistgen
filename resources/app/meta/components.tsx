@@ -4,6 +4,7 @@ import { connect } from 'react-redux'
 import { bindActionCreators, Dispatch } from 'redux'
 
 import * as baseActions from '../actions'
+import * as actions from './actions'
 import { Done, Loaded, Loading, MetaState, OverallState } from './types'
 
 class TopComponent extends React.PureComponent<{
@@ -12,6 +13,7 @@ class TopComponent extends React.PureComponent<{
     errors: List<string>
     fetchArgv: typeof baseActions.fetchArgv.request
     fetchTracks: typeof baseActions.fetchTracks.request
+    onDismissError: typeof actions.dismissError
 }> {
     componentDidMount() {
         this.props.fetchArgv()
@@ -33,6 +35,7 @@ class TopComponent extends React.PureComponent<{
         return <>
             {this.props.errors.map((err, e) => {
                 return <div key={e} className="error">
+                    <button onClick={() => this.props.onDismissError({index: e})}>X</button>
                     {err}
                 </div>
             })}
@@ -49,5 +52,6 @@ export const ConnectedTopComponent = connect(
     (d: Dispatch) => bindActionCreators({
         fetchArgv: baseActions.fetchArgv.request,
         fetchTracks: baseActions.fetchTracks.request,
+        onDismissError: actions.dismissError,
     }, d),
 )(TopComponent)
