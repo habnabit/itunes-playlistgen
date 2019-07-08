@@ -1,8 +1,7 @@
 import { List } from 'immutable'
-import { Lens } from 'monocle-ts'
 import { createAsyncAction, createStandardAction } from 'typesafe-actions'
 
-import { AlbumKey, SubsetKeys, Track } from './types'
+import { Track } from './types'
 
 export const performSearch = createStandardAction('playlistgen/performSearch')()
 

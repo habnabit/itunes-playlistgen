@@ -1,5 +1,5 @@
 import { StandardProperties, SvgProperties } from 'csstype'
-import { List, Map, OrderedMap, Seq, Set } from 'immutable'
+import { List, Map, Seq, Set } from 'immutable'
 import { Lens } from 'monocle-ts'
 import * as React from 'react'
 import { connect } from 'react-redux'

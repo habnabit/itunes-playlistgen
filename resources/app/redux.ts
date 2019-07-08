@@ -1,10 +1,9 @@
-import { Seq } from 'immutable'
 import * as qs from 'qs'
 import { applyMiddleware, combineReducers, createStore, DeepPartial, Reducer,Store } from 'redux'
 import { createEpicMiddleware, Epic } from 'redux-observable'
 import { EMPTY, from, of } from 'rxjs'
-import { debounceTime, expand, filter, map, mergeMap, switchMap } from 'rxjs/operators'
-import { ActionType, getType, isActionOf } from 'typesafe-actions'
+import { expand, filter, map, switchMap } from 'rxjs/operators'
+import { ActionType, isActionOf } from 'typesafe-actions'
 
 import * as actions from './actions'
 import albumShuffleEpics from './album-shuffle/epics'
@@ -15,7 +14,6 @@ import { MetaState } from './meta/types'
 import timefillEpics from './timefill/epics'
 import timefillReducer from './timefill/reducer'
 import { TimefillSelector } from './timefill/types'
-import { isoTrackId, TrackId } from './types'
 
 type AllActions = ActionType<typeof actions>
 

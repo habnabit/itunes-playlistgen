@@ -1,10 +1,8 @@
-import { List, Map, OrderedMap, Record, Seq, Set } from 'immutable'
-import { Lens } from 'monocle-ts'
+import { List, Map, Record } from 'immutable'
 import { iso, Newtype } from 'newtype-ts'
 import { CustomError } from 'ts-custom-error'
 
 import * as actions from './actions'
-import { lensFromImplicitAccessors } from './extlens'
 
 
 export type SubsetKeys<T, S> = {

@@ -1,7 +1,5 @@
 import { List, Map, OrderedMap, Record, Seq, Set } from 'immutable'
 import { Lens } from 'monocle-ts'
-import { iso, Newtype } from 'newtype-ts'
-import { CustomError } from 'ts-custom-error'
 import { ActionType } from 'typesafe-actions'
 
 import * as baseActions from '../actions'
@@ -9,7 +7,7 @@ import { lensFromImplicitAccessors } from '../extlens'
 import { Album, AlbumKey, collateAlbums, isoTrackId, Track, TrackId } from '../types'
 import * as actions from './actions'
 
-type AllActions = ActionType<typeof baseActions | typeof actions>
+export type AllActions = ActionType<typeof baseActions | typeof actions>
 
 export class AlbumSelector extends Record({
     selected: false,

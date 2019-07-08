@@ -1,13 +1,8 @@
 import { Seq } from 'immutable'
-import * as qs from 'qs'
-import { applyMiddleware, combineReducers, createStore, DeepPartial, Reducer,Store } from 'redux'
-import { createEpicMiddleware, Epic } from 'redux-observable'
-import { EMPTY, from, of } from 'rxjs'
-import { debounceTime, expand, filter, map, mergeMap, switchMap } from 'rxjs/operators'
-import { ActionType, getType, isActionOf } from 'typesafe-actions'
+import { ActionType, getType } from 'typesafe-actions'
 
 import * as baseActions from '../actions'
-import { isoTrackId, TrackId } from '../types'
+import { TrackId } from '../types'
 import * as actions from './actions'
 import { AlbumSelector, AlbumSelectors, AlbumShuffleSelector } from './types'
 
