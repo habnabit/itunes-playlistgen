@@ -5,7 +5,9 @@ import arrow
 import attr
 import datetime
 import functools
+import logging
 import marshmallow
+import numpy
 import random
 import simplejson
 import sys
@@ -23,6 +25,8 @@ from pyramid.view import view_config
 
 from . import playlistgen
 from .playlistgen import typ
+
+log = logging.getLogger(__name__)
 
 
 def applescript_as_json(obj):
@@ -43,6 +47,10 @@ def applescript_as_json(obj):
                 .replace(tzinfo='local')
                 .to('utc')
                 .strftime('%Y-%m-%dT%H:%M:%SZ'))
+    elif isinstance(obj, numpy.integer):
+        return int(obj)
+    elif isinstance(obj, numpy.number):
+        return float(obj)
     else:
         return obj
 
@@ -83,12 +91,16 @@ def web_argv(request):
 def genius_albums(request):
     tracks = playlistgen.filter_tracks_to_genius_albums(
         [(0, t) for t in self.tracks])
-    return [t[typ.pPIS] for _, t in tracks]
+    return {
+        'albums': [t[typ.pPIS] for _, t in tracks],
+    }
 
 
 @view_config(route_name='playlists', renderer='json')
 def playlists(request):
-    return playlistgen.scripts.call('get_playlists')
+    return {
+        'playlists': playlistgen.scripts.call('get_playlists'),
+    }
 
 
 class TrackField(fields.Field):
@@ -211,13 +223,12 @@ class ShuffleTogetherSchema(Schema):
 
 @shuffle_together_albums_service.post(schema=ShuffleTogetherSchema, validators=(marshmallow_validator,))
 def shuffle_together_albums(request):
-    print((type(request.validated), request.validated))
-    return {"bogus": True}
+    parsed = request.validated['body']
     albums_dict = {}
     for track in parsed['tracks']:
         key = playlistgen.album_key(track)
         albums_dict.setdefault(key, []).append(track)
-    albums_list = [(0, key, tracks) for key, tracks in albums_dict.iteritems()]
+    albums_list = [(0, key, tracks) for key, tracks in albums_dict.items()]
     info, playlist = playlistgen.shuffle_together_album_tracks(random, albums_list)
     return {
         'info': info,
@@ -286,6 +297,7 @@ def save(request):
 
 
 def api_exception_view(exc, request):
+    log.error('API error encountered', exc_info=request.exc_info)
     resp = request.response
     if isinstance(exc, HTTPException):
         resp.status = exc.code

@@ -92,7 +92,7 @@ def swap_a_few(rng, seq):
 
 
 def stretch_shuffle(rng, albums_dict):
-    all_tracks = albums_dict.values()
+    all_tracks = list(albums_dict.values())
     while True:
         try:
             coords, picks = stretch_shuffle_picks(
@@ -102,7 +102,7 @@ def stretch_shuffle(rng, albums_dict):
         else:
             break
     info = {
-        'albums': albums_dict.keys(),
+        'albums': list(albums_dict.keys()),
         'coords': coords,
         'pre_picks': list(picks),
     }

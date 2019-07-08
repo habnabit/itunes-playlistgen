@@ -13,11 +13,13 @@ class TopComponent extends React.PureComponent<{
     errors: List<string>
     fetchArgv: typeof baseActions.fetchArgv.request
     fetchTracks: typeof baseActions.fetchTracks.request
+    fetchPlaylists: typeof baseActions.fetchPlaylists.request
     onDismissError: typeof actions.dismissError
 }> {
     componentDidMount() {
         this.props.fetchArgv()
         this.props.fetchTracks()
+        this.props.fetchPlaylists()
     }
 
     render() {
@@ -52,6 +54,7 @@ export const ConnectedTopComponent = connect(
     (d: Dispatch) => bindActionCreators({
         fetchArgv: baseActions.fetchArgv.request,
         fetchTracks: baseActions.fetchTracks.request,
+        fetchPlaylists: baseActions.fetchPlaylists.request,
         onDismissError: actions.dismissError,
     }, d),
 )(TopComponent)
