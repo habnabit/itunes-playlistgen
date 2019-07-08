@@ -30,16 +30,6 @@ export default function metaReducer(state = new MetaState(), action: AllActions)
         })
     }
 
-    case getType(baseActions.savePlaylist.success): {
-        return state.update('state', (s) => {
-            if (s instanceof Loaded) {
-                return new Done()
-            } else {
-                return s
-            }
-        })
-    }
-
     case getType(baseActions.showError):
     case getType(baseActions.fetchArgv.failure):
     case getType(baseActions.fetchTracks.failure):
