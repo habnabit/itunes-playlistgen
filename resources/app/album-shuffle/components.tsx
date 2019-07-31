@@ -124,7 +124,7 @@ const TracksComponent = onlyUpdateForKeys(
     colorByAlbum?: Map<AlbumKey, string>
 }) => {
     const colorByAlbum = props.colorByAlbum || Map()
-    return <ol className="tracklist">
+    return <ol className="tracklist horizontal">
         {props.tracks.map((track, e) => <TrackComponent track={track} color={colorByAlbum.get(track.albumKey())} key={e} />)}
     </ol>
 })
@@ -135,8 +135,7 @@ const AlbumSelectorComponent = onlyUpdateForKeys(
     selector: AlbumSelector
     playlists: Map<TrackId, Set<string>>
     color?: string
-    selectorLens: Lens<AlbumShuffleSelector, AlbumSelector>
-    selectorsLens?: Lens<AlbumShuffleSelector, AlbumSelectors>
+    selectorLens?: Lens<AlbumShuffleSelector, AlbumSelector>
     onToggleSelected: typeof actions.toggleAlbumSelected
     onRemove: typeof actions.removeAlbum
 }) => {
@@ -151,14 +150,14 @@ const AlbumSelectorComponent = onlyUpdateForKeys(
         .toSet()
         .sort()
 
-    let controls = <>
-        <label><input type="checkbox" name="replacement-source" onChange={() => props.onToggleSelected({lens: props.selectorLens})} checked={props.selector.selected} /> Replacement source</label>
-    </>
-    if (props.selectorsLens) {
-        controls = <>
-            {controls}
-            <button onClick={() => props.onRemove({lens: props.selectorsLens, album: album.key})}>Remove</button>
-        </>
+    var controls
+    if (props.selectorLens) {
+        controls = <label>
+            <input type="checkbox" onChange={() => props.onToggleSelected({lens: props.selectorLens})} checked={props.selector.selected} />
+            Add album
+        </label>
+    } else {
+        controls = <button onClick={() => props.onRemove({album: album.key})}>Remove</button>
     }
 
     return <div className={classes.join(' ')}>
@@ -174,12 +173,10 @@ const AlbumSelectorComponent = onlyUpdateForKeys(
 export const ConnectedAlbumSelectorComponent = connect(
     ({base: top}: {base: AlbumShuffleSelector}, ownProps: {
         selector: AlbumSelector
-        selectorLens: Lens<AlbumShuffleSelector, AlbumSelector>
-        selectorsLens?: Lens<AlbumShuffleSelector, AlbumSelectors>
+        selectorLens?: Lens<AlbumShuffleSelector, AlbumSelector>
     }) => {
         return {
             playlists: top.existingPlaylists,
-            selectorsLens: ownProps.selectorsLens,
         }
     },
     (d: Dispatch) => bindActionCreators({
@@ -188,7 +185,7 @@ export const ConnectedAlbumSelectorComponent = connect(
     }, d),
     (props, dispatch, ownProps) => ({...props, ...dispatch, ...ownProps}),
     {
-        areStatesEqual: (x, y) => x.base.searchResults === y.base.searchResults && x.base.selectorses === y.base.selectorses && x.base.existingPlaylists === y.base.existingPlaylists,
+        areStatesEqual: (x, y) => x.base.searchResults === y.base.searchResults && x.base.selectors === y.base.selectors && x.base.existingPlaylists === y.base.existingPlaylists,
         areOwnPropsEqual: (x, y) => x.selector.album === y.selector.album && x.selector.fading === y.selector.fading && x.selector.selected == y.selector.selected,
         areStatePropsEqual: (x, y) => x.playlists === y.playlists,
     },
@@ -197,9 +194,8 @@ export const ConnectedAlbumSelectorComponent = connect(
 class AlbumSelectorsComponent extends React.PureComponent<{
     tracks: Map<TrackId, Track>
     selectors: AlbumSelectors
-    lens: Lens<AlbumShuffleSelector, AlbumSelectors>
     allowAdd: boolean
-    onAddSelection: typeof actions.addSelectionTo
+    onAddSelection: typeof actions.addSelection
     onShuffle: typeof actions.shuffleTracks.request
     onSave: typeof baseActions.savePlaylist.request
 }> {
@@ -215,7 +211,7 @@ class AlbumSelectorsComponent extends React.PureComponent<{
         const tracks = this.props.selectors.selectors
             .flatMap((sel) => sel.album.tracks)
             .toList()
-        this.props.onShuffle({tracks, lens: this.props.lens})
+        this.props.onShuffle({tracks})
     }
 
     save() {
@@ -226,26 +222,22 @@ class AlbumSelectorsComponent extends React.PureComponent<{
         this.props.onSave({name, tracks: this.props.selectors.shuffled})
     }
 
-    render () {
+    render() {
         const colors = this.colorByAlbum()
         let shuffledDisplay = <></>
         const shuffled = this.shuffled()
         if (!shuffled.isEmpty()) {
             shuffledDisplay = <>
                 <TracksComponent tracks={shuffled} colorByAlbum={colors} />
-                <button key="save" onClick={() => this.save()}>Save and exit</button>
+                <button key="save" onClick={() => this.save()}>Save</button>
             </>
         }
 
         return <div className="albums-selector">
-            <button onClick={() => { this.props.onAddSelection({lens: this.props.lens}) }} disabled={!this.props.allowAdd}>Add albums</button>
+            <button onClick={() => { this.props.onAddSelection() }} disabled={!this.props.allowAdd}>Add albums</button>
             {this.props.selectors.selectors.map((selector, e) => {
                 const color = colors.get(selector.album.key)
-                const lens1: Lens<AlbumShuffleSelector, List<AlbumSelector>> = this.props.lens.compose(new Lens(
-                    (o) => o.get('selectors', undefined),
-                    (v) => (o) => o.set('selectors', v)))
-                const selectorLens: Lens<AlbumShuffleSelector, AlbumSelector> = lens1.compose(lensFromImplicitAccessors(e))
-                return <ConnectedAlbumSelectorComponent key={e} selectorsLens={this.props.lens} {...{selector, color, selectorLens}} />
+                return <ConnectedAlbumSelectorComponent key={e} {...{selector, color}} />
             })}
             <button onClick={() => this.shuffle()}>Shuffle tracks</button>
             <ShuffleInfoComponent info={this.props.selectors.shuffleInfo} colorByAlbum={colors} />
@@ -255,21 +247,15 @@ class AlbumSelectorsComponent extends React.PureComponent<{
 }
 
 export const ConnectedAlbumSelectorsComponent = connect(
-    ({base: top}: {base: AlbumShuffleSelector}, ownProps: {idxTop: number}) => {
-        const lens1: Lens<AlbumShuffleSelector, List<AlbumSelectors>> = new Lens(
-            (o) => o.get('selectorses', undefined),
-            (v) => (o) => o.set('selectorses', v))
-        const lens2: Lens<AlbumShuffleSelector, AlbumSelectors> = lens1.compose(
-            lensFromImplicitAccessors(ownProps.idxTop))
+    ({base: top}: {base: AlbumShuffleSelector}) => {
+        const { tracks, selectors } = top
         return {
-            tracks: top.tracks,
-            selectors: top.selectorses.get(ownProps.idxTop),
-            lens: lens2,
+            tracks, selectors,
             allowAdd: top.hasSelection(),
         }
     },
     (d: Dispatch) => bindActionCreators({
-        onAddSelection: actions.addSelectionTo,
+        onAddSelection: actions.addSelection,
         onShuffle: actions.shuffleTracks.request,
         onSave: baseActions.savePlaylist.request,
     }, d),
@@ -334,30 +320,21 @@ export const ConnectedAlbumSearchComponent = connect(
 )(AlbumSearchComponent)
 
 const AlbumShuffleSelectorComponent = onlyUpdateForKeys(
-    ['selectorses', 'nAlbums', 'nChoices']
+    ['selectors']
 )((props: {
-    selectorses: List<AlbumSelectors>
-    nAlbums: string
-    nChoices: string
-    onChange: typeof actions.changeControl
-    onNewAlbumSelector: typeof actions.newAlbumSelector
+    selectors: AlbumSelectors
 }) => {
     return <div>
         <ConnectedAlbumSearchComponent />
-        <label># albums <input type="number" placeholder="# albums" value={props.nAlbums} onChange={(ev) => { props.onChange({prop: 'nAlbums', value: ev.target.value}) }} /></label>
-        <label># choices <input type="number" placeholder="# choices" value={props.nChoices} onChange={(ev) => { props.onChange({prop: 'nChoices', value: ev.target.value}) }} /></label>
-        <button onClick={() => props.onNewAlbumSelector({})}>New selector</button>
-        {props.selectorses.map((_sels, e) => <ConnectedAlbumSelectorsComponent key={e} idxTop={e} />)}
+        <ConnectedAlbumSelectorsComponent />
     </div>
 })
 
 export const ConnectedAlbumShuffleSelectorComponent = connect(
     ({base: top}: {base: AlbumShuffleSelector}) => {
-        const { selectorses, nAlbums, nChoices } = top
-        return { selectorses, nAlbums, nChoices }
+        const { selectors } = top
+        return { selectors }
     },
     (d: Dispatch) => bindActionCreators({
-        onChange: actions.changeControl,
-        onNewAlbumSelector: actions.newAlbumSelector,
     }, d),
 )(AlbumShuffleSelectorComponent)

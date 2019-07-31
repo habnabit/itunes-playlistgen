@@ -12,7 +12,6 @@ const shuffleTracksEpic: Epic<AllActions, AllActions> = (action$) => (
     action$.pipe(
         filter(isActionOf(actions.shuffleTracks.request)),
         switchMap((action) => {
-            const { lens } = action.payload
             const tracks = action.payload.tracks.map((t) => isoTrackId.unwrap(t.id)).toArray()
             const data = {tracks}
             return from(
@@ -29,7 +28,7 @@ const shuffleTracksEpic: Epic<AllActions, AllActions> = (action$) => (
                     if (resp.status !== 200) {
                         throw new RemoteError(resp, json)
                     } else {
-                        return actions.shuffleTracks.success({json, lens})
+                        return actions.shuffleTracks.success({json})
                     }
                 }),
                 catchError((err) => of(

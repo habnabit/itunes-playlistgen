@@ -15,17 +15,13 @@ export default function albumShuffleReducer(state = new AlbumShuffleSelector(), 
             (sel: AlbumSelector) => sel.set('selected', !sel.selected)
         )(state)
 
-    case getType(actions.removeAlbum):
-        return action.payload.lens.modify((sels: AlbumSelectors) =>
-            sels.update('selectors', (selsList) =>
-                selsList.filter((sel) => sel.album.key != action.payload.album))
-        )(state)
+    case getType(actions.removeAlbum): {
+        const { album } = action.payload
+        return state.update('selectors', (sel) => sel.withoutAlbum(album))
+    }
 
-    case getType(actions.newAlbumSelector):
-        return state.update('selectorses', (l) => l.push(action.payload.initial || new AlbumSelectors()))
-
-    case getType(actions.addSelectionTo):
-        return state.addSelection(action.payload.lens)
+    case getType(actions.addSelection):
+        return state.addSelection()
 
     case getType(actions.changeControl):
         const { prop, value } = action.payload
@@ -41,11 +37,11 @@ export default function albumShuffleReducer(state = new AlbumShuffleSelector(), 
         return state.withPlaylistsResponse(action.payload.json)
 
     case getType(actions.shuffleTracks.success):
-        const { lens, json } = action.payload
+        const { json } = action.payload
         const shuffled = Seq.Indexed.of(...json.tracks as TrackId[])
             .map((tid) => state.tracks.get(tid))
             .toList()
-        return lens.modify((sel) => sel.withShuffleResponse(shuffled, json.info))(state)
+        return state.update('selectors', (sel) => sel.withShuffleResponse(shuffled, json.info))
 
     default:
         return state

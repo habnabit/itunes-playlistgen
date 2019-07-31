@@ -25,15 +25,18 @@ export class AlbumSelectors extends Record({
     withShuffleResponse(shuffled: List<Track>, shuffleInfo: any): this {
         return this.merge({shuffled, shuffleInfo})
     }
+
+    withoutAlbum(album: AlbumKey): this {
+        return this.update('selectors', (selsList) =>
+            selsList.filter((sel) => sel.album.key != album))
+    }
 }
 
 export class AlbumShuffleSelector extends Record({
     tracks: Map<TrackId, Track>(),
     albums: Map<AlbumKey, Album>(),
     existingPlaylists: Map<TrackId, Set<string>>(),
-    selectorses: List<AlbumSelectors>(),
-    nAlbums: '4',
-    nChoices: '5',
+    selectors: new AlbumSelectors(),
     searchQuery: '',
     activeSearch: '',
     searchResults: List<AlbumSelector>(),
@@ -88,19 +91,6 @@ export class AlbumShuffleSelector extends Record({
                 const lens2: Lens<AlbumShuffleSelector, AlbumSelector> = lens1.compose(lensFromImplicitAccessors(e))
                 return [sel, lens2] as [AlbumSelector, null]
             })
-            .concat(this.selectorses.valueSeq().flatMap((sels, i) => {
-                const lens1: Lens<AlbumShuffleSelector, List<AlbumSelectors>> = new Lens(
-                    (o) => o.get('selectorses', undefined),
-                    (v) => (o) => o.set('selectorses', v))
-                const lens2: Lens<AlbumShuffleSelector, AlbumSelectors> = lens1.compose(lensFromImplicitAccessors(i))
-                return sels.selectors.map((sel, j) => {
-                    const lens3: Lens<AlbumShuffleSelector, List<AlbumSelector>> = lens2.compose(new Lens(
-                        (o) => o.get('selectors', undefined),
-                        (v) => (o) => o.set('selectors', v)))
-                    const lens4: Lens<AlbumShuffleSelector, AlbumSelector> = lens3.compose(lensFromImplicitAccessors(j))
-                    return [sel, lens4] as [AlbumSelector, null]
-                })
-            }))
             .filter(([sel, _lens]) => sel.selected)
     }
 
@@ -108,19 +98,19 @@ export class AlbumShuffleSelector extends Record({
         return this.allSelected().some((_t) => true)
     }
 
-    addSelection(selectors: Lens<AlbumShuffleSelector, AlbumSelectors>): AlbumShuffleSelector {
+    addSelection(): this {
         const newSelectors = this.allSelected()
             .map(([sel, _lens]) => new AlbumSelector({album: sel.album}))
             .toList()
-        return selectors.modify((sels) =>
+        return this.update('selectors', (sels) =>
             sels.update('selectors', (selsList) =>
                 selsList.concat(newSelectors))
-        )(this).clearSelected()
+        ).clearSelected()
     }
 
-    clearSelected(): AlbumShuffleSelector {
+    clearSelected(): this {
         return this.allSelected().reduce((ret, [_sel, lens]) => {
             return lens.modify((sel) => sel.set('selected', false))(ret)
-        }, this as AlbumShuffleSelector)
+        }, this as AlbumShuffleSelector) as this
     }
 }

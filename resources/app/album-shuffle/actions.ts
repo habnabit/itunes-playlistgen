@@ -5,36 +5,25 @@ import { createAsyncAction, createStandardAction } from 'typesafe-actions'
 import { AlbumKey, SubsetKeys, Track } from '../types'
 import { AlbumSelector, AlbumSelectors, AlbumShuffleSelector } from './types'
 
-export const toggleAlbumSelected = createStandardAction('playlistgen/toggleAlbumSelected')<{
+export const toggleAlbumSelected = createStandardAction('playlistgen/album-shuffle/toggleAlbumSelected')<{
     lens: Lens<AlbumShuffleSelector, AlbumSelector>
 }>()
 
-export const removeAlbum = createStandardAction('playlistgen/removeAlbum')<{
-    lens: Lens<AlbumShuffleSelector, AlbumSelectors>
+export const removeAlbum = createStandardAction('playlistgen/album-shuffle/removeAlbum')<{
     album: AlbumKey
 }>()
 
-export const newAlbumSelector = createStandardAction('playlistgen/newAlbumSelector')<{
-    initial?: AlbumSelectors
-}>()
+export const addSelection = createStandardAction('playlistgen/album-shuffle/addSelection')()
 
-export const addSelectionTo = createStandardAction('playlistgen/addSelectionTo')<{
-    lens: Lens<AlbumShuffleSelector, AlbumSelectors>
-}>()
-
-export const changeControl = createStandardAction('playlistgen/controlChange')<{
+export const changeControl = createStandardAction('playlistgen/album-shuffle/controlChange')<{
     prop: SubsetKeys<AlbumShuffleSelector, string>
     value: string
 }>()
 
 export const performSearch = createStandardAction('playlistgen/performSearch')()
 
-export const setHash = createStandardAction('playlistgen/setHash')<void>()
-
-export const shuffleTracks = createAsyncAction('playlistgen/shuffleTracks/request', 'playlistgen/shuffleTracks/success', 'playlistgen/shuffleTracks/failure')<{
+export const shuffleTracks = createAsyncAction('playlistgen/album-shuffle/shuffleTracks/request', 'playlistgen/album-shuffle/shuffleTracks/success', 'playlistgen/album-shuffle/shuffleTracks/failure')<{
     tracks: List<Track>
-    lens: Lens<AlbumShuffleSelector, AlbumSelectors>
 }, {
     json: any
-    lens: Lens<AlbumShuffleSelector, AlbumSelectors>
 }, Error>()
