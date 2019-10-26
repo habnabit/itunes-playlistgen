@@ -17,6 +17,7 @@ import pkg_resources
 import random
 import statistics
 import tqdm
+from zope.interface import Interface, implementer
 
 from . import _album_shuffle
 
@@ -141,6 +142,17 @@ def rescale_inv(value, scale, offset):
     return scale / (value + offset * math.log(scale, 10))
 
 
+class IScorerTarget(Interface):
+    def score(tracks):
+        pass
+
+
+class ISelectorTarget(Interface):
+    def select(rng, tracks):
+        pass
+
+
+@implementer(IScorerTarget)
 @attr.s
 class TargetTime(object):
     name = 'time'
@@ -168,6 +180,7 @@ class TargetTime(object):
         return self.pick_score(scores)
 
 
+@implementer(IScorerTarget)
 @attr.s
 class TargetTracks(object):
     name = 'ntracks'
@@ -178,6 +191,7 @@ class TargetTracks(object):
         return self.power ** (-abs(self.count - len(tracks)))
 
 
+@implementer(IScorerTarget)
 @attr.s
 class TargetAlbums(object):
     name = 'albums'
@@ -200,6 +214,7 @@ class TargetAlbums(object):
             return 0 if len(albums) != len(tracks) else 1
 
 
+@implementer(IScorerTarget)
 @attr.s
 class TargetAlbumWeights(object):
     weights = attr.ib()
@@ -218,12 +233,29 @@ class TargetAlbumWeights(object):
         return functools.reduce(operator.mul, subscores, 1)
 
 
+@implementer(ISelectorTarget)
+@attr.s
+class TargetAlbumSelector(object):
+    name = 'album-selection'
+    spread = attr.ib()
+
+    def select(self, rng, tracks):
+        albums = {t[typ.pAlb] for t in tracks}
+        if self.spread == 'uniform-uniform':
+            album = rng.choice(list(albums))
+            tracks = [t for t in tracks if t[typ.pAlb] == album]
+            yield rng.choice(tracks)[typ.pPIS]
+
+
 def timefill_search_targets(rng, tracks, targets, pull_prev=None, keep=None, n_options=None, iterations=None, initial=()):
     pull_prev = pull_prev or 25
     keep = keep or 125
     n_options = n_options or 5
     iterations = iterations or 1000
     all_indexes = frozenset(range(len(tracks)))
+    indexes_by_pid = {tracks[i][typ.pPIS]: i for i in all_indexes}
+    scorers = [t for t in targets if IScorerTarget.providedBy(t)]
+    selectors = [t for t in targets if ISelectorTarget.providedBy(t)]
     results = []
 
     def safe_sample(pool, n):
@@ -232,7 +264,7 @@ def timefill_search_targets(rng, tracks, targets, pull_prev=None, keep=None, n_o
     def score(indexes):
         if indexes:
             candidate = [tracks[i] for i in indexes]
-            scores = [target.score(candidate) for target in targets]
+            scores = [target.score(candidate) for target in scorers]
             score = functools.reduce(operator.mul, scores, 1)
         else:
             scores = []
@@ -246,10 +278,14 @@ def timefill_search_targets(rng, tracks, targets, pull_prev=None, keep=None, n_o
 
     def an_option(indexes):
         r = rng.random()
-        if r < 0.95:
+        relevant_indexes = all_indexes.difference(indexes)
+        if selectors:
+            selector = rng.choice(selectors)
+            selection = selector.select(rng, [tracks[i] for i in relevant_indexes])
+            indexes = indexes + tuple(indexes_by_pid[p] for p in selection)
+        elif r < 0.95:
             n = 1 + int(math.log(19 / r / 20, 2))
-            indexes = indexes + tuple(safe_sample(
-                all_indexes.difference(indexes), n))
+            indexes = indexes + tuple(safe_sample(relevant_indexes, n))
             if n > 1 and rng.random() > 0.5:
                 indexes = indexes[1:]
         else:
@@ -276,6 +312,7 @@ TARGETS = {cls.name: (cls, True) for cls in [
     TargetTracks,
     TargetTime,
     TargetAlbums,
+    TargetAlbumSelector,
 ]}
 
 TARGETS['album-weight'] = (TargetAlbumWeights.from_json, False)
