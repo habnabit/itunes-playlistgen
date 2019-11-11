@@ -61,8 +61,12 @@ class TrackContext(object):
         scripts.call(
             'fill_tracks', splut, persistent_tracks, self.start_playing)
 
+    def jitter(self, score, pct=0.125):
+        multiplier = self.rng.uniform(1 - pct, 1 + pct)
+        return score * multiplier
+
     def score_tracks(self, tracks):
-        return self.score_func(tracks)
+        return sorted((self.jitter(s), t) for s, t in self.score_func(tracks))
 
 
 @attr.s
@@ -142,13 +146,18 @@ def rescale_inv(value, scale, offset):
     return scale / (value + offset * math.log(scale, 10))
 
 
-class IScorerTarget(Interface):
-    def score(tracks):
+class ITarget(Interface):
+    def prepare(tracks):
         pass
 
 
-class ISelectorTarget(Interface):
-    def select(rng, tracks):
+class IScorerTarget(ITarget):
+    def score(track_ids):
+        pass
+
+
+class ISelectorTarget(ITarget):
+    def select(rng, track_ids):
         pass
 
 
@@ -160,6 +169,11 @@ class TargetTime(object):
     scale = attr.ib(default=10, converter=float)
     offset = attr.ib(default=1, converter=float)
     at = attr.ib(default='end')
+    _track_lengths = attr.ib(factory=dict)
+
+    def prepare(self, tracks):
+        for i, track in tracks.items():
+            self._track_lengths[i] = track[typ.pDur]
 
     def pick_score(self, scores):
         if self.at == 'end':
@@ -173,7 +187,7 @@ class TargetTime(object):
         scores = []
         duration = 0
         for t in tracks:
-            duration += t[typ.pDur]
+            duration += self._track_lengths[t]
             delta = abs(self.time - duration)
             score = rescale_inv(delta, self.scale, self.offset)
             scores.append(score)
@@ -187,6 +201,9 @@ class TargetTracks(object):
     count = attr.ib(converter=int)
     power = attr.ib(default=10, converter=float)
 
+    def prepare(self, tracks):
+        pass
+
     def score(self, tracks):
         return self.power ** (-abs(self.count - len(tracks)))
 
@@ -197,6 +214,9 @@ class TargetAlbums(object):
     name = 'albums'
     spread = attr.ib()
     power = attr.ib(default=1, converter=float)
+
+    def prepare(self, tracks):
+        pass
 
     def score(self, tracks):
         albums = {t[typ.pAlb] for t in tracks}
@@ -219,6 +239,9 @@ class TargetAlbums(object):
 class TargetAlbumWeights(object):
     weights = attr.ib()
 
+    def prepare(self, tracks):
+        pass
+
     @classmethod
     def from_json(cls, data):
         parsed = json.loads(data)
@@ -238,22 +261,37 @@ class TargetAlbumWeights(object):
 class TargetAlbumSelector(object):
     name = 'album-selection'
     spread = attr.ib()
+    _albums = attr.ib(factory=dict)
+    _track_albums = attr.ib(factory=dict)
 
-    def select(self, rng, tracks):
-        albums = {t[typ.pAlb] for t in tracks}
-        if self.spread == 'uniform-uniform':
-            album = rng.choice(list(albums))
-            tracks = [t for t in tracks if t[typ.pAlb] == album]
-            yield rng.choice(tracks)[typ.pPIS]
+    def prepare(self, tracks):
+        for i, track in tracks.items():
+            album = self._albums.setdefault(track[typ.pAlb], [])
+            self._track_albums[i] = album
+            album.append(i)
+
+    def select(self, rng, track_ids):
+        if self.spread != 'uniform-uniform':
+            raise ValueError('uniform-uniform only for now')
+
+        all_albums = list(self._albums.values())
+        while True:
+            album = rng.choice(all_albums)
+            i = rng.choice(album)
+            if i in track_ids:
+                yield i
+                return
 
 
 def timefill_search_targets(rng, tracks, targets, pull_prev=None, keep=None, n_options=None, iterations=None, initial=()):
     pull_prev = pull_prev or 25
     keep = keep or 125
     n_options = n_options or 5
-    iterations = iterations or 1000
-    all_indexes = frozenset(range(len(tracks)))
-    indexes_by_pid = {tracks[i][typ.pPIS]: i for i in all_indexes}
+    iterations = iterations or 10000
+    track_map = dict(enumerate(tracks))
+    all_indexes = frozenset(track_map)
+    for t in targets:
+        t.prepare(track_map)
     scorers = [t for t in targets if IScorerTarget.providedBy(t)]
     selectors = [t for t in targets if ISelectorTarget.providedBy(t)]
     results = []
@@ -263,8 +301,7 @@ def timefill_search_targets(rng, tracks, targets, pull_prev=None, keep=None, n_o
 
     def score(indexes):
         if indexes:
-            candidate = [tracks[i] for i in indexes]
-            scores = [target.score(candidate) for target in scorers]
+            scores = [target.score(indexes) for target in scorers]
             score = functools.reduce(operator.mul, scores, 1)
         else:
             scores = []
@@ -281,8 +318,7 @@ def timefill_search_targets(rng, tracks, targets, pull_prev=None, keep=None, n_o
         relevant_indexes = all_indexes.difference(indexes)
         if selectors:
             selector = rng.choice(selectors)
-            selection = selector.select(rng, [tracks[i] for i in relevant_indexes])
-            indexes = indexes + tuple(indexes_by_pid[p] for p in selection)
+            indexes = indexes + tuple(selector.select(rng, relevant_indexes))
         elif r < 0.95:
             n = 1 + int(math.log(19 / r / 20, 2))
             indexes = indexes + tuple(safe_sample(relevant_indexes, n))
