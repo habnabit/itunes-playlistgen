@@ -309,11 +309,12 @@ def api_exception_view(exc, request):
 
 
 def build_app(tracks, argv):
+    from . import playlistweb
     with Configurator() as config:
         config.include('cornice')
         config.include(track_methods(tracks, argv))
         config.add_renderer('json', JSON(serialize_applescript))
-        config.scan()
+        config.scan(playlistweb)
 
         config.add_route('index', '')
         config.add_static_view(name='_static', path='playlistgen:static')
