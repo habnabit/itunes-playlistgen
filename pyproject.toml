@@ -20,3 +20,7 @@ marshmallow = {version = "^2.19",allows-prereleases = true}
 
 [tool.poetry.scripts]
 playlistgen = "playlistgen.playlistgen:main"
+
+[tool.poetry.dev-dependencies]
+plop = "^0.4.0"
+flameprof = "^0.4.0"
