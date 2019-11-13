@@ -261,6 +261,7 @@ class TargetAlbumWeights(object):
 class TargetAlbumSelector(object):
     name = 'album-selection'
     spread = attr.ib()
+    collapse = attr.ib(default=None)
     _albums = attr.ib(factory=dict)
     _track_albums = attr.ib(factory=dict)
 
@@ -269,6 +270,18 @@ class TargetAlbumSelector(object):
             album = self._albums.setdefault(track[typ.pAlb], [])
             self._track_albums[i] = album
             album.append(i)
+
+        if self.collapse == 'singletons':
+            self._collapse_singletons()
+
+    def _collapse_singletons(self):
+        singleton_albums = [album for album, tracks in self._albums.items() if len(tracks) == 1]
+        singleton_tracks = self._albums.setdefault('', [])
+        for album in singleton_albums:
+            singleton_tracks.extend(self._albums.pop(album))
+
+        for track in singleton_tracks:
+            self._track_albums[track] = ''
 
     def select(self, rng, track_ids):
         if self.spread != 'uniform-uniform':
