@@ -17,6 +17,7 @@ import pkg_resources
 import random
 import statistics
 import tqdm
+from pyramid.decorator import reify
 from zope.interface import Interface, implementer
 
 from . import _album_shuffle
@@ -296,62 +297,100 @@ class TargetAlbumSelector(object):
                 return
 
 
+@attr.s(cmp=False, hash=False)
+class Selection:
+    track_indices = attr.ib()
+    scores = attr.ib(factory=list)
+    modified_in = attr.ib(default=())
+
+    @reify
+    def score(self):
+        if len(self.scores) > 0:
+            return functools.reduce(operator.mul, self.scores, 1)
+        else:
+            return 0
+
+    def with_iteration(self, n):
+        return attr.evolve(self, modified_in=self.modified_in + (n,))
+
+    @classmethod
+    def from_targets(cls, targets, indices, prev=None):
+        kw = {
+            'track_indices': indices,
+        }
+        if len(indices) > 0:
+            kw['scores'] = [target.score(indices) for target in targets]
+        if prev is not None:
+            kw['modified_in'] = prev.modified_in
+        return cls(**kw)
+
+
+def select_by_iterations(selections):
+    selections = list(selections)
+    seen = set()
+    threshold = 0
+    while selections:
+        new_selections = []
+        for s in selections:
+            n_same = len(seen.intersection(s.modified_in))
+            if n_same <= threshold:
+                seen.update(s.modified_in)
+                yield s
+            else:
+                new_selections.append(s)
+        selections = new_selections
+        threshold += 1
+
+
 def timefill_search_targets(rng, tracks, targets, pull_prev=None, keep=None, n_options=None, iterations=None, initial=()):
     pull_prev = pull_prev or 25
     keep = keep or 125
     n_options = n_options or 5
     iterations = iterations or 10000
     track_map = dict(enumerate(tracks))
-    all_indexes = frozenset(track_map)
+    all_indices = frozenset(track_map)
     for t in targets:
         t.prepare(track_map)
     scorers = [t for t in targets if IScorerTarget.providedBy(t)]
+    score_tracks = functools.partial(Selection.from_targets, scorers)
     selectors = [t for t in targets if ISelectorTarget.providedBy(t)]
     results = []
 
     def safe_sample(pool, n):
         return rng.sample(pool, min(len(pool), n))
 
-    def score(indexes):
-        if indexes:
-            scores = [target.score(indexes) for target in scorers]
-            score = functools.reduce(operator.mul, scores, 1)
-        else:
-            scores = []
-            score = 0
-        return score, scores, indexes
-
     def prune():
-        results_by_track_sets = {frozenset(i): (sc, scs, i) for sc, scs, i in results}
-        results[:] = sorted(results_by_track_sets.values(), reverse=True)
+        results_by_track_sets = {frozenset(s.track_indices): s for s in results}
+        results[:] = sorted(results_by_track_sets.values(), reverse=True, key=lambda s: s.score)
+        results[:] = select_by_iterations(results)
         del results[keep:]
 
-    def an_option(indexes):
+    def an_option(prev):
         r = rng.random()
-        relevant_indexes = all_indexes.difference(indexes)
+        relevant_indices = all_indices.difference(prev.track_indices)
         if selectors:
             selector = rng.choice(selectors)
-            indexes = indexes + tuple(selector.select(rng, relevant_indexes))
+            indices = prev.track_indices + tuple(selector.select(rng, relevant_indices))
         elif r < 0.95:
             n = 1 + int(math.log(19 / r / 20, 2))
-            indexes = indexes + tuple(safe_sample(relevant_indexes, n))
+            indices = prev.track_indices + tuple(safe_sample(relevant_indices, n))
             if n > 1 and rng.random() > 0.5:
-                indexes = indexes[1:]
+                indices = indices[1:]
         else:
-            indexes = tuple(rng.sample(indexes, len(indexes)))
-        return score(indexes)
+            indices = tuple(rng.sample(prev.track_indices, len(prev.track_indices)))
+        return score_tracks(indices, prev=prev)
 
-    previous = [score(initial)] * pull_prev
+    previous = [score_tracks(initial)] * pull_prev
 
-    for _ in range(iterations):
+    for n in range(iterations):
         if not previous:
             prune()
             previous = safe_sample(results, pull_prev)
-        prev_score, _, indexes = previous.pop()
-        options = [an_option(indexes) for _ in range(n_options)]
-        options = [(sc, scs, i) for sc, scs, i in options if sc >= prev_score]
+        prev_selection = previous.pop()
+        options = [an_option(prev_selection) for _ in range(n_options)]
+        options = [s for s in options if s.score >= prev_selection.score]
         if options:
-            results.append(rng.choice(options))
+            results.append(rng.choice(options).with_iteration(n))
 
     prune()
     return results
@@ -678,8 +717,8 @@ def timefill_targets(tracks, targets):
     def search():
         playlists = timefill_search_targets(tracks.rng, track_list, targets)
         return [
-            ([a] + b, [(None, track_list[t]) for t in c])
-            for a, b, c in reversed(playlists[:10])]
+            ([s.modified_in, s.score] + s.scores, [(None, track_list[t]) for t in s.track_indices])
+            for s in reversed(playlists[:10])]
 
     _, playlist = search_and_choose(search)
     tracks.set_tracks(b for a, b in playlist)

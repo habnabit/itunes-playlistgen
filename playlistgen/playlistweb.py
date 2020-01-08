@@ -266,10 +266,10 @@ def timefill_targets(request):
     playlists = playlistgen.timefill_search_targets(
         random, local_tracks, initial=include_indexes, **parsed)
     playlists = [{
-        'score': score,
-        'scores': scores,
-        'tracks': [local_tracks[t][typ.pPIS] for t in tracks]
-    } for score, scores, tracks in playlists]
+        'score': s.score,
+        'scores': s.scores,
+        'tracks': [local_tracks[t][typ.pPIS] for t in s.track_indices],
+    } for s in playlists]
     return {'playlists': playlists}
 
 
