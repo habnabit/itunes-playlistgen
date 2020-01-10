@@ -17,6 +17,7 @@ waitress = "^1.3"
 arrow = "^0.14.2"
 cornice = "^3.5"
 marshmallow = {version = "^2.19",allows-prereleases = true}
+parsimonious = "^0.8.1"
 
 [tool.poetry.scripts]
 playlistgen = "playlistgen.playlistgen:main"

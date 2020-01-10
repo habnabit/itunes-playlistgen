@@ -20,7 +20,7 @@ import tqdm
 from pyramid.decorator import reify
 from zope.interface import Interface, implementer
 
-from . import _album_shuffle
+from . import _album_shuffle, _criteria_parser
 
 zeroth = operator.itemgetter(0)
 
@@ -30,7 +30,7 @@ class TrackContext(object):
     source_playlist = attr.ib()
     dest_playlist = attr.ib()
     start_playing = attr.ib()
-    criteria = attr.ib(factory=list)
+    raw_criteria = attr.ib(factory=list)
     rng = attr.ib(default=attr.Factory(random.Random))
 
     def get_tracklist(self, batch_size=125):
@@ -53,6 +53,10 @@ class TrackContext(object):
     @reify
     def tracklist(self):
         return self.get_tracklist()
+
+    @reify
+    def criteria(self):
+        return [c.make_from_map(CRITERIA) for c in self.raw_criteria]
 
     def set_default_dest(self, name):
         if self.dest_playlist is None:
@@ -225,40 +229,51 @@ class CriterionAlbumWeights(object):
 
 @implementer(ISelectorCriterion)
 @attr.s
+class CriterionUniform(object):
+    name = 'uniform'
+
+    def prepare(self, tracks):
+        pass
+
+    def select(self, rng, track_ids):
+        yield rng.choice(tuple(track_ids))
+
+
+@implementer(ISelectorCriterion)
+@attr.s
 class CriterionAlbumSelector(object):
     name = 'album-selection'
     spread = attr.ib()
+    below = attr.ib()
     collapse = attr.ib(default=None)
     _albums = attr.ib(factory=dict)
-    _track_albums = attr.ib(factory=dict)
+    _albums_as_criteria = attr.ib(factory=list)
 
     def prepare(self, tracks):
-        if self.spread != 'uniform-uniform':
-            raise ValueError('uniform-uniform only for now')
+        if self.spread != 'uniform':
+            raise ValueError('uniform only for now')
 
         for i, track in tracks.items():
-            album = self._albums.setdefault(track[typ.pAlb], [])
-            self._track_albums[i] = album
-            album.append(i)
+            album = self._albums.setdefault(track[typ.pAlb], {})
+            album[i] = track
 
         if self.collapse == 'singletons':
             self._collapse_singletons()
 
+        for album_tracks in self._albums.values():
+            subcriterion = self.below.make_from_map(CRITERIA)
+            subcriterion.prepare(album_tracks)
+            self._albums_as_criteria.append(subcriterion)
+
     def _collapse_singletons(self):
         singleton_albums = [album for album, tracks in self._albums.items() if len(tracks) == 1]
-        singleton_tracks = self._albums.setdefault('', [])
+        singleton_tracks = self._albums.setdefault('', {})
         for album in singleton_albums:
-            singleton_tracks.extend(self._albums.pop(album))
-
-        for track in singleton_tracks:
-            self._track_albums[track] = ''
+            singleton_tracks.update(self._albums.pop(album))
 
     def select(self, rng, track_ids):
-        all_albums = list(self._albums.values())
-        album = rng.choice(all_albums)
-        i = rng.choice(album)
-        if i in track_ids:
-            yield i
+        album = rng.choice(self._albums_as_criteria)
+        yield from album.select(rng, track_ids)
 
 
 @implementer(ISelectorCriterion)
@@ -267,7 +282,7 @@ class CriterionArtistSelector(object):
     name = 'artist-selection'
     spread = attr.ib()
     below = attr.ib()
-    _artists = attr.ib(factory=list)
+    _artists_as_criteria = attr.ib(factory=list)
 
     def prepare(self, tracks):
         if self.spread != 'uniform':
@@ -279,12 +294,12 @@ class CriterionArtistSelector(object):
             artist[i] = track
 
         for artist_tracks in artists.values():
-            subcriterion = parse_criterion(self.below)
+            subcriterion = self.below.make_from_map(CRITERIA)
             subcriterion.prepare(artist_tracks)
-            self._artists.append(subcriterion)
+            self._artists_as_criteria.append(subcriterion)
 
     def select(self, rng, track_ids):
-        artist = rng.choice(self._artists)
+        artist = rng.choice(self._artists_as_criteria)
         yield from artist.select(rng, track_ids)
 
 
@@ -459,28 +474,20 @@ def search_criteria(tracks, tracklist=None, pull_prev=None, keep=None, n_options
     return results
 
 
-CRITERIA = {cls.name: (cls, True) for cls in [
+CRITERIA = {cls.name: cls for cls in [
     CriterionTracks,
     CriterionTime,
     CriterionAlbums,
+    CriterionUniform,
     CriterionAlbumSelector,
     CriterionArtistSelector,
     CriterionScoreUnrecent,
 ]}
 
-CRITERIA['album-weight'] = (CriterionAlbumWeights.from_json, False)
 
-
-def parse_criterion(value):
-    criterion_name, _, rest = value.partition('=')
-    constructor, parse_equals = CRITERIA[criterion_name]
-    if parse_equals:
-        values = rest.split(',')
-        first_arg = values.pop(0)
-        args = [value.partition('=')[::2] for value in values]
-        return constructor(first_arg, **dict(args))
-    else:
-        return constructor(rest)
+parse_criterion = functools.partial(
+    _criteria_parser.parse, valid_names=CRITERIA.keys())
+parse_criterion.__name__ = 'criterion'
 
 
 def unrecent_score_tracks(track_map, bias_recent_adds, unrecentness_days):
@@ -678,7 +685,7 @@ def main(ctx, source_playlist, dest_playlist, start_playing, criterion):
     rng = random.Random()
     ctx.obj = TrackContext(
         source_playlist=source_playlist, dest_playlist=dest_playlist,
-        start_playing=start_playing, criteria=criterion, rng=rng)
+        start_playing=start_playing, raw_criteria=criterion, rng=rng)
 
 
 @main.command()
