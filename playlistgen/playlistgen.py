@@ -30,10 +30,10 @@ class TrackContext(object):
     source_playlist = attr.ib()
     dest_playlist = attr.ib()
     start_playing = attr.ib()
-    score_func = attr.ib()
+    criteria = attr.ib(factory=list)
     rng = attr.ib(default=attr.Factory(random.Random))
 
-    def get_tracks(self, batch_size=125):
+    def get_tracklist(self, batch_size=125):
         click.echo('Pulling tracks from {!r}.'.format(self.source_playlist))
         track_pids = scripts.call('all_track_pids', self.source_playlist)
         ret = []
@@ -50,24 +50,24 @@ class TrackContext(object):
             raise RuntimeError("track fetching didn't get the right tracks")
         return ret
 
+    @reify
+    def tracklist(self):
+        return self.get_tracklist()
+
     def set_default_dest(self, name):
         if self.dest_playlist is None:
             self.dest_playlist = name
 
-    def set_tracks(self, tracks):
-        persistent_tracks = [t[typ.pPIS] for t in tracks]
+    def save_selection(self, selection):
+        persistent_tracks = [t[typ.pPIS] for t in selection.track_objs]
         splut = self.dest_playlist.splitlines()
         click.echo('Putting {} tracks into {!r}.'.format(
             len(persistent_tracks), splut[-1]))
         scripts.call(
             'fill_tracks', splut, persistent_tracks, self.start_playing)
 
-    def jitter(self, score, pct=0.125):
-        multiplier = self.rng.uniform(1 - pct, 1 + pct)
-        return score * multiplier
-
-    def score_tracks(self, tracks):
-        return sorted((self.jitter(s), t) for s, t in self.score_func(tracks))
+    def search_with_criteria(self, **kw):
+        return search_criteria(self, **kw)
 
 
 @attr.s
@@ -107,64 +107,28 @@ scripts = LazyAppleScript(
     pkg_resources.resource_string(__name__, 'functions.applescript').decode('mac-roman'))
 
 
-def timefill_search(rng, tracks, duration, fuzz, ideal_length,
-                    tolerance=2, n_results=10, iterations=5000):
-    results = []
-    iteration = [0]
-    tracks = [
-        (t[typ.pDur], t) for t in tracks if t[typ.pDur] < duration + fuzz]
-    tracks.sort(key=zeroth)
-
-    def add(tt):
-        score = -statistics.pvariance(itertools.chain(
-            (t[0] for t in tt),
-            itertools.repeat(ideal_length, tolerance)))
-        t = score, tt
-        if len(results) < n_results:
-            heapq.heappush(results, t)
-        else:
-            heapq.heappushpop(results, t)
-        iteration[0] += 1
-        return iteration[0] >= iterations
-
-    def aux(tt, upper_bound, current_duration):
-        track = tracks[int(rng.betavariate(1.4, 1.1) * upper_bound)]
-        tt += track,
-        current_duration -= track[0]
-        if abs(current_duration) < fuzz:
-            return add(tt)
-        upper_bound = bisect.bisect_left(
-            tracks, (current_duration + fuzz,), 0, upper_bound)
-        return aux(tt, upper_bound, current_duration)
-
-    while not aux((), len(tracks), duration):
-        pass
-    results.sort(key=zeroth)
-    return results
-
-
 def rescale_inv(value, scale, offset):
     return scale / (value + offset * math.log(scale, 10))
 
 
-class ITarget(Interface):
+class ICriterion(Interface):
     def prepare(tracks):
         pass
 
 
-class IScorerTarget(ITarget):
+class IScorerCriterion(ICriterion):
     def score(track_ids):
         pass
 
 
-class ISelectorTarget(ITarget):
+class ISelectorCriterion(ICriterion):
     def select(rng, track_ids):
         pass
 
 
-@implementer(IScorerTarget)
+@implementer(IScorerCriterion)
 @attr.s
-class TargetTime(object):
+class CriterionTime(object):
     name = 'time'
     time = attr.ib(converter=float)
     scale = attr.ib(default=10, converter=float)
@@ -195,9 +159,9 @@ class TargetTime(object):
         return self.pick_score(scores)
 
 
-@implementer(IScorerTarget)
+@implementer(IScorerCriterion)
 @attr.s
-class TargetTracks(object):
+class CriterionTracks(object):
     name = 'ntracks'
     count = attr.ib(converter=int)
     power = attr.ib(default=10, converter=float)
@@ -209,18 +173,20 @@ class TargetTracks(object):
         return self.power ** (-abs(self.count - len(tracks)))
 
 
-@implementer(IScorerTarget)
+@implementer(IScorerCriterion)
 @attr.s
-class TargetAlbums(object):
+class CriterionAlbums(object):
     name = 'albums'
     spread = attr.ib()
     power = attr.ib(default=1, converter=float)
+    _track_albums = attr.ib(factory=dict)
 
     def prepare(self, tracks):
-        pass
+        for i, track in tracks.items():
+            self._track_albums[i] = track[typ.pAlb]
 
     def score(self, tracks):
-        albums = {t[typ.pAlb] for t in tracks}
+        albums = {self._track_albums[t] for t in tracks}
         if self.spread == 'many':
             # many albums
             albums_per_track = float(len(albums)) / len(tracks)
@@ -235,9 +201,9 @@ class TargetAlbums(object):
             return 0 if len(albums) != len(tracks) else 1
 
 
-@implementer(IScorerTarget)
+@implementer(IScorerCriterion)
 @attr.s
-class TargetAlbumWeights(object):
+class CriterionAlbumWeights(object):
     weights = attr.ib()
 
     def prepare(self, tracks):
@@ -257,9 +223,9 @@ class TargetAlbumWeights(object):
         return functools.reduce(operator.mul, subscores, 1)
 
 
-@implementer(ISelectorTarget)
+@implementer(ISelectorCriterion)
 @attr.s
-class TargetAlbumSelector(object):
+class CriterionAlbumSelector(object):
     name = 'album-selection'
     spread = attr.ib()
     collapse = attr.ib(default=None)
@@ -267,6 +233,9 @@ class TargetAlbumSelector(object):
     _track_albums = attr.ib(factory=dict)
 
     def prepare(self, tracks):
+        if self.spread != 'uniform-uniform':
+            raise ValueError('uniform-uniform only for now')
+
         for i, track in tracks.items():
             album = self._albums.setdefault(track[typ.pAlb], [])
             self._track_albums[i] = album
@@ -285,23 +254,88 @@ class TargetAlbumSelector(object):
             self._track_albums[track] = ''
 
     def select(self, rng, track_ids):
-        if self.spread != 'uniform-uniform':
-            raise ValueError('uniform-uniform only for now')
-
         all_albums = list(self._albums.values())
-        while True:
-            album = rng.choice(all_albums)
-            i = rng.choice(album)
-            if i in track_ids:
-                yield i
-                return
+        album = rng.choice(all_albums)
+        i = rng.choice(album)
+        if i in track_ids:
+            yield i
+
+
+@implementer(ISelectorCriterion)
+@attr.s
+class CriterionArtistSelector(object):
+    name = 'artist-selection'
+    spread = attr.ib()
+    below = attr.ib()
+    _artists = attr.ib(factory=list)
+
+    def prepare(self, tracks):
+        if self.spread != 'uniform':
+            raise ValueError('uniform only for now')
+
+        artists = {}
+        for i, track in tracks.items():
+            artist = artists.setdefault(track[typ.pAlA], {})
+            artist[i] = track
+
+        for artist_tracks in artists.values():
+            subcriterion = parse_criterion(self.below)
+            subcriterion.prepare(artist_tracks)
+            self._artists.append(subcriterion)
+
+    def select(self, rng, track_ids):
+        artist = rng.choice(self._artists)
+        yield from artist.select(rng, track_ids)
+
+
+@implementer(ISelectorCriterion)
+@attr.s
+class CriterionScoreUnrecent:
+    name = 'score-unrecent'
+    unrecentness_days = attr.ib(converter=int)
+    bias_recent_adds = attr.ib(default='', converter=lambda s: s.startswith('y'))
+    _scores = attr.ib(factory=list)
+
+    def prepare(self, track_map):
+        self._scores = list(
+            unrecent_score_tracks(track_map, self.bias_recent_adds, self.unrecentness_days))
+
+    def select(self, rng, track_ids):
+        if not self._scores:
+            return
+
+        top_score = self._scores[-1][0]
+        score = rng.uniform(0, top_score)
+        score_index = bisect.bisect_left(self._scores, (score,))
+        picked, i = self._scores[score_index]
+        if i not in track_ids:
+            return
+
+        yield i
+        width = picked if score_index == 0 else picked - self._scores[score_index - 1][0]
+        chance = width / top_score
+        uniform_chance = 1 / len(self._scores)
+        yield Explanation(
+            'score-unrecent: raw score {width:.1g}, {chance:.2%} chance; {chance_diff:+.2%} off uniform',
+            dict(width=width, chance=chance, chance_diff=chance - uniform_chance))
+
+
+@attr.s(frozen=True)
+class Explanation:
+    description = attr.ib()
+    extra = attr.ib(factory=dict)
+
+    def format(self):
+        return self.description.format_map(self.extra)
 
 
 @attr.s(cmp=False, hash=False)
 class Selection:
+    _tracklist = attr.ib()
     track_indices = attr.ib()
-    scores = attr.ib(factory=list)
+    scores = attr.ib(default=())
     modified_in = attr.ib(default=())
+    explanations = attr.ib(default=())
 
     @reify
     def score(self):
@@ -313,15 +347,35 @@ class Selection:
     def with_iteration(self, n):
         return attr.evolve(self, modified_in=self.modified_in + (n,))
 
+    def with_selector(self, selector, rng, track_ids):
+        track_indices = self.track_indices
+        explanations = self.explanations
+        for x in selector.select(rng, track_ids):
+            if isinstance(x, Explanation):
+                explanations += (x,)
+            else:
+                track_indices += (x,)
+        return attr.evolve(self, track_indices=track_indices, explanations=explanations)
+
+    def with_explanation(self, description, **extra):
+        return attr.evolve(self, explanations=self.explanations + (Explanation(description, extra),))
+
+    @property
+    def track_objs(self):
+        for i in self.track_indices:
+            yield self._tracklist[i]
+
     @classmethod
-    def from_targets(cls, targets, indices, prev=None):
+    def from_criteria(cls, tracklist, criteria, indices, prev=None):
         kw = {
+            'tracklist': tracklist,
             'track_indices': indices,
         }
         if len(indices) > 0:
-            kw['scores'] = [target.score(indices) for target in targets]
+            kw['scores'] = [criterion.score(indices) for criterion in criteria]
         if prev is not None:
             kw['modified_in'] = prev.modified_in
+            kw['explanations'] = prev.explanations
         return cls(**kw)
 
 
@@ -342,18 +396,22 @@ def select_by_iterations(selections):
         threshold += 1
 
 
-def timefill_search_targets(rng, tracks, targets, pull_prev=None, keep=None, n_options=None, iterations=None, initial=()):
+def search_criteria(tracks, tracklist=None, pull_prev=None, keep=None, n_options=None, iterations=None, mercy=None):
+    rng = tracks.rng
     pull_prev = pull_prev or 25
     keep = keep or 125
     n_options = n_options or 5
     iterations = iterations or 10000
-    track_map = dict(enumerate(tracks))
+    mercy = mercy or 25
+    if tracklist is None:
+        tracklist = tracks.tracklist
+    track_map = dict(enumerate(tracklist))
     all_indices = frozenset(track_map)
-    for t in targets:
+    for t in tracks.criteria:
         t.prepare(track_map)
-    scorers = [t for t in targets if IScorerTarget.providedBy(t)]
-    score_tracks = functools.partial(Selection.from_targets, scorers)
-    selectors = [t for t in targets if ISelectorTarget.providedBy(t)]
+    scorers = [t for t in tracks.criteria if IScorerCriterion.providedBy(t)]
+    score_tracks = functools.partial(Selection.from_criteria, tracklist, scorers)
+    selectors = [t for t in tracks.criteria if ISelectorCriterion.providedBy(t)]
     results = []
 
     def safe_sample(pool, n):
@@ -366,23 +424,19 @@ def timefill_search_targets(rng, tracks, targets, pull_prev=None, keep=None, n_o
         del results[keep:]
 
     def an_option(prev):
-        r = rng.random()
         relevant_indices = all_indices.difference(prev.track_indices)
         if selectors:
             selector = rng.choice(selectors)
-            indices = prev.track_indices + tuple(selector.select(rng, relevant_indices))
-        elif r < 0.95:
-            n = 1 + int(math.log(19 / r / 20, 2))
-            indices = prev.track_indices + tuple(safe_sample(relevant_indices, n))
-            if n > 1 and rng.random() > 0.5:
-                indices = indices[1:]
+            prev = prev.with_selector(selector, rng, relevant_indices)
+            indices = prev.track_indices
         else:
-            indices = tuple(rng.sample(prev.track_indices, len(prev.track_indices)))
+            indices = prev.track_indices + (rng.choice(relevant_indices),)
         return score_tracks(indices, prev=prev)
 
-    previous = [score_tracks(initial)] * pull_prev
+    previous = [score_tracks(())] * pull_prev
+    readds = 0
 
-    for n in range(iterations):
+    for n in tqdm.trange(iterations):
         if not previous:
             prune()
             previous = safe_sample(results, pull_prev)
@@ -391,24 +445,35 @@ def timefill_search_targets(rng, tracks, targets, pull_prev=None, keep=None, n_o
         options = [s for s in options if s.score >= prev_selection.score]
         if options:
             results.append(rng.choice(options).with_iteration(n))
+            readds = 0
+        else:
+            results.append(prev_selection.with_explanation(
+                'readded after beating all {n_options} of its successors',
+                n_options=n_options,
+            ))
+            readds += 1
+            if readds >= mercy:
+                break
 
     prune()
     return results
 
 
-TARGETS = {cls.name: (cls, True) for cls in [
-    TargetTracks,
-    TargetTime,
-    TargetAlbums,
-    TargetAlbumSelector,
+CRITERIA = {cls.name: (cls, True) for cls in [
+    CriterionTracks,
+    CriterionTime,
+    CriterionAlbums,
+    CriterionAlbumSelector,
+    CriterionArtistSelector,
+    CriterionScoreUnrecent,
 ]}
 
-TARGETS['album-weight'] = (TargetAlbumWeights.from_json, False)
+CRITERIA['album-weight'] = (CriterionAlbumWeights.from_json, False)
 
 
-def parse_target(value):
-    target_name, _, rest = value.partition('=')
-    constructor, parse_equals = TARGETS[target_name]
+def parse_criterion(value):
+    criterion_name, _, rest = value.partition('=')
+    constructor, parse_equals = CRITERIA[criterion_name]
     if parse_equals:
         values = rest.split(',')
         first_arg = values.pop(0)
@@ -418,17 +483,17 @@ def parse_target(value):
         return constructor(rest)
 
 
-def unrecent_score_tracks(tracks, bias_recent_adds, unrecentness_days):
+def unrecent_score_tracks(track_map, bias_recent_adds, unrecentness_days):
     def date_for(t):
         return max(d for d in [t.get(typ.pPlD), t.get(typ.pSkD), t[typ.pAdd]]
                    if d is not None)
 
     now = datetime.datetime.now()
     unrecentness = datetime.timedelta(days=unrecentness_days)
-    tracks = [(date_for(t), t) for t in tracks]
-    tracks.sort(key=zeroth)
-    bounding_index = bisect.bisect_left(tracks, (now - unrecentness,))
-    del tracks[bounding_index:]
+    tracklist = [(date_for(t), e, t) for e, t in track_map.items()]
+    tracklist.sort(key=zeroth)
+    bounding_index = bisect.bisect_left(tracklist, (now - unrecentness,))
+    del tracklist[bounding_index:]
 
     def score(last_played, track):
         score = (now - last_played).total_seconds() ** 0.5
@@ -436,72 +501,17 @@ def unrecent_score_tracks(tracks, bias_recent_adds, unrecentness_days):
             score /= (now - track[typ.pAdd]).total_seconds() ** 0.5
         return score
 
-    tracks = [(score(played, track), track) for played, track in tracks]
-    tracks.sort(key=zeroth)
-    scale = 1 / tracks[0][0]
-    return [(scale * a, b) for a, b in tracks]
-
-
-@attr.s
-class ScoreUnrecent(object):
-    name = 'unrecent'
-    unrecentness = attr.ib()
-
-    def score(self, tracks):
-        return unrecent_score_tracks(tracks, False, self.unrecentness)
-
-
-@attr.s
-class ScoreUnrecentButRecentlyAdded(object):
-    name = 'unrecent-but-recently-added'
-    unrecentness = attr.ib()
-
-    def score(self, tracks):
-        return unrecent_score_tracks(tracks, True, self.unrecentness)
-
-
-@attr.s
-class ScoreUniform(object):
-    name = 'uniform'
-    rng = attr.ib()
-
-    def score(self, tracks):
-        tracks = list(tracks)
-        self.rng.shuffle(tracks)
-        return list(enumerate(tracks))
-
-
-SCORING = {cls.name: cls for cls in [
-    ScoreUnrecent,
-    ScoreUnrecentButRecentlyAdded,
-    ScoreUniform,
-]}
+    tracklist = [(score(played, track), e, track) for played, e, track in tracklist]
+    tracklist.sort(key=zeroth)
+    cumsum = 0
+    for score, e, _ in tracklist:
+        cumsum += score
+        yield cumsum, e
 
 
 def make(cls, **kw):
     cls_attrs = {f.name for f in attr.fields(cls)}
     return cls(**{k: v for k, v in kw.items() if k in cls_attrs})
-
-
-def unrecent_search(rng, tracks, duration_secs):
-    bottom_score, top_score = tracks[0][0], tracks[-1][0]
-    ret = []
-    current_duration = 0
-    seen = set()
-
-    while current_duration < duration_secs:
-        while True:
-            score = rng.uniform(bottom_score, top_score)
-            index = bisect.bisect_left(tracks, (score,))
-            if index not in seen:
-                seen.add(index)
-                break
-
-        track = tracks[index]
-        ret.append(track)
-        current_duration += track[1][typ.pDur]
-
-    return ret
 
 
 def album_key(track):
@@ -604,29 +614,22 @@ def seconds(s):
     return datetime.timedelta(seconds=int(s))
 
 
-def show_stats(ts):
-    scores = [a for a, b in ts]
-    scores.sort()
-    click.echo(
-        'len {:5d} min {:8.3f} max {:8.3f} mean {:8.3f} median {:8.3f} stdev {:8.3f} pvar {:8.3f}'.format(
-            len(scores), scores[0], scores[-1], statistics.mean(scores),
-            statistics.median(scores), statistics.stdev(scores),
-            statistics.pvariance(scores)))
-
-
-def show_playlist(playlist):
-    for f, (_, t) in enumerate(playlist, start=1):
+def show_selection(selection):
+    for f, t in enumerate(selection.track_objs, start=1):
         click.echo(
             u'    {2:2}. [{1}] {0.pArt} - {0.pnam} ({0.pAlb})'.format(
                 IDWrap(typ, t), seconds(t[typ.pDur]), f))
 
+    for e in selection.explanations:
+        click.secho(u'   ' + e.format())
 
-def show_playlists(playlists):
-    for e, (score, pl) in enumerate(playlists, start=1):
-        length = sum(t[typ.pDur] for _, t in pl)
-        click.secho(u'{:2}. {} ({})'.format(e, seconds(length), score),
+
+def show_selections(selections):
+    for e, s in enumerate(selections, start=1):
+        length = sum(t[typ.pDur] for t in s.track_objs)
+        click.secho(u'{:2}. {} ({})'.format(e, seconds(length), s.score),
                     fg='green')
-        show_playlist(pl)
+        show_selection(s)
         click.echo('')
 
 
@@ -634,7 +637,7 @@ def search_and_choose(f):
     while True:
         results = f()
         while True:
-            show_playlists(results)
+            show_selections(results)
             e = click.prompt('Pick one (0 for reroll)', type=int)
             if e < 0 or e > len(results):
                 click.prompt('Bad value. [press return]', prompt_suffix='')
@@ -665,99 +668,44 @@ def delete_older(pattern, max_age):
               help='Playlist into which to push tracks.')
 @click.option('--start-playing/--no-start-playing', default=False,
               help='Start playing the playlist after being filled.')
-@click.option('--scoring', type=click.Choice(SCORING), default='unrecent',
+@click.option('-c', '--criterion', type=parse_criterion, multiple=True,
               help='XXX')
-@click.option('--unrecentness', default=35, metavar='DAYS',
-              help='How long since the last play for unrecentness scoring.')
-def main(ctx, source_playlist, dest_playlist, start_playing, scoring,
-         unrecentness):
+def main(ctx, source_playlist, dest_playlist, start_playing, criterion):
     """
     Generate iTunes playlists in smarter ways than iTunes can.
     """
 
     rng = random.Random()
-    score_obj = make(SCORING[scoring], rng=rng, unrecentness=unrecentness)
     ctx.obj = TrackContext(
         source_playlist=source_playlist, dest_playlist=dest_playlist,
-        start_playing=start_playing, score_func=score_obj.score, rng=rng)
+        start_playing=start_playing, criteria=criterion, rng=rng)
 
 
 @main.command()
 @click.pass_obj
-@click.option('--ideal-length', default=300., metavar='SECONDS',
-              help='Ideal length of each track.')
-@click.option('--duration', default=600, metavar='SECONDS',
-              help='Total duration.')
-@click.option('--fuzz', default=10, metavar='SECONDS',
-              help='How much fuzz is allowed on the duration.')
-def timefill(tracks, duration, fuzz, ideal_length):
+@click.option('-s', '--show', default=5, help='selections to show')
+@click.option('-i', '--iterations', default=None, type=int,
+              help='iterations of search')
+def search(tracks, show, iterations):
     """
-    Make a playlist close to some length.
+    Search for a playlist matching some criteria.
     """
 
-    tracks.set_default_dest('timefill')
-    search = functools.partial(
-        timefill_search, tracks.rng, tracks.get_tracks(), duration, fuzz,
-        ideal_length, n_results=6)
-    _, playlist = search_and_choose(search)
-    tracks.set_tracks(b for a, b in playlist)
+    def search_one():
+        selections = tracks.search_with_criteria(iterations=iterations)
+        return selections[:show]
 
-
-@main.command()
-@click.pass_obj
-@click.argument('targets', type=parse_target, nargs=-1)
-def timefill_targets(tracks, targets):
-    """
-    Make a playlist close to some length.
-    """
-
-    tracks.set_default_dest(u'targets')
-    track_list = tracks.get_tracks()
-
-    def search():
-        playlists = timefill_search_targets(tracks.rng, track_list, targets)
-        return [
-            ([s.modified_in, s.score] + s.scores, [(None, track_list[t]) for t in s.track_indices])
-            for s in reversed(playlists[:10])]
-
-    _, playlist = search_and_choose(search)
-    tracks.set_tracks(b for a, b in playlist)
-
-
-@main.command('album-shuffle')
-@click.pass_obj
-@click.option('--playlist-pattern', default=u'※ Album Shuffle\n{now:%Y-%m-%d}: {names}',
-              metavar='PATTERN',
-              help='str.format-style pattern for playlists.')
-@click.option('--n-albums', default=4, metavar='ALBUMS',
-              help='How many albums to shuffle together.')
-@click.option('--source-genius/--no-source-genius', default=False,
-              help='XXX')
-def album_shuffle(tracks, playlist_pattern, n_albums, source_genius):
-    """
-    XXX
-    """
-
-    all_tracks = tracks.score_tracks(
-        t for t in tracks.get_tracks() if not t.get(typ.pAnt))
-    search = functools.partial(
-        album_search, tracks.rng, all_tracks, n_albums=n_albums,
-        source_genius=source_genius)
-    names, playlist = search_and_choose(search)
-    tracks.set_default_dest(playlist_pattern.format(
-        names=names, now=datetime.datetime.now()))
-    tracks.set_tracks(b for a, b in playlist)
+    selection = search_and_choose(search_one)
+    tracks.save_selection(selection)
 
 
 @main.command('daily-unrecent')
 @click.pass_obj
-@click.option('--duration', default=43200, metavar='SECONDS',
-              help='Total duration.')
 @click.option('--playlist-pattern', default=u'※ Daily\n%Y-%m-%d',
               metavar='PATTERN', help='strftime-style pattern for playlists.')
 @click.option('--delete-older-than', default=None, type=int, metavar='DAYS',
               help='How old of playlists to delete.')
-def daily_unrecent(tracks, duration, playlist_pattern, delete_older_than):
+def daily_unrecent(tracks, playlist_pattern, delete_older_than):
     """
     Build a playlist of non-recently played things.
     """
@@ -766,11 +714,11 @@ def daily_unrecent(tracks, duration, playlist_pattern, delete_older_than):
     tracks.set_default_dest(date)
     container = playlist_pattern.splitlines()[:-1]
     previous_pids = set(scripts.call('all_track_pids', container))
-    tracklist = [t for t in tracks.get_tracks() if t[typ.pPIS] not in previous_pids]
-    playlist = unrecent_search(
-        tracks.rng, tracks.score_tracks(tracklist), duration)
-    show_playlist(playlist)
-    tracks.set_tracks(b for a, b in playlist)
+    tracklist = [t for t in tracks.tracklist if t[typ.pPIS] not in previous_pids]
+    selection = tracks.search_with_criteria(
+        tracklist=tracklist, pull_prev=1, keep=1, n_options=1)[0]
+    show_selection(selection)
+    tracks.save_selection(selection)
     if delete_older_than is not None:
         delete_older(
             playlist_pattern, datetime.timedelta(days=delete_older_than))
