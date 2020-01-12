@@ -12,8 +12,8 @@ export const changeControl = createStandardAction('playlistgen/timefill/changeCo
     value: string
 }>()
 
-export const addTarget = createStandardAction('playlistgen/timefill/addTarget')<{}>()
-export const removeTarget = createStandardAction('playlistgen/timefill/removeTarget')<{
+export const addCriterion = createStandardAction('playlistgen/timefill/addCriterion')<{}>()
+export const removeCriterion = createStandardAction('playlistgen/timefill/removeCriterion')<{
     index: number
 }>()
 
@@ -34,7 +34,7 @@ export const clearChoiceTrack = createStandardAction('playlistgen/clearChoiceTra
 }>()
 
 export const runTimefill = createAsyncAction('playlistgen/timefill/runTimefill/request', 'playlistgen/timefill/runTimefill/success', 'playlistgen/timefill/runTimefill/failure')<{
-    targets: List<string>
+    criteria: List<string>
     selections: Map<ChoiceTrackSelection, Set<TrackId>>
     replace?: Lens<TimefillSelector, Choice>
 }, {

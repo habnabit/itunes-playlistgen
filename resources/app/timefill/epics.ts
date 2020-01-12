@@ -16,9 +16,9 @@ const runTimefillEpic: Epic<AllActions, AllActions> = (action$) => (
             const data: any = action.payload.selections
                 .map((tids) => tids.toArray())
                 .toObject()
-            data.targets = action.payload.targets.toArray()
+            data.criteria = action.payload.criteria.toArray()
             return from(
-                fetch('/_api/timefill-targets', {
+                fetch('/_api/timefill-criteria', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',

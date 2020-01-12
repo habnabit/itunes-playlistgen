@@ -31,7 +31,7 @@ export class Choice extends Record({
 export class TimefillSelector extends Record({
     tracks: Map<TrackId, Track>(),
     name: '',
-    targets: List<string>(),
+    criteria: List<string>(),
     albums: OrderedMap<AlbumKey, Album>(),
     weights: List<[AlbumKey, string]>(),
     choices: List<Choice>(),
@@ -68,7 +68,7 @@ export class TimefillSelector extends Record({
     }): this {
         return this.merge({
             name: j.dest_playlist || '',
-            targets: List(j.web_argv),
+            criteria: List(j.web_argv),
         })
     }
 
@@ -100,14 +100,14 @@ export class TimefillSelector extends Record({
         }
     }
 
-    allTargets(): List<string> {
-        let targets = this.targets
+    allCriteria(): List<string> {
+        let criteria = this.criteria
         if (!this.weights.isEmpty()) {
-            targets = targets.push('album-weight=' + JSON.stringify({
+            criteria = criteria.push('album-weight=' + JSON.stringify({
                 weights: this.weights.toJSON(),
             }))
         }
-        return targets
+        return criteria
     }
 
     withClearedSelection(tid: TrackId): this {

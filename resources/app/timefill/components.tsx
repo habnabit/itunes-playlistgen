@@ -90,7 +90,7 @@ export const ConnectedChoiceComponent = connect(
             onToggle: (track: TrackId) => () => dispatchProps.onToggle({lens, track}),
             onReroll: () => {
                 const selections = top.reversedSelection()
-                dispatchProps.onReroll({targets: top.allTargets(), selections, replace: lens})
+                dispatchProps.onReroll({criteria: top.allCriteria(), selections, replace: lens})
             },
             onSave: () => {
                 dispatchProps.onSave({name: top.name, tracks: choice.tracks})
@@ -104,52 +104,52 @@ export const ConnectedChoiceComponent = connect(
     },
 )(ChoiceComponent)
 
-const TargetsComponent = onlyUpdateForKeys(
-    ['targets']
+const CriterionsComponent = onlyUpdateForKeys(
+    ['criteria']
 )((props: {
-    targets: List<string>
-    targetsLens: Lens<TimefillSelector, List<string>>
-    onAddTarget: typeof actions.addTarget
-    onRemoveTarget: typeof actions.removeTarget
+    criteria: List<string>
+    criteriaLens: Lens<TimefillSelector, List<string>>
+    onAddCriterion: typeof actions.addCriterion
+    onRemoveCriterion: typeof actions.removeCriterion
     onChangeControl: typeof actions.changeControl
     keyb: KeyboardEvents
 }) => {
-    return <section className="targets">
-        <button className="add-target" onClick={() => props.onAddTarget({})}>Add target</button>
-        {props.targets.map((target, e) => {
-            const lens: Lens<TimefillSelector, string> = props.targetsLens.compose(lensFromImplicitAccessors(e))
+    return <section className="criteria">
+        <button className="add-criterion" onClick={() => props.onAddCriterion({})}>Add criterion</button>
+        {props.criteria.map((criterion, e) => {
+            const lens: Lens<TimefillSelector, string> = props.criteriaLens.compose(lensFromImplicitAccessors(e))
             return <React.Fragment key={e}>
-                <input type="text" placeholder="Target…" value={target} onChange={(ev) => {
+                <input type="text" placeholder="Criterion…" value={criterion} onChange={(ev) => {
                     props.onChangeControl({lens, value: ev.target.value})
                 }} {...props.keyb} />
-                <button className="remove-target" onClick={() => props.onRemoveTarget({index: e})}>❌</button>
+                <button className="remove-criterion" onClick={() => props.onRemoveCriterion({index: e})}>❌</button>
             </React.Fragment>
         })}
     </section>
 })
 
-const ConnectedTargetsComponent = connect(
-    ({base: top}: {base: TimefillSelector}) => ({targets: top.targets}),
+const ConnectedCriterionsComponent = connect(
+    ({base: top}: {base: TimefillSelector}) => ({criteria: top.criteria}),
     (d: Dispatch) => bindActionCreators({
-        onAddTarget: actions.addTarget,
-        onRemoveTarget: actions.removeTarget,
+        onAddCriterion: actions.addCriterion,
+        onRemoveCriterion: actions.removeCriterion,
         onChangeControl: actions.changeControl,
         onKeyboardAvailable: baseActions.setKeyboardAvailability,
     }, d),
     (props, dispatch, ownProps) => {
-        const targetsLens: Lens<TimefillSelector, List<string>> = new Lens(
-            (o) => o.get('targets', undefined),
-            (v) => (o) => o.set('targets', v))
+        const criteriaLens: Lens<TimefillSelector, List<string>> = new Lens(
+            (o) => o.get('criteria', undefined),
+            (v) => (o) => o.set('criteria', v))
         return {
-            keyb: keyboardEvents(dispatch), targetsLens,
+            keyb: keyboardEvents(dispatch), criteriaLens,
             ...props, ...dispatch, ...ownProps,
         }
     },
     {
-        areStatesEqual: (x, y) => x.base.targets === y.base.targets,
-        areStatePropsEqual: (x, y) => x.targets === y.targets,
+        areStatesEqual: (x, y) => x.base.criteria === y.base.criteria,
+        areStatePropsEqual: (x, y) => x.criteria === y.criteria,
     },
-)(TargetsComponent)
+)(CriterionsComponent)
 
 // const WeightsComponent = ((props: {
 //     albums: OrderedMap<AlbumKey, Album>
@@ -251,7 +251,7 @@ const TimefillSelectorComponent = onlyUpdateForKeys(
         classes.push('set-exclude')
     }
     return <div className={classes.join(' ')}>
-        <ConnectedTargetsComponent />
+        <ConnectedCriterionsComponent />
         <section className="controls">
             <textarea placeholder="Playlist name…" onChange={(ev) => props.onChangeName(ev.target.value)} value={props.name} {...props.keyb} />
             <button onClick={props.onSelect}>Select new</button>
@@ -266,15 +266,15 @@ const TimefillSelectorComponent = onlyUpdateForKeys(
 
 export const ConnectedTimefillSelectorComponent = connect(
     ({base: top}: {base: TimefillSelector}) => {
-        const { name, targets, choices } = top
+        const { name, criteria, choices } = top
         const _selectionMap = top.reversedSelection()
             .map((tracks) => tracks.toList().map((t) => top.tracks.get(t)))
             .toObject()
         const selectionMap = _selectionMap as {[K in ChoiceTrackSelection]: List<Track>}
         return {
-            name, targets, choices, selectionMap,
+            name, criteria, choices, selectionMap,
             selections: top.reversedSelection(),
-            allTargets: top.allTargets(),
+            allCriterions: top.allCriteria(),
             selectState: top.currentSelection(),
         }
     },
@@ -290,7 +290,7 @@ export const ConnectedTimefillSelectorComponent = connect(
             (v) => (o) => o.set('name', v))
         const extraProps = {
             onSelect: () => {
-                dispatch.onSelect({targets: props.allTargets, selections: props.selections})
+                dispatch.onSelect({criteria: props.allCriterions, selections: props.selections})
                 dispatch.onSetHash()
             },
             onChangeName: (value: string) => dispatch.onChangeControl({lens, value}),

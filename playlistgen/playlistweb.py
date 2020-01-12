@@ -60,13 +60,11 @@ def serialize_applescript(obj, *a, **kw):
 
 
 def track_methods(tracks, argv):
-    tracks_list = tracks.get_tracks()
-    tracks_by_id = {t[typ.pPIS]: t for t in tracks_list}
+    tracks_by_id = {t[typ.pPIS]: t for t in tracks.tracklist}
 
     def configurate(config):
         config.add_request_method(lambda _: argv, name='web_argv', reify=True)
-        config.add_request_method(lambda _: tracks, name='tracks_obj', reify=True)
-        config.add_request_method(lambda _: tracks_list, name='tracks', reify=True)
+        config.add_request_method(lambda _: tracks, name='tracks', reify=True)
         config.add_request_method(lambda _: tracks_by_id, name='tracks_by_id', reify=True)
 
     return configurate
@@ -82,7 +80,7 @@ def index(request):
 @view_config(route_name='web_argv', renderer='json')
 def web_argv(request):
     return {
-        'dest_playlist': request.tracks_obj.dest_playlist,
+        'dest_playlist': request.tracks.dest_playlist,
         'web_argv': request.web_argv,
     }
 
@@ -157,7 +155,7 @@ def tracks(request):
         tracks = parsed['by_id']
     else:
         offset = parsed['offset']
-        tracks = request.tracks[offset : offset + parsed['count']]
+        tracks = request.tracks.tracklist[offset : offset + parsed['count']]
     return {'tracks': tracks}
 
 
@@ -236,40 +234,40 @@ def shuffle_together_albums(request):
     }
 
 
-timefill_targets_service = Service(name='timefill_targets', path='/_api/timefill-targets')
+timefill_criteria_service = Service(name='timefill_criteria', path='/_api/timefill-criteria')
 
 
-class TimefillTargetsBodySchema(Schema):
+class TimefillCriteriaBodySchema(Schema):
     pull_prev = fields.Integer()
     keep = fields.Integer()
     n_options = fields.Integer()
     iterations = fields.Integer()
-    include = fields.List(TrackField(), missing=())
     exclude = fields.List(TrackField(), missing=())
-    targets = fields.List(
-        fields.Function(deserialize=playlistgen.parse_target), missing=())
+    criteria = fields.List(
+        fields.Function(deserialize=lambda s: playlistgen.parse_criterion(s)), missing=())
 
 
-class TimefillTargetsSchema(Schema):
+class TimefillCriteriaSchema(Schema):
     class Meta:
         unknown = marshmallow.EXCLUDE
 
-    body = fields.Nested(TimefillTargetsBodySchema)
+    body = fields.Nested(TimefillCriteriaBodySchema)
 
 
-@timefill_targets_service.post(schema=TimefillTargetsSchema, validators=(marshmallow_validator,))
-def timefill_targets(request):
+@timefill_criteria_service.post(schema=TimefillCriteriaSchema, validators=(marshmallow_validator,))
+def timefill_criteria(request):
     parsed = request.validated['body']
     to_exclude = {t[typ.pPIS] for t in parsed.pop('exclude')}
-    local_tracks = [t for t in request.tracks if t[typ.pPIS] not in to_exclude]
-    include_indexes = tuple({local_tracks.index(t) for t in parsed.pop('include')})
-    playlists = playlistgen.timefill_search_targets(
-        random, local_tracks, initial=include_indexes, **parsed)
+    local_tracklist = [t for t in request.tracks.tracklist if t[typ.pPIS] not in to_exclude]
+    raw_criteria = tuple(request.tracks.raw_criteria) + tuple(parsed.pop('criteria'))
+    local_tracks = attr.evolve(request.tracks, raw_criteria=raw_criteria)
+    selections = playlistgen.search_criteria(
+        local_tracks, tracklist=local_tracklist, **parsed)
     playlists = [{
         'score': s.score,
         'scores': s.scores,
-        'tracks': [local_tracks[t][typ.pPIS] for t in s.track_indices],
-    } for s in playlists]
+        'tracks': [t[typ.pPIS] for t in s.track_objs],
+    } for s in selections]
     return {'playlists': playlists}
 
 
@@ -291,8 +289,8 @@ class SaveAndExitSchema(Schema):
 @save_service.post(schema=SaveAndExitSchema, validators=(marshmallow_validator,))
 def save(request):
     parsed = request.validated['body']
-    request.tracks_obj.set_default_dest(parsed['name'])
-    request.tracks_obj.set_tracks(parsed['tracks'])
+    request.tracks.set_default_dest(parsed['name'])
+    request.tracks.set_tracks(parsed['tracks'])
     return {'done': True}
 
 

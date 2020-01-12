@@ -207,23 +207,42 @@ class CriterionAlbums(object):
 
 @implementer(IScorerCriterion)
 @attr.s
-class CriterionAlbumWeights(object):
+class CriterionTrackWeights(object):
+    name = 'track-weights'
     weights = attr.ib()
+    _track_weights = attr.ib(factory=dict)
 
     def prepare(self, tracks):
-        pass
+        for i, track in tracks.items():
+            pid = track[typ.pPIS]
+            if pid in self.weights:
+                self._track_weights[i] = self.weights[pid]
 
-    @classmethod
-    def from_json(cls, data):
-        parsed = json.loads(data)
+    def score(self, track_indices):
+        subscores = [self.weights.get(i, 1) for i in track_indices]
+        return functools.reduce(operator.mul, subscores, 1)
+
+
+@implementer(IScorerCriterion)
+@attr.s
+class CriterionAlbumWeights(object):
+    name = 'album-weights'
+    weights = attr.ib()
+    _album_weights = attr.ib(factory=dict)
+
+    def prepare(self, tracks):
         inputs = {}
-        inputs['weights'] = {
-            (d['album'], d['artist']): float(w) if w != '' else 1
-            for d, w in parsed['weights']}
-        return cls(**inputs)
+        for d, w in self.weights:
+            if w != '':
+                inputs[d['album'], d['artist']] = float(w)
 
-    def score(self, tracks):
-        subscores = [self.weights.get(album_key(t), 1) for t in tracks]
+        for i, track in tracks.items():
+            key = album_key(track)
+            if key in inputs:
+                self._album_weights[i] = inputs[key]
+
+    def score(self, track_indices):
+        subscores = [self.weights.get(i, 1) for i in track_indices]
         return functools.reduce(operator.mul, subscores, 1)
 
 
@@ -475,13 +494,15 @@ def search_criteria(tracks, tracklist=None, pull_prev=None, keep=None, n_options
 
 
 CRITERIA = {cls.name: cls for cls in [
-    CriterionTracks,
-    CriterionTime,
-    CriterionAlbums,
-    CriterionUniform,
     CriterionAlbumSelector,
+    CriterionAlbumWeights,
+    CriterionAlbums,
     CriterionArtistSelector,
     CriterionScoreUnrecent,
+    CriterionTime,
+    CriterionTrackWeights,
+    CriterionTracks,
+    CriterionUniform,
 ]}
 
 

@@ -12,29 +12,13 @@ export default function timefillReducer(state = new TimefillSelector(), action: 
         return lens.set(value)(state)
     }
 
-    case getType(actions.addTarget):
-        return state.update('targets', (l) => l.push(''))
+    case getType(actions.addCriterion):
+        return state.update('criteria', (l) => l.push(''))
 
-    case getType(actions.removeTarget): {
+    case getType(actions.removeCriterion): {
         const { index } = action.payload
-        return state.update('targets', (targets) => targets.remove(index))
+        return state.update('criteria', (criteria) => criteria.remove(index))
     }
-
-    // case getType(actions.addWeight):
-    //     const first = state.albums.keySeq().first<AlbumKey>()
-    //     return state.update('weights', (l) => l.push([first, '']))
-
-    // case getType(actions.changeWeight): {
-    //     const { index, event } = action.payload
-    //     return state.update('weights', (l) => l.update(index, ([key, weight]) => {
-    //         if (event.target instanceof HTMLInputElement) {
-    //             weight = event.target.value
-    //         } else if (event.target instanceof HTMLSelectElement) {
-    //             key = state.albums.toIndexedSeq().get(event.target.selectedIndex).key
-    //         }
-    //         return [key, weight]
-    //     }))
-    // }
 
     case getType(actions.toggleChoiceTrack): {
         const { lens, track } = action.payload
@@ -60,14 +44,6 @@ export default function timefillReducer(state = new TimefillSelector(), action: 
         } else {
             return state
         }
-
-    // case getType(actions.setHash):
-    //     location.hash = "#" + JSON.stringify({
-    //         name: state.name,
-    //         targets: state.targets.toArray(),
-    //         weights: state.weights.map(([k, w]) => [k.toJSON(), w]).toArray(),
-    //     })
-    //     return state
 
     case getType(baseActions.fetchArgv.success):
         return state.withArgv(action.payload.json)
