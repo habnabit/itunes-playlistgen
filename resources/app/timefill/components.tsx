@@ -264,6 +264,8 @@ const TimefillSelectorComponent = onlyUpdateForKeys(
             <button onClick={props.onSelect}>Select new</button>
         </section>
         <section className="choices">
+            <ConnectedSelectionsComponent selected="bless" tracks={props.selectionMap.bless} />
+            <ConnectedSelectionsComponent selected="curse" tracks={props.selectionMap.curse} />
             <ConnectedSelectionsComponent selected="include" tracks={props.selectionMap.include} />
             <ConnectedSelectionsComponent selected="exclude" tracks={props.selectionMap.exclude} />
             {props.choices.map((pl, e) => <ConnectedChoiceComponent key={e} idxTop={e} />)}

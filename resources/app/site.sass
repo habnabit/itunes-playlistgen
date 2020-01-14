@@ -91,34 +91,22 @@ ul.tracklist, ol.tracklist
   &.selectable > li
     cursor: pointer
     transition: background 0.25s ease-out
-    &.include
-      background: hsla(95, 100%, 70%, 0.75)
-    &.exclude
-      background: hsla(45, 100%, 70%, 0.75)
 
-.set-bless .tracklist.selectable.fade > li
-  &:hover
-    background: hsla(215, 100%, 70%, 0.5)
-  &.include:hover
-    background: hsla(215, 100%, 70%, 1)
+@mixin colorize-selection($name, $color)
+  .tracklist.selectable > li.#{$name}
+      background: adjust-color($color, $alpha: -0.25)
 
-.set-include .tracklist.selectable.fade > li
-  &:hover
-    background: hsla(95, 100%, 70%, 0.5)
-  &.include:hover
-    background: hsla(95, 100%, 70%, 1)
+  .set-#{$name} .tracklist.selectable.fade > li
+    &:hover
+      background: adjust-color($color, $alpha: -0.5)
 
-.set-curse .tracklist.selectable.fade > li
-  &:hover
-    background: hsla(0, 0%, 40%, 0.5)
-  &.include:hover
-    background: hsla(0, 0%, 40%, 1)
+    &.#{$name}:hover
+      background: $color
 
-.set-exclude .tracklist.selectable.fade > li
-  &:hover
-    background: hsla(45, 100%, 70%, 0.5)
-  &.exclude:hover
-    background: hsla(45, 100%, 70%, 1)
+@include colorize-selection('bless', hsl(215, 100%, 70%))
+@include colorize-selection('include', hsl(95, 100%, 70%))
+@include colorize-selection('curse', hsl(0, 0%, 40%))
+@include colorize-selection('exclude', hsl(45, 100%, 70%))
 
 .choices
   clear: both
