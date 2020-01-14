@@ -1,9 +1,9 @@
-import { Map } from 'immutable'
+import { Map, List } from 'immutable'
 import { getType } from 'typesafe-actions'
 
 import * as baseActions from '../actions'
 import * as actions from './actions'
-import { AllActions, TimefillSelector } from './types'
+import { AllActions, Choice, TimefillSelector } from './types'
 
 export default function timefillReducer(state = new TimefillSelector(), action: AllActions): TimefillSelector {
     switch (action.type) {
@@ -18,6 +18,16 @@ export default function timefillReducer(state = new TimefillSelector(), action: 
     case getType(actions.removeCriterion): {
         const { index } = action.payload
         return state.update('criteria', (criteria) => criteria.remove(index))
+    }
+
+    case getType(actions.clearAllForLoading): {
+        const loading = new Choice({loading: true})
+        return state.set('choices', List([loading]))
+    }
+
+    case getType(actions.setLoading): {
+        const { lens, loading } = action.payload
+        return lens.modify((pl) => pl.set('loading', loading))(state)
     }
 
     case getType(actions.toggleChoiceTrack): {

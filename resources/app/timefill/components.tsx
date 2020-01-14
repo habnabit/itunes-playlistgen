@@ -4,6 +4,7 @@ import * as React from 'react'
 import { connect } from 'react-redux'
 import { onlyUpdateForKeys, pure } from 'recompose'
 import { bindActionCreators, Dispatch } from 'redux'
+import PulseLoader from 'react-spinners/PulseLoader'
 
 import * as baseActions from '../actions'
 import { lensFromImplicitAccessors } from '../extlens'
@@ -41,6 +42,12 @@ const ChoiceComponent = onlyUpdateForKeys(
     onSave: () => void
 }) => {
     const { choice } = props
+    if (choice.loading) {
+        return <div className="choice loading">
+            <PulseLoader color="darkslateblue" size="0.5em" />
+        </div>
+    }
+
     const totalDuration = choice.tracks.reduce((totalDuration, track) => totalDuration + track.t('pDur') as number, 0)
     var product
     if (choice.scores.length === 0) {
@@ -82,6 +89,7 @@ export const ConnectedChoiceComponent = connect(
     (d: Dispatch) => bindActionCreators({
         onToggle: actions.toggleChoiceTrack,
         onReroll: actions.runTimefill.request,
+        onLoading: actions.setLoading,
         onSave: baseActions.savePlaylist.request,
     }, d),
     (stateProps, dispatchProps, ownProps) => {
@@ -90,6 +98,7 @@ export const ConnectedChoiceComponent = connect(
             onToggle: (track: TrackId) => () => dispatchProps.onToggle({lens, track}),
             onReroll: () => {
                 const selections = top.reversedSelection()
+                dispatchProps.onLoading({lens, loading: true})
                 dispatchProps.onReroll({criteria: top.allCriteria(), selections, replace: lens})
             },
             onSave: () => {
@@ -282,6 +291,7 @@ export const ConnectedTimefillSelectorComponent = connect(
         onChangeControl: actions.changeControl,
         onKeyboardAvailable: baseActions.setKeyboardAvailability,
         onSetHash: baseActions.setHash,
+        onLoading: actions.clearAllForLoading,
         onSelect: actions.runTimefill.request,
     }, d),
     (props, dispatch, ownProps) => {
@@ -290,6 +300,7 @@ export const ConnectedTimefillSelectorComponent = connect(
             (v) => (o) => o.set('name', v))
         const extraProps = {
             onSelect: () => {
+                dispatch.onLoading()
                 dispatch.onSelect({criteria: props.allCriterions, selections: props.selections})
                 dispatch.onSetHash()
             },

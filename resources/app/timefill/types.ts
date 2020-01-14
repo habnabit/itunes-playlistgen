@@ -15,6 +15,7 @@ export class Choice extends Record({
     selected: Map<TrackId, ChoiceTrackSelection>(),
     score: 0,
     scores: [] as number[],
+    loading: false,
 }) {
     reversedSelection(): Map<ChoiceTrackSelection, Set<TrackId>> {
         return this.selected.entrySeq()

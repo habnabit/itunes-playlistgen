@@ -24,6 +24,13 @@ export const removeCriterion = createStandardAction('playlistgen/timefill/remove
 //     event: React.ChangeEvent
 // }>()
 
+export const clearAllForLoading = createStandardAction('playlistgen/clearAllForLoading')()
+
+export const setLoading = createStandardAction('playlistgen/setLoading')<{
+    lens: Lens<TimefillSelector, Choice>
+    loading: boolean
+}>()
+
 export const toggleChoiceTrack = createStandardAction('playlistgen/toggleChoiceTrack')<{
     lens: Lens<TimefillSelector, Choice>
     track: TrackId
