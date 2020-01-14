@@ -493,7 +493,9 @@ def search_criteria(tracks, tracklist=None, pull_prev=None, keep=None, n_options
             previous = safe_sample(results, pull_prev)
         prev_selection = previous.pop()
         options = [an_option(prev_selection) for _ in range(n_options)]
-        options = [s for s in options if s.score >= prev_selection.score]
+        options = [s for s in options
+                   if s.track_indices != prev_selection.track_indices
+                   and s.score >= prev_selection.score]
         if options:
             results.append(rng.choice(options).with_iteration(n))
             readds = 0
