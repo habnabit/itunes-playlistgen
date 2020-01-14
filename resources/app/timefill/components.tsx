@@ -99,7 +99,9 @@ export const ConnectedChoiceComponent = connect(
             onReroll: () => {
                 const selections = top.reversedSelection()
                 dispatchProps.onLoading({lens, loading: true})
-                dispatchProps.onReroll({criteria: top.allCriteria(), selections, replace: lens})
+                dispatchProps.onReroll({
+                    criteria: top.allCriteria(), selections, narrow: true,
+                    replace: lens})
             },
             onSave: () => {
                 dispatchProps.onSave({name: top.name, tracks: choice.tracks})
@@ -301,7 +303,9 @@ export const ConnectedTimefillSelectorComponent = connect(
         const extraProps = {
             onSelect: () => {
                 dispatch.onLoading()
-                dispatch.onSelect({criteria: props.allCriteria, selections: props.selections})
+                dispatch.onSelect({
+                    criteria: props.allCriteria, selections: props.selections,
+                    narrow: false})
                 dispatch.onSetHash()
             },
             onChangeName: (value: string) => dispatch.onChangeControl({lens, value}),

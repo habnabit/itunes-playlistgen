@@ -219,7 +219,7 @@ class CriterionTrackWeights(object):
                 self._track_weights[i] = self.weights[pid]
 
     def score(self, track_indices):
-        subscores = [self.weights.get(i, 1) for i in track_indices]
+        subscores = [self._track_weights.get(i, 1) for i in track_indices]
         return functools.reduce(operator.mul, subscores, 1)
 
 
@@ -242,7 +242,7 @@ class CriterionAlbumWeights(object):
                 self._album_weights[i] = inputs[key]
 
     def score(self, track_indices):
-        subscores = [self.weights.get(i, 1) for i in track_indices]
+        subscores = [self._album_weights.get(i, 1) for i in track_indices]
         return functools.reduce(operator.mul, subscores, 1)
 
 
@@ -293,6 +293,23 @@ class CriterionAlbumSelector(object):
     def select(self, rng, track_ids):
         album = rng.choice(self._albums_as_criteria)
         yield from album.select(rng, track_ids)
+
+
+@implementer(ISelectorCriterion)
+@attr.s
+class CriterionPickFrom(object):
+    name = 'pick-from'
+    include = attr.ib()
+    _include_set = attr.ib(factory=set)
+
+    def prepare(self, tracks):
+        include_set = set(self.include)
+        self._include_set = {i for i, t in tracks.items() if t[typ.pPIS] in include_set}
+
+    def select(self, rng, track_ids):
+        pick_from = list(self._include_set & track_ids)
+        if pick_from:
+            yield rng.choice(pick_from)
 
 
 @implementer(ISelectorCriterion)
@@ -498,6 +515,7 @@ CRITERIA = {cls.name: cls for cls in [
     CriterionAlbumWeights,
     CriterionAlbums,
     CriterionArtistSelector,
+    CriterionPickFrom,
     CriterionScoreUnrecent,
     CriterionTime,
     CriterionTrackWeights,

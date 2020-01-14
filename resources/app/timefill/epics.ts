@@ -1,22 +1,56 @@
+import { List, Map, Set, Seq } from 'immutable'
 import { combineEpics, Epic } from 'redux-observable'
 import { from, of } from 'rxjs'
 import { catchError, filter, map, switchMap } from 'rxjs/operators'
 import { isActionOf } from 'typesafe-actions'
 
 import * as baseActions from '../actions'
-import { RemoteError } from '../types'
+import { RemoteError, TrackId } from '../types'
 import * as actions from './actions'
-import { AllActions } from './types'
+import { AllActions, ChoiceTrackSelection } from './types'
+
+const selectionWeights: Map<ChoiceTrackSelection, number> = Map(Object.entries({
+    bless: 1.5,
+    include: 2.5,
+    curse: 0,
+    exclude: 0,
+}) as [ChoiceTrackSelection, number][])
+
+function buildData(
+    criteriaList: List<string>,
+    selections: Map<ChoiceTrackSelection, Set<TrackId>>,
+    narrow: boolean,
+): any {
+    const exclude = [
+        ...selections.get('curse', Set()).toArray(),
+        ...selections.get('exclude', Set()).toArray(),
+    ]
+    const weights = selections.toSeq()
+        .flatMap((tids, sel) => {
+            const weight = selectionWeights.get(sel)
+            return tids.map((tid) => [tid, weight])
+        })
+        .toObject()
+    const include = selections.get('include', Set()).toArray()
+    const criteria = [
+        `track-weights=${JSON.stringify({weights})}`,
+        `pick-from=${JSON.stringify({include})}`,
+        ...criteriaList.toArray(),
+    ]
+    const ret: any = { criteria, exclude }
+    if (narrow) {
+        ret['n_options'] = 17
+        ret['keep'] = 50
+    }
+    return ret
+}
 
 const runTimefillEpic: Epic<AllActions, AllActions> = (action$) => (
     action$.pipe(
         filter(isActionOf(actions.runTimefill.request)),
         switchMap((action) => {
-            const { replace } = action.payload
-            const data: any = action.payload.selections
-                .map((tids) => tids.toArray())
-                .toObject()
-            data.criteria = action.payload.criteria.toArray()
+            const { criteria, selections, narrow, replace } = action.payload
+            const data = buildData(criteria, selections, narrow)
             return from(
                 fetch('/_api/timefill-criteria', {
                     method: 'POST',

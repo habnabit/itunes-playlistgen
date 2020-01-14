@@ -290,7 +290,9 @@ class SaveAndExitSchema(Schema):
 def save(request):
     parsed = request.validated['body']
     request.tracks.set_default_dest(parsed['name'])
-    request.tracks.set_tracks(parsed['tracks'])
+    tracklist = parsed['tracks']
+    selection = playlistgen.Selection(tracklist, range(len(tracklist)))
+    request.tracks.save_selection(selection)
     return {'done': True}
 
 
