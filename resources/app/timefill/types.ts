@@ -8,7 +8,7 @@ import * as actions from './actions'
 
 export type AllActions = ActionType<typeof baseActions | typeof actions>
 
-export type ChoiceTrackSelection = 'include' | 'exclude'
+export type ChoiceTrackSelection = 'bless' | 'include' | 'curse' | 'exclude'
 
 export class Choice extends Record({
     tracks: List<Track>(),
@@ -40,7 +40,11 @@ export class TimefillSelector extends Record({
     keysDown: Map<string, boolean>(),
 }) {
     currentSelection(): ChoiceTrackSelection {
-        if (this.keysDown.get('z')) {
+        if (this.keysDown.get('a')) {
+            return 'bless'
+        } else if (this.keysDown.get('s')) {
+            return 'curse'
+        } else if (this.keysDown.get('z')) {
             return 'include'
         } else if (this.keysDown.get('x')) {
             return 'exclude'

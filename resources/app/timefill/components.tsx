@@ -254,10 +254,8 @@ const TimefillSelectorComponent = onlyUpdateForKeys(
     onSelect: () => void
 }) => {
     const classes: string[] = []
-    if (props.selectState === 'include') {
-        classes.push('set-include')
-    } else if (props.selectState === 'exclude') {
-        classes.push('set-exclude')
+    if (props.selectState !== undefined) {
+        classes.push(`set-${props.selectState}`)
     }
     return <div className={classes.join(' ')}>
         <ConnectedCriteriaComponent />

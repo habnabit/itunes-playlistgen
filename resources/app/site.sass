@@ -96,11 +96,23 @@ ul.tracklist, ol.tracklist
     &.exclude
       background: hsla(45, 100%, 70%, 0.75)
 
+.set-bless .tracklist.selectable.fade > li
+  &:hover
+    background: hsla(215, 100%, 70%, 0.5)
+  &.include:hover
+    background: hsla(215, 100%, 70%, 1)
+
 .set-include .tracklist.selectable.fade > li
   &:hover
     background: hsla(95, 100%, 70%, 0.5)
   &.include:hover
     background: hsla(95, 100%, 70%, 1)
+
+.set-curse .tracklist.selectable.fade > li
+  &:hover
+    background: hsla(0, 0%, 40%, 0.5)
+  &.include:hover
+    background: hsla(0, 0%, 40%, 1)
 
 .set-exclude .tracklist.selectable.fade > li
   &:hover
