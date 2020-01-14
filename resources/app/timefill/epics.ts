@@ -9,13 +9,6 @@ import { RemoteError, TrackId } from '../types'
 import * as actions from './actions'
 import { AllActions, ChoiceTrackSelection } from './types'
 
-const selectionWeights: Map<ChoiceTrackSelection, number> = Map(Object.entries({
-    bless: 1.5,
-    include: 2.5,
-    curse: 0,
-    exclude: 0,
-}) as [ChoiceTrackSelection, number][])
-
 function buildData(
     criteriaList: List<string>,
     selections: Map<ChoiceTrackSelection, Set<TrackId>>,
@@ -25,11 +18,9 @@ function buildData(
         ...selections.get('curse', Set()).toArray(),
         ...selections.get('exclude', Set()).toArray(),
     ]
-    const weights = selections.toSeq()
-        .flatMap((tids, sel) => {
-            const weight = selectionWeights.get(sel)
-            return tids.map((tid) => [tid, weight])
-        })
+    const weights = selections.get('bless', Set())
+        .toKeyedSeq()
+        .map(() => 1.5)
         .toObject()
     const include = selections.get('include', Set()).toArray()
     const criteria = [

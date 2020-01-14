@@ -1,5 +1,6 @@
 import { Map, List } from 'immutable'
 import { getType } from 'typesafe-actions'
+import { Random } from 'random-js'
 
 import * as baseActions from '../actions'
 import * as actions from './actions'
@@ -21,13 +22,27 @@ export default function timefillReducer(state = new TimefillSelector(), action: 
     }
 
     case getType(actions.clearAllForLoading): {
-        const loading = new Choice({loading: true})
+        const loading = new Choice({
+            selected: state.condensedSelection(),
+            loading: true,
+        })
         return state.set('choices', List([loading]))
     }
 
     case getType(actions.setLoading): {
         const { lens, loading } = action.payload
         return lens.modify((pl) => pl.set('loading', loading))(state)
+    }
+
+    case getType(actions.shuffleChoice): {
+        const { lens } = action.payload
+        return lens.modify((pl) =>
+            pl.update('tracks', (tracks) => {
+                const trackArray = tracks.toArray();
+                (new Random()).shuffle(trackArray)
+                return List(trackArray)
+            })
+        )(state)
     }
 
     case getType(actions.toggleChoiceTrack): {

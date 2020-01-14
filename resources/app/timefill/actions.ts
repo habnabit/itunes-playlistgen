@@ -31,6 +31,10 @@ export const setLoading = createStandardAction('playlistgen/setLoading')<{
     loading: boolean
 }>()
 
+export const shuffleChoice = createStandardAction('playlistgen/shuffleChoice')<{
+    lens: Lens<TimefillSelector, Choice>
+}>()
+
 export const toggleChoiceTrack = createStandardAction('playlistgen/toggleChoiceTrack')<{
     lens: Lens<TimefillSelector, Choice>
     track: TrackId

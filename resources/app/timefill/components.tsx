@@ -39,6 +39,7 @@ const ChoiceComponent = onlyUpdateForKeys(
     choice: Choice
     onToggle: (tid: TrackId) => () => void
     onReroll: () => void
+    onShuffle: () => void
     onSave: () => void
 }) => {
     const { choice } = props
@@ -58,6 +59,7 @@ const ChoiceComponent = onlyUpdateForKeys(
     return <div className="choice">
         <div className="actions">
             <button onClick={() => props.onReroll()}>Reroll</button>
+            <button onClick={() => props.onShuffle()}>Shuffle</button>
             <button onClick={() => props.onSave()}>Save</button>
         </div>
         <ol className="fuller tracklist selectable fade">
@@ -90,6 +92,7 @@ export const ConnectedChoiceComponent = connect(
         onToggle: actions.toggleChoiceTrack,
         onReroll: actions.runTimefill.request,
         onLoading: actions.setLoading,
+        onShuffle: actions.shuffleChoice,
         onSave: baseActions.savePlaylist.request,
     }, d),
     (stateProps, dispatchProps, ownProps) => {
@@ -102,6 +105,9 @@ export const ConnectedChoiceComponent = connect(
                 dispatchProps.onReroll({
                     criteria: top.allCriteria(), selections, narrow: true,
                     replace: lens})
+            },
+            onShuffle: () => {
+                dispatchProps.onShuffle({lens})
             },
             onSave: () => {
                 dispatchProps.onSave({name: top.name, tracks: choice.tracks})
