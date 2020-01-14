@@ -113,7 +113,7 @@ export const ConnectedChoiceComponent = connect(
     },
 )(ChoiceComponent)
 
-const CriterionsComponent = onlyUpdateForKeys(
+const CriteriaComponent = onlyUpdateForKeys(
     ['criteria']
 )((props: {
     criteria: List<string>
@@ -137,7 +137,7 @@ const CriterionsComponent = onlyUpdateForKeys(
     </section>
 })
 
-const ConnectedCriterionsComponent = connect(
+const ConnectedCriteriaComponent = connect(
     ({base: top}: {base: TimefillSelector}) => ({criteria: top.criteria}),
     (d: Dispatch) => bindActionCreators({
         onAddCriterion: actions.addCriterion,
@@ -158,7 +158,7 @@ const ConnectedCriterionsComponent = connect(
         areStatesEqual: (x, y) => x.base.criteria === y.base.criteria,
         areStatePropsEqual: (x, y) => x.criteria === y.criteria,
     },
-)(CriterionsComponent)
+)(CriteriaComponent)
 
 // const WeightsComponent = ((props: {
 //     albums: OrderedMap<AlbumKey, Album>
@@ -260,7 +260,7 @@ const TimefillSelectorComponent = onlyUpdateForKeys(
         classes.push('set-exclude')
     }
     return <div className={classes.join(' ')}>
-        <ConnectedCriterionsComponent />
+        <ConnectedCriteriaComponent />
         <section className="controls">
             <textarea placeholder="Playlist name…" onChange={(ev) => props.onChangeName(ev.target.value)} value={props.name} {...props.keyb} />
             <button onClick={props.onSelect}>Select new</button>
@@ -283,7 +283,7 @@ export const ConnectedTimefillSelectorComponent = connect(
         return {
             name, criteria, choices, selectionMap,
             selections: top.reversedSelection(),
-            allCriterions: top.allCriteria(),
+            allCriteria: top.allCriteria(),
             selectState: top.currentSelection(),
         }
     },
@@ -301,7 +301,7 @@ export const ConnectedTimefillSelectorComponent = connect(
         const extraProps = {
             onSelect: () => {
                 dispatch.onLoading()
-                dispatch.onSelect({criteria: props.allCriterions, selections: props.selections})
+                dispatch.onSelect({criteria: props.allCriteria, selections: props.selections})
                 dispatch.onSetHash()
             },
             onChangeName: (value: string) => dispatch.onChangeControl({lens, value}),
