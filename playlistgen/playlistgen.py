@@ -478,7 +478,7 @@ class CriterionRPN:
             try:
                 floated = float(op)
             except ValueError:
-                if op.startswith('<'):
+                if op.startswith('^'):
                     to_push = context.named_scores(op[1:]).reshape(base_shape + (1,))
                 else:
                     if op in RPN_OPS:

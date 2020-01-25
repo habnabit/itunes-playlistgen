@@ -13,7 +13,7 @@ value = nested / string_value / empty
 nested = "=[" criterion "]"
 splat = ("*")?
 
-key = ~"[a-zA-Z0-9_.<-]+"
+key = ~"[a-zA-Z0-9_.^-]+"
 empty = ""
 json_value = "=" ~"{.+\Z"
 string_value = "=" key
