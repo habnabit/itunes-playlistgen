@@ -50,12 +50,6 @@ const ChoiceComponent = onlyUpdateForKeys(
     }
 
     const totalDuration = choice.tracks.reduce((totalDuration, track) => totalDuration + track.t('pDur') as number, 0)
-    var product
-    if (choice.scores.length === 0) {
-        product = "∅"
-    } else {
-        product = "{" + choice.scores.map((s) => s.toPrecision(2)).join(', ') + "}"
-    }
     return <div className="choice">
         <div className="actions">
             <button onClick={() => props.onReroll()}>Reroll</button>
@@ -70,7 +64,7 @@ const ChoiceComponent = onlyUpdateForKeys(
         </ol>
         <ul className="fuller tracklist total">
             <li><DurationComponent duration={totalDuration} /> total</li>
-            <li>∏{product} = {choice.score.toPrecision(2)}</li>
+            <li className="score">{choice.score}</li>
         </ul>
     </div>
 })

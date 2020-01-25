@@ -264,8 +264,7 @@ def timefill_criteria(request):
     selections = playlistgen.search_criteria(
         local_tracks, tracklist=local_tracklist, **parsed)
     playlists = [{
-        'score': s.score,
-        'scores': s.scores,
+        'score': str(s.score),
         'tracks': [t[typ.pPIS] for t in s.track_objs],
     } for s in selections]
     return {'playlists': playlists}

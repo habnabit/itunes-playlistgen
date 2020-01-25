@@ -6,7 +6,7 @@ authors = ["Harold Abnabit <_@habnab.it>"]
 
 [tool.poetry.dependencies]
 python = "^3.5"
-attrs = "^18.1"
+attrs = "^19.3"
 click = "^6.7"
 numpy = "^1.15"
 py-applescript = "^1.0"

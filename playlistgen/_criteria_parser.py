@@ -8,11 +8,12 @@ grammar = parsimonious.Grammar(r"""
 
 criterion = key (json_value / values)?
 
-values = value ("," key value)*
+values = value splat ("," key value)*
 value = nested / string_value / empty
 nested = "=[" criterion "]"
+splat = ("*")?
 
-key = ~"[a-zA-Z0-9_-]+"
+key = ~"[a-zA-Z0-9_.<-]+"
 empty = ""
 json_value = "=" ~"{.+\Z"
 string_value = "=" key
@@ -30,6 +31,12 @@ class UnknownConstructor(Exception):
 
 class DuplicateKey(Exception):
     pass
+
+
+@attr.s
+class Constructors:
+    pairs = attr.ib(factory=list)
+    splat = attr.ib(default=False)
 
 
 @attr.s
@@ -54,24 +61,27 @@ class CriterionVisitor(parsimonious.NodeVisitor):
 
         args = []
         kwargs = {}
-        for key, value in tail:
+        for key, value in tail.pairs:
             if key is None:
                 if value is not Sentinels.empty:
                     args.append(value)
             elif key in kwargs:
                 raise DuplicateKey(key)
             elif value is Sentinels.empty:
-                kwargs[key] = True
+                if tail.splat:
+                    args.append(key)
+                else:
+                    kwargs[key] = True
             else:
                 kwargs[key] = value
 
         return Constructor(head, args, kwargs)
 
     def visit_values(self, node, children):
-        head, tail = children
+        head, splat, tail = children
         pairs = [(None, head)]
         pairs.extend((key, value) for _, key, value in tail)
-        return pairs
+        return Constructors(pairs, splat)
 
     def visit_value(self, node, children):
         [value] = children
@@ -81,6 +91,9 @@ class CriterionVisitor(parsimonious.NodeVisitor):
         _, nested, _ = children
         return nested
 
+    def visit_splat(self, node, children):
+        return len(children) > 0
+
     def visit_key(self, node, children):
         return node.text
 
@@ -88,7 +101,7 @@ class CriterionVisitor(parsimonious.NodeVisitor):
         return Sentinels.empty
 
     def visit_json_value(self, node, children):
-        return json.loads(children[-1].text).items()
+        return Constructors(json.loads(children[-1].text).items())
 
     def visit_string_value(self, node, children):
         return children[-1]

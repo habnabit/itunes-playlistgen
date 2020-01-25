@@ -13,8 +13,7 @@ export type ChoiceTrackSelection = 'bless' | 'include' | 'curse' | 'exclude'
 export class Choice extends Record({
     tracks: List<Track>(),
     selected: Map<TrackId, ChoiceTrackSelection>(),
-    score: 0,
-    scores: [] as number[],
+    score: '',
     loading: false,
 }) {
     reversedSelection(): Map<ChoiceTrackSelection, Set<TrackId>> {
@@ -93,7 +92,7 @@ export class TimefillSelector extends Record({
 
     withTimefillResponse(j: any, replace?: Lens<TimefillSelector, Choice>): TimefillSelector {
         const selected = this.condensedSelection()
-        const choices = List(j.playlists as {tracks: TrackId[], score: number, scores: number[]}[])
+        const choices = List(j.playlists as {tracks: TrackId[], score: string}[])
             .map((p) => {
                 const tracks = List(p.tracks).map((tid) => this.tracks.get(tid))
                 return new Choice({...p, tracks, selected})

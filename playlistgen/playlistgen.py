@@ -12,6 +12,7 @@ import io
 import itertools
 import json
 import math
+import numpy
 import operator
 import pkg_resources
 import random
@@ -56,7 +57,10 @@ class TrackContext(object):
 
     @reify
     def criteria(self):
-        return [c.make_from_map(CRITERIA) for c in self.raw_criteria]
+        ret = [c.make_from_map(CRITERIA) for c in self.raw_criteria]
+        if not any(IReducerCriterion.providedBy(c) for c in ret):
+            ret.append(CriterionTakeFirst())
+        return ret
 
     def set_default_dest(self, name):
         if self.dest_playlist is None:
@@ -130,6 +134,45 @@ class ISelectorCriterion(ICriterion):
         pass
 
 
+class IReducerCriterion(ICriterion):
+    def reduce(context):
+        pass
+
+    def format(reduced):
+        pass
+
+
+score_selection_ufunc = numpy.frompyfunc(
+    lambda a, b: a.score(b.track_indices), 2, 1)
+score_format_ufunc = numpy.frompyfunc(
+    functools.partial(numpy.format_float_positional, precision=3, unique=False, fractional=False), 1, 1)
+stack_format_ufunc = numpy.frompyfunc(
+    '{} ({})'.format, 2, 1)
+
+
+@attr.s
+class ReducerContext:
+    score_matrix = attr.ib()
+    name_map = attr.ib()
+
+    def named_scores(self, name):
+        return self.score_matrix[:,self.name_map[name]]
+
+    @classmethod
+    def from_parts(cls, tracklist, scorers, selections):
+        name_map = {}
+        for e, scorer in enumerate(scorers):
+            if scorer.name in name_map:
+                raise ValueError('unique names only right now', scorer.name)
+            name_map[scorer.name] = e
+
+        score_matrix = score_selection_ufunc(
+            numpy.array(scorers)[numpy.newaxis,:],
+            numpy.array(selections)[:,numpy.newaxis],
+        ).astype('float64')
+        return cls(score_matrix=score_matrix, name_map=name_map)
+
+
 @implementer(IScorerCriterion)
 @attr.s
 class CriterionTime(object):
@@ -153,6 +196,8 @@ class CriterionTime(object):
             return max(scores[:-1])
 
     def score(self, tracks):
+        if len(tracks) == 0:
+            return 0
         scores = []
         duration = 0
         for t in tracks:
@@ -190,6 +235,9 @@ class CriterionAlbums(object):
             self._track_albums[i] = track[typ.pAlb]
 
     def score(self, tracks):
+        if len(tracks) == 0:
+            return 0
+
         albums = {self._track_albums[t] for t in tracks}
         if self.spread == 'many':
             # many albums
@@ -371,6 +419,132 @@ class CriterionScoreUnrecent:
             dict(width=width, chance=chance, chance_diff=chance - uniform_chance))
 
 
+@implementer(IReducerCriterion)
+@attr.s
+class CriterionTakeFirst:
+    name = 'take-first'
+
+    def prepare(self, track_map):
+        pass
+
+    def reduce(self, context):
+        col = context.score_matrix[:,:1]
+        yield Explanation('{score}', dict(col=col))
+        yield col
+
+    def format(self, reduced):
+        e = reduced.explanations.explanations[0]
+        score = score_format_ufunc(e.extra['col'][reduced.row,0])
+        return e.additionally(score=score).format()
+
+
+@attr.s
+class RpnOp:
+    name = attr.ib()
+    nin = attr.ib()
+    nout = attr.ib()
+    func = attr.ib()
+
+
+RPN_OPS = {
+    op.name: op for op in [
+        RpnOp('vmaximum', 1, 1, lambda s: s.max()),
+        RpnOp('rank_pct', 1, 1, lambda s: s / s.max()),
+        RpnOp('swap', 2, 2, lambda s: s[:,::-1]),
+        RpnOp('dup', 1, 2, lambda s: s),
+    ]
+}
+
+
+@implementer(IReducerCriterion)
+@attr.s(init=False)
+class CriterionRPN:
+    name = 'rpn'
+    operations = attr.ib()
+
+    def __init__(self, *operations):
+        self.operations = operations
+
+    def prepare(self, track_map):
+        pass
+
+    def reduce(self, context):
+        base_shape = context.score_matrix.shape[:1]
+        stack = numpy.zeros(base_shape + (0,))
+        all_stacks = []
+
+        for op in self.operations:
+            nout = 1
+            try:
+                floated = float(op)
+            except ValueError:
+                if op.startswith('<'):
+                    to_push = context.named_scores(op[1:]).reshape(base_shape + (1,))
+                else:
+                    if op in RPN_OPS:
+                        rpn_op = RPN_OPS[op]
+                    else:
+                        func = getattr(numpy, op)
+                        rpn_op = RpnOp(op, func.nin, func.nout, lambda s: func.reduce(s, axis=1, keepdims=True))
+                    stack, inputs = numpy.split(stack, [stack.shape[1] - rpn_op.nin], axis=1)
+                    to_push = rpn_op.func(inputs)
+                    nout = rpn_op.nout
+            else:
+                to_push = floated
+
+            to_push = numpy.broadcast_to(to_push, base_shape + (nout,))
+            all_stacks.append(to_push)
+            stack = numpy.hstack((stack, to_push))
+
+        yield Explanation('RPN: {stack}', dict(all_stacks=all_stacks))
+        yield stack
+
+    def format(self, reduced):
+        e = reduced.explanations.explanations[0]
+        interwoven = [
+            ' '.join(itertools.chain([op], score_format_ufunc(stack[reduced.row])))
+            for op, stack in zip(self.operations, e.extra['all_stacks'])
+        ]
+        return e.additionally(stack=' ⇢ '.join(interwoven)).format()
+
+
+@attr.s(frozen=True, hash=True, repr=False)
+class Score:
+    _raw_scores = attr.ib(converter=tuple, default=())
+
+    def __repr__(self):
+        return '{}({!r})'.format(type(self).__name__, self._raw_scores)
+
+
+@attr.s(frozen=True, eq=False, order=False)
+@functools.total_ordering
+class ReducedScore:
+    explanations = attr.ib()
+    row = attr.ib()
+    sort_key = attr.ib()
+    unreduced = attr.ib()
+    reducer = attr.ib()
+
+    def __str__(self):
+        return self.reducer.format(self)
+
+    def __eq__(self, other):
+        if isinstance(other, ReducedScore):
+            return self.sort_key == other.sort_key
+        elif isinstance(other, Score):
+            return self.unreduced == other
+        else:
+            return NotImplemented
+
+    def __lt__(self, other):
+        if isinstance(other, ReducedScore):
+            return self.sort_key < other.sort_key
+        elif isinstance(other, Score):
+            return self.unreduced < other
+        else:
+            return NotImplemented
+
+
 @attr.s(frozen=True)
 class Explanation:
     description = attr.ib()
@@ -379,37 +553,52 @@ class Explanation:
     def format(self):
         return self.description.format_map(self.extra)
 
+    def additionally(self, **kw):
+        return attr.evolve(self, extra=collections.ChainMap(kw, self.extra))
+
+
+@attr.s()
+class Explanations:
+    explanations = attr.ib(factory=list)
+
+    def collect(self, iterable):
+        for x in iterable:
+            if isinstance(x, Explanation):
+                self.explanations.append(x)
+            else:
+                yield x
+
+    def clone(self):
+        return type(self)(list(self.explanations))
+
+    def additionally(self, *a, **kw):
+        ret = self.clone()
+        ret.explanations.append(Explanation(*a, **kw))
+        return ret
+
+    def __iter__(self):
+        yield from self.explanations
+
 
 @attr.s(cmp=False, hash=False)
 class Selection:
     _tracklist = attr.ib()
     track_indices = attr.ib()
-    scores = attr.ib(default=())
+    score = attr.ib(default=Score())
     modified_in = attr.ib(default=())
-    explanations = attr.ib(default=())
-
-    @reify
-    def score(self):
-        if len(self.scores) > 0:
-            return functools.reduce(operator.mul, self.scores, 1)
-        else:
-            return 0
+    explanations = attr.ib(factory=Explanations)
 
     def with_iteration(self, n):
         return attr.evolve(self, modified_in=self.modified_in + (n,))
 
     def with_selector(self, selector, rng, track_ids):
         track_indices = self.track_indices
-        explanations = self.explanations
-        for x in selector.select(rng, track_ids):
-            if isinstance(x, Explanation):
-                explanations += (x,)
-            else:
-                track_indices += (x,)
+        explanations = self.explanations.clone()
+        track_indices += tuple(x for x in explanations.collect(selector.select(rng, track_ids)))
         return attr.evolve(self, track_indices=track_indices, explanations=explanations)
 
     def with_explanation(self, description, **extra):
-        return attr.evolve(self, explanations=self.explanations + (Explanation(description, extra),))
+        return attr.evolve(self, explanations=self.explanations.additionally(description, extra))
 
     @property
     def track_objs(self):
@@ -421,9 +610,8 @@ class Selection:
         kw = {
             'tracklist': tracklist,
             'track_indices': indices,
+            'score': Score([criterion.score(indices) for criterion in criteria]),
         }
-        if len(indices) > 0:
-            kw['scores'] = [criterion.score(indices) for criterion in criteria]
         if prev is not None:
             kw['modified_in'] = prev.modified_in
             kw['explanations'] = prev.explanations
@@ -463,6 +651,10 @@ def search_criteria(tracks, tracklist=None, pull_prev=None, keep=None, n_options
     scorers = [t for t in tracks.criteria if IScorerCriterion.providedBy(t)]
     score_tracks = functools.partial(Selection.from_criteria, tracklist, scorers)
     selectors = [t for t in tracks.criteria if ISelectorCriterion.providedBy(t)]
+    reducers = [t for t in tracks.criteria if IReducerCriterion.providedBy(t)]
+    if len(reducers) != 1:
+        raise ValueError('need exactly 1 reducer')
+    [reducer] = reducers
     results = []
 
     def safe_sample(pool, n):
@@ -470,7 +662,13 @@ def search_criteria(tracks, tracklist=None, pull_prev=None, keep=None, n_options
 
     def prune():
         results_by_track_sets = {frozenset(s.track_indices): s for s in results}
-        results[:] = sorted(results_by_track_sets.values(), reverse=True, key=lambda s: s.score)
+        selections = list(results_by_track_sets.values())
+        context = ReducerContext.from_parts(tracklist, scorers, selections)
+        explanations = Explanations()
+        [reduced] = explanations.collect(reducer.reduce(context))
+        for e, ([r], sel) in enumerate(zip(reduced, selections)):
+            sel.score = ReducedScore(explanations, e, r, sel.score, reducer)
+        results[:] = sorted(selections, reverse=True, key=lambda s: s.score)
         results[:] = select_by_iterations(results)
         del results[keep:]
 
@@ -518,6 +716,7 @@ CRITERIA = {cls.name: cls for cls in [
     CriterionAlbums,
     CriterionArtistSelector,
     CriterionPickFrom,
+    CriterionRPN,
     CriterionScoreUnrecent,
     CriterionTime,
     CriterionTrackWeights,
