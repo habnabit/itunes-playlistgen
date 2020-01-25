@@ -549,9 +549,13 @@ class ReducedScore:
 class Explanation:
     description = attr.ib()
     extra = attr.ib(factory=dict)
+    repeat = attr.ib(default=1)
 
     def format(self):
-        return self.description.format_map(self.extra)
+        ret = self.description.format_map(self.extra)
+        if self.repeat > 1:
+            ret = '{} (×{})'.format(ret, self.repeat)
+        return ret
 
     def additionally(self, **kw):
         return attr.evolve(self, extra=collections.ChainMap(kw, self.extra))
@@ -560,6 +564,13 @@ class Explanation:
 @attr.s()
 class Explanations:
     explanations = attr.ib(factory=list)
+
+    def collapsed(self):
+        return (
+            Explanation(description, extra, sum(e.repeat for e in es))
+            for (description, extra), es
+            in itertools.groupby(self.explanations, lambda e: (e.description, e.extra))
+        )
 
     def collect(self, iterable):
         for x in iterable:
@@ -867,7 +878,7 @@ def show_selection(selection):
             u'    {2:2}. [{1}] {0.pArt} - {0.pnam} ({0.pAlb})'.format(
                 IDWrap(typ, t), seconds(t[typ.pDur]), f))
 
-    for e in selection.explanations:
+    for e in selection.explanations.collapsed():
         click.secho(u'   ' + e.format())
 
 
