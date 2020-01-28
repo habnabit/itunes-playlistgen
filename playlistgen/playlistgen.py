@@ -59,7 +59,7 @@ class TrackContext(object):
     def criteria(self):
         ret = [c.make_from_map(CRITERIA) for c in self.raw_criteria]
         if not any(IReducerCriterion.providedBy(c) for c in ret):
-            ret.append(CriterionTakeFirst())
+            ret.append(CriterionProduct())
         return ret
 
     def set_default_dest(self, name):
@@ -421,21 +421,22 @@ class CriterionScoreUnrecent:
 
 @implementer(IReducerCriterion)
 @attr.s
-class CriterionTakeFirst:
-    name = 'take-first'
+class CriterionProduct:
+    name = 'product'
 
     def prepare(self, track_map):
         pass
 
     def reduce(self, context):
-        col = context.score_matrix[:,:1]
-        yield Explanation('{score}', dict(col=col))
-        yield col
+        products = numpy.multiply.reduce(context.score_matrix, axis=1, keepdims=True)
+        yield Explanation('{scores} = {product}', dict(inputs=context.score_matrix, products=products))
+        yield products
 
     def format(self, reduced):
         e = reduced.explanations.explanations[0]
-        score = score_format_ufunc(e.extra['col'][reduced.row,0])
-        return e.additionally(score=score).format()
+        scores = score_format_ufunc(e.extra['inputs'][reduced.row])
+        product = score_format_ufunc(e.extra['products'][reduced.row,0])
+        return e.additionally(scores=' × '.join(scores), product=product).format()
 
 
 @attr.s
