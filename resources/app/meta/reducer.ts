@@ -7,27 +7,27 @@ import { AllActions, Done, Loaded, Loading, MetaState } from './types'
 export default function metaReducer(state = new MetaState(), action: AllActions): MetaState {
     switch (action.type) {
     case getType(baseActions.fetchArgv.success): {
-        return state.set('gotArgv', true)
+        return state.update('state', (s) => {
+            return s instanceof Loading? s.set('gotArgv', true).checkNext() : s
+        })
+    }
+
+    case getType(baseActions.fetchPlaylists.success): {
+        return state.update('state', (s) => {
+            return s instanceof Loading? s.set('gotPlaylists', true).checkNext() : s
+        })
     }
 
     case getType(baseActions.fetchTracksProgress): {
         const { offset } = action.payload
         return state.update('state', (s) => {
-            if (s instanceof Loading) {
-                return s.set('tracks', offset)
-            } else {
-                return s
-            }
+            return s instanceof Loading? s.set('tracks', offset) : s
         })
     }
 
     case getType(baseActions.fetchTracks.success): {
         return state.update('state', (s) => {
-            if (s instanceof Loading) {
-                return new Loaded()
-            } else {
-                return s
-            }
+            return s instanceof Loading? s.set('tracks', true).checkNext() : s
         })
     }
 
