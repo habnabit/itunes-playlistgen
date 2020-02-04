@@ -86,10 +86,14 @@ export default function timefillReducer(state = new TimefillSelector(), action: 
     case getType(actions.runTimefill.success):
         return state.withTimefillResponse(action.payload.json, action.payload.replace)
 
-    case getType(actions.modifyPlaylists.success): {
+    case getType(actions.modifyPlaylists.request):
+        return state.set('savingPlaylists', true)
+
+    case getType(actions.modifyPlaylists.success):
         return state.withPlaylistsResponse(action.payload.json)
             .afterPlaylistsUpdated()
-    }
+            .set('savingPlaylists', false)
+
 
     default:
         return state

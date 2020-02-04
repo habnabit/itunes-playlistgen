@@ -274,13 +274,16 @@ export const ConnectedSelectionsComponent = connect(
 )(SelectionsComponent)
 
 const PersistSelectionsComponent = onlyUpdateForKeys(
-    ['saveAllowed', 'selectionMap']
+    ['savingPlaylists', 'saveAllowed']
 )((props: {
+    savingPlaylists: boolean
     saveAllowed: boolean
     onSave: () => void
 }) => {
     var button = null
-    if (props.saveAllowed) {
+    if (props.savingPlaylists) {
+        button = <PulseLoader color="darkslateblue" size="0.5em" />
+    } else if (props.saveAllowed) {
         button = <button onClick={props.onSave}>Save selections</button>
     }
     return <div className="selection save-button">
@@ -297,7 +300,10 @@ export const ConnectedPersistSelectionsComponent = connect(
             return m !== undefined && !m.isEmpty()
         }
         const saveAllowed = isPopulated('bless') || isPopulated('curse') || isPopulated('_cleared')
-        return {base, saveAllowed, selectionMap}
+        return {
+            savingPlaylists: base.savingPlaylists,
+            base, saveAllowed,
+        }
     },
     (d: Dispatch) => bindActionCreators({
         onSave: actions.modifyPlaylists.request,

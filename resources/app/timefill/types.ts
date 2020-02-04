@@ -70,6 +70,7 @@ export class TimefillSelector extends Record({
     weights: List<[AlbumKey, string]>(),
     choices: List<Choice>(),
     ambientSelected: Map<TrackId, ChoiceTrackSelection>(),
+    savingPlaylists: false,
     keyboardAvailable: true,
     keysDown: Map<string, boolean>(),
 }) {
