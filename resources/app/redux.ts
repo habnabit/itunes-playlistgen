@@ -1,8 +1,8 @@
 import * as qs from 'qs'
 import { applyMiddleware, combineReducers, createStore, DeepPartial, Reducer, Store } from 'redux'
-import { createEpicMiddleware, Epic } from 'redux-observable'
+import { combineEpics, createEpicMiddleware, Epic } from 'redux-observable'
 import { EMPTY, from, of } from 'rxjs'
-import { expand, filter, map, switchMap } from 'rxjs/operators'
+import { bufferCount, expand, filter, map, switchMap } from 'rxjs/operators'
 import { ActionType, isActionOf } from 'typesafe-actions'
 
 import * as actions from './actions'
@@ -11,7 +11,7 @@ import albumShuffleReducer from './album-shuffle/reducer'
 import { AlbumShuffleSelector } from './album-shuffle/types'
 import { postJSON } from './funcs'
 import metaReducer from './meta/reducer'
-import { MetaState } from './meta/types'
+import { Loaded, Loading, MetaState } from './meta/types'
 import timefillEpics from './timefill/epics'
 import timefillReducer from './timefill/reducer'
 import { TimefillSelector } from './timefill/types'
@@ -96,6 +96,27 @@ const savePlaylistEpic: Epic<AllActions, AllActions> = (action$) => (
     )
 )
 
+const whenLoadedEpic: Epic<AllActions, AllActions, {meta: MetaState}> = (action$, state$) => (
+    state$.pipe(
+        bufferCount(2, 1),
+        switchMap(([prevState, curState]) => {
+            const ret = []
+            if (prevState.meta.state instanceof Loading && curState.meta.state instanceof Loaded) {
+                ret.push(actions.finishedLoading())
+            }
+            return of(...ret)
+        })
+    )
+)
+
+const combinedEpics = combineEpics(
+    fetchArgvEpic,
+    fetchTracksEpic,
+    fetchPlaylistsEpic,
+    savePlaylistEpic,
+    whenLoadedEpic,
+)
+
 function makeStore<S>(reducer: Reducer<S>, state: DeepPartial<S>, epics: Epic): Store<{base: S, meta: MetaState}> {
     const epicMiddleware = createEpicMiddleware()
     const store = createStore(combineReducers({
@@ -106,10 +127,7 @@ function makeStore<S>(reducer: Reducer<S>, state: DeepPartial<S>, epics: Epic): 
         meta: new MetaState(),
     }, applyMiddleware(epicMiddleware))
 
-    epicMiddleware.run(fetchArgvEpic)
-    epicMiddleware.run(fetchTracksEpic)
-    epicMiddleware.run(fetchPlaylistsEpic)
-    epicMiddleware.run(savePlaylistEpic)
+    epicMiddleware.run(combinedEpics)
     epicMiddleware.run(epics)
 
     addEventListener('keydown', (ev) => store.dispatch(actions.changeKey({key: ev.key.toLowerCase(), down: true})))

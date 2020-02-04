@@ -141,13 +141,16 @@ export class TimefillSelector extends Record({
                     continue
                 }
                 for (const track of tracks) {
-                    if (this.tracks.has(track)) {
-                        m.set(track, selection)
-                    }
+                    m.set(track, selection)
                 }
             }
         })
         return this.set('ambientSelected', selected)
+    }
+
+    withReconciledAmbientSelections(): this {
+        return this.update('ambientSelected', (selected) =>
+            selected.filter((_, tid) => this.tracks.has(tid)))
     }
 
     withTimefillResponse(j: any, replace?: Lens<TimefillSelector, Choice>): TimefillSelector {

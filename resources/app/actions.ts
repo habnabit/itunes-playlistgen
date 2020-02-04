@@ -36,6 +36,8 @@ export const fetchPlaylists = createAsyncAction('playlistgen/fetchPlaylists/requ
     json: any
 }, Error>()
 
+export const finishedLoading = createStandardAction('playlistgen/finishedLoading')<void>()
+
 export const savePlaylist = createAsyncAction('playlistgen/savePlaylist/request', 'playlistgen/savePlaylist/success', 'playlistgen/savePlaylist/failure')<{
     name: string
     tracks: List<Track>

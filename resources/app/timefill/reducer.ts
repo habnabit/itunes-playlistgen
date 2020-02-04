@@ -83,6 +83,9 @@ export default function timefillReducer(state = new TimefillSelector(), action: 
     case getType(baseActions.fetchPlaylists.success):
         return state.withPlaylistsResponse(action.payload.json)
 
+    case getType(baseActions.finishedLoading):
+        return state.withReconciledAmbientSelections()
+
     case getType(actions.runTimefill.success):
         return state.withTimefillResponse(action.payload.json, action.payload.replace)
 
