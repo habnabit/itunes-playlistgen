@@ -3,7 +3,7 @@ import { Lens } from 'monocle-ts'
 import { createAsyncAction, createStandardAction } from 'typesafe-actions'
 
 import { TrackId } from '../types'
-import { Choice, ChoiceTrackSelection, TimefillSelector, PlaylistModification } from './types'
+import { Choice, ChoiceTrackSelection, PlaylistModification, TimefillSelector } from './types'
 
 export const performSearch = createStandardAction('playlistgen/timefill/performSearch')()
 

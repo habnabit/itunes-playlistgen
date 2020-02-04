@@ -1,4 +1,4 @@
-import { List, Map, OrderedMap, Record, Set, Seq } from 'immutable'
+import { List, Map, OrderedMap, Record, Seq, Set } from 'immutable'
 import { Lens } from 'monocle-ts'
 import { ActionType } from 'typesafe-actions'
 

@@ -1,6 +1,6 @@
-import { Map, List } from 'immutable'
-import { getType } from 'typesafe-actions'
+import { List, Map } from 'immutable'
 import { Random } from 'random-js'
+import { getType } from 'typesafe-actions'
 
 import * as baseActions from '../actions'
 import * as actions from './actions'

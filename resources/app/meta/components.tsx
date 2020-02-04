@@ -1,4 +1,4 @@
-import { motion, AnimatePresence } from 'framer-motion'
+import { AnimatePresence, motion } from 'framer-motion'
 import { List } from 'immutable'
 import * as React from 'react'
 import { connect } from 'react-redux'

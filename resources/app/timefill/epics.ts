@@ -1,14 +1,14 @@
-import { List, Map, Set, Seq } from 'immutable'
+import { List, Map, Seq, Set } from 'immutable'
 import { combineEpics, Epic } from 'redux-observable'
 import { from, of } from 'rxjs'
 import { catchError, filter, map, switchMap } from 'rxjs/operators'
 import { isActionOf } from 'typesafe-actions'
 
 import * as baseActions from '../actions'
+import { postJSON } from '../funcs'
 import { RemoteError, TrackId } from '../types'
 import * as actions from './actions'
 import { AllActions, ChoiceTrackSelection } from './types'
-import { postJSON } from '../funcs'
 
 function buildData(
     criteriaList: List<string>,
