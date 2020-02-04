@@ -8,6 +8,7 @@ import * as baseActions from '../actions'
 import { RemoteError, TrackId } from '../types'
 import * as actions from './actions'
 import { AllActions, ChoiceTrackSelection } from './types'
+import { postJSON } from '../funcs'
 
 function buildData(
     criteriaList: List<string>,
@@ -43,13 +44,7 @@ const runTimefillEpic: Epic<AllActions, AllActions> = (action$) => (
             const { criteria, selections, narrow, replace } = action.payload
             const data = buildData(criteria, selections, narrow)
             return from(
-                fetch('/_api/timefill-criteria', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify(data),
-                })
+                fetch('/_api/timefill-criteria', postJSON(data))
                     .then((resp) => resp.json().then((json) => ({resp, json})))
             ).pipe(
                 map(({resp, json}) => {
@@ -74,13 +69,7 @@ const modifyPlaylistsEpic: Epic<AllActions, AllActions> = (action$) => (
         switchMap((action) => {
             const { modifications } = action.payload
             return from(
-                fetch('/_api/modify-playlists', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({modifications}),
-                })
+                fetch('/_api/modify-playlists', postJSON({modifications}))
                     .then((resp) => resp.json().then((json) => ({resp, json})))
             ).pipe(
                 map(({resp, json}) => {

@@ -8,18 +8,22 @@ import { ConnectedTopComponent } from './meta/components'
 import * as stores from './redux'
 import './site.sass'
 import { ConnectedTimefillSelectorComponent } from './timefill/components'
+import { selectionPlaylists } from './timefill/types'
 
 function makeRootElement(): JSX.Element {
-    var store, component
+    var store, component, initialPlaylists
     if (location.search == '?timefill') {
         store = stores.timefillStore()
         component = <ConnectedTimefillSelectorComponent />
+        initialPlaylists = selectionPlaylists.valueSeq()
+            .map((pl) => [pl])
+            .toArray()
     } else {
         store = stores.albumShuffleStore()
         component = <ConnectedAlbumShuffleSelectorComponent />
     }
     return <Provider store={store}>
-        <ConnectedTopComponent>
+        <ConnectedTopComponent initialPlaylists={initialPlaylists}>
             {component}
         </ConnectedTopComponent>
     </Provider>

@@ -38,7 +38,7 @@ function objectToMap<K extends string, V>(obj: {[key in K]: V}): Map<K, V> {
     return Map(Object.entries(obj) as [K, V][])
 }
 
-const selectionPlaylists: Map<ChoiceTrackSelection, string> = objectToMap({
+export const selectionPlaylists: Map<ChoiceTrackSelection, string> = objectToMap({
     bless: '❧blessed',
     curse: '❧cursed',
 })

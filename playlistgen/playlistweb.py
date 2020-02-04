@@ -94,13 +94,6 @@ def genius_albums(request):
     }
 
 
-@view_config(route_name='playlists', renderer='json')
-def playlists(request):
-    return {
-        'playlists': playlistgen.scripts.call('get_playlists'),
-    }
-
-
 class TrackField(fields.Field):
     def _serialize(self, value, attr, obj, **kwargs):
         raise NotImplementedError()
@@ -130,6 +123,39 @@ class DelimitedString(fields.Field):
     def _deserialize(self, value, attr, data, **kwargs):
         splut = value.split(self.delimiter)
         return [self.inner._deserialize(each, attr, data, **kwargs) for each in splut]
+
+
+playlists_service = Service(name='playlists', path='/_api/playlists')
+
+
+class PlaylistsBodySchema(Schema):
+    names = fields.List(fields.List(fields.String()), missing=())
+
+
+class PlaylistsSchema(Schema):
+    class Meta:
+        unknown = marshmallow.EXCLUDE
+
+    body = fields.Nested(PlaylistsBodySchema)
+
+
+@playlists_service.get()
+def tracks(request):
+    return {
+        'playlists': playlistgen.scripts.call('get_playlists'),
+    }
+
+
+@playlists_service.post(schema=PlaylistsSchema, validators=(marshmallow_validator,))
+def tracks(request):
+    names = request.validated['body']['names']
+    if len(names) > 0:
+        playlists = playlistgen.scripts.call('get_specific_playlists', names)
+    else:
+        playlists = playlistgen.scripts.call('get_playlists')
+    return {
+        'playlists': playlists,
+    }
 
 
 tracks_service = Service(name='tracks', path='/_api/tracks')
@@ -357,7 +383,6 @@ def build_app(tracks, argv):
         with config.route_prefix_context('_api'):
             config.add_route('web_argv', 'argv')
             config.add_route('genius_albums', 'genius-albums')
-            config.add_route('playlists', 'playlists')
             config.add_exception_view(api_exception_view, renderer='json')
 
         app = config.make_wsgi_app()

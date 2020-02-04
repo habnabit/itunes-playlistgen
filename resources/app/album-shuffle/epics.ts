@@ -4,6 +4,7 @@ import { catchError, debounceTime, filter, map, mergeMap, switchMap } from 'rxjs
 import { isActionOf } from 'typesafe-actions'
 
 import * as baseActions from '../actions'
+import { postJSON } from '../funcs'
 import { isoTrackId, RemoteError } from '../types'
 import * as actions from './actions'
 import { AllActions } from './types'
@@ -15,13 +16,7 @@ const shuffleTracksEpic: Epic<AllActions, AllActions> = (action$) => (
             const tracks = action.payload.tracks.map((t) => isoTrackId.unwrap(t.id)).toArray()
             const data = {tracks}
             return from(
-                fetch('/_api/shuffle-together-albums', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify(data),
-                })
+                fetch('/_api/shuffle-together-albums', postJSON(data))
                     .then((resp) => resp.json().then((json) => ({resp, json})))
             ).pipe(
                 map(({resp, json}) => {

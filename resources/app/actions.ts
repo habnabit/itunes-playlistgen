@@ -30,7 +30,11 @@ export const fetchTracksProgress = createStandardAction('playlistgen/fetchTracks
     offset: number
 }>()
 
-export const fetchPlaylists = createAsyncAction('playlistgen/fetchPlaylists/request', 'playlistgen/fetchPlaylists/success', 'playlistgen/fetchPlaylists/failure')<void, {json: any}, Error>()
+export const fetchPlaylists = createAsyncAction('playlistgen/fetchPlaylists/request', 'playlistgen/fetchPlaylists/success', 'playlistgen/fetchPlaylists/failure')<{
+    names?: string[][]
+}, {
+    json: any
+}, Error>()
 
 export const savePlaylist = createAsyncAction('playlistgen/savePlaylist/request', 'playlistgen/savePlaylist/success', 'playlistgen/savePlaylist/failure')<{
     name: string

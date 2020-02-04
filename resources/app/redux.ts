@@ -1,5 +1,5 @@
 import * as qs from 'qs'
-import { applyMiddleware, combineReducers, createStore, DeepPartial, Reducer,Store } from 'redux'
+import { applyMiddleware, combineReducers, createStore, DeepPartial, Reducer, Store } from 'redux'
 import { createEpicMiddleware, Epic } from 'redux-observable'
 import { EMPTY, from, of } from 'rxjs'
 import { expand, filter, map, switchMap } from 'rxjs/operators'
@@ -9,6 +9,7 @@ import * as actions from './actions'
 import albumShuffleEpics from './album-shuffle/epics'
 import albumShuffleReducer from './album-shuffle/reducer'
 import { AlbumShuffleSelector } from './album-shuffle/types'
+import { postJSON } from './funcs'
 import metaReducer from './meta/reducer'
 import { MetaState } from './meta/types'
 import timefillEpics from './timefill/epics'
@@ -66,13 +67,15 @@ const fetchTracksEpic: Epic<AllActions, AllActions> = (action$) => (
 const fetchPlaylistsEpic: Epic<AllActions, AllActions> = (action$) => (
     action$.pipe(
         filter(isActionOf(actions.fetchPlaylists.request)),
-        switchMap((action) => from(
-            fetch('/_api/playlists')
-                .then((resp) => resp.json())
-                .then(
-                    (json) => actions.fetchPlaylists.success({json}),
-                    actions.fetchPlaylists.failure)
-        ))
+        switchMap((action) => {
+            return from(
+                fetch('/_api/playlists', postJSON(action.payload))
+                    .then((resp) => resp.json())
+                    .then(
+                        (json) => actions.fetchPlaylists.success({json}),
+                        actions.fetchPlaylists.failure)
+            )
+        })
     )
 )
 
@@ -83,13 +86,7 @@ const savePlaylistEpic: Epic<AllActions, AllActions> = (action$) => (
             const { name, tracks } = action.payload
             const data = {name, tracks: tracks.toSeq().map((t) => t.id).toArray()}
             return from(
-                fetch('/_api/save', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify(data),
-                })
+                fetch('/_api/save', postJSON(data))
                     .then((resp) => resp.json())
                     .then(
                         (json) => actions.savePlaylist.success(),
