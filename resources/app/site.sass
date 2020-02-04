@@ -1,3 +1,8 @@
+@mixin flex-center-content
+  display: flex
+  justify-content: center
+  align-items: center
+
 body
   font-family: sans-serif
 
@@ -103,7 +108,10 @@ ul.tracklist, ol.tracklist
 
 @mixin colorize-selection($name, $color)
   .tracklist.selectable > li.#{$name}
-      background: adjust-color($color, $alpha: -0.25)
+    background: adjust-color($color, $alpha: -0.25)
+
+    &.ambient
+      background: adjust-color($color, $alpha: -0.75)
 
   .set-#{$name} .tracklist.selectable.fade > li
     &:hover
@@ -125,15 +133,20 @@ ul.tracklist, ol.tracklist
 
   .selection
     grid-column-end: span 3
+
+    &.save-button
+      @include flex-center-content
+      > button
+        height: 2.5em
+        width: 66%
+
   .choice
     grid-column-end: span 2
     background: #eee
     min-height: 5em
 
     &.loading
-      display: flex
-      justify-content: center
-      align-items: center
+      @include flex-center-content
 
 .choice .actions
   display: grid

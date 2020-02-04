@@ -1,4 +1,4 @@
-import { List, Map, OrderedMap, Record, Set, } from 'immutable'
+import { List, Map, OrderedMap, Record, Set, Seq } from 'immutable'
 import { Lens } from 'monocle-ts'
 import { ActionType } from 'typesafe-actions'
 
@@ -8,7 +8,13 @@ import * as actions from './actions'
 
 export type AllActions = ActionType<typeof baseActions | typeof actions>
 
-export type ChoiceTrackSelection = 'bless' | 'include' | 'curse' | 'exclude'
+export type ChoiceTrackSelection = 'bless' | 'include' | 'curse' | 'exclude' | '_cleared'
+
+export type PlaylistModification = {
+    name: string,
+    add: TrackId[],
+    remove: TrackId[],
+}
 
 export class Choice extends Record({
     tracks: List<Track>(),
@@ -28,6 +34,34 @@ export class Choice extends Record({
     }
 }
 
+function objectToMap<K extends string, V>(obj: {[key in K]: V}): Map<K, V> {
+    return Map(Object.entries(obj) as [K, V][])
+}
+
+const selectionPlaylists: Map<ChoiceTrackSelection, string> = objectToMap({
+    bless: '❧blessed',
+    curse: '❧cursed',
+})
+
+const reverseSelectionPlaylists: Map<string, ChoiceTrackSelection> = selectionPlaylists
+    .mapEntries(([k, v]) => [v, k])
+
+function reverseSelection(seq: Seq.Indexed<Map<TrackId, ChoiceTrackSelection>>): Map<ChoiceTrackSelection, Set<TrackId>> {
+    return seq.flatMap((m) => m.entrySeq())
+        .groupBy(([_, sel]) => sel)
+        .map((seq) => seq.valueSeq().map(([tid, _]) => tid).toSet())
+        .toMap()
+}
+
+const playlistModificationRemovalSources: Map<ChoiceTrackSelection, ChoiceTrackSelection[]> = objectToMap({
+    bless: ['curse', '_cleared'],
+    curse: ['bless', '_cleared'],
+})
+
+const playlistSelectionsToClear: Set<ChoiceTrackSelection> = playlistModificationRemovalSources.valueSeq()
+    .flatMap((x) => x)
+    .toSet()
+
 export class TimefillSelector extends Record({
     tracks: Map<TrackId, Track>(),
     name: '',
@@ -35,6 +69,7 @@ export class TimefillSelector extends Record({
     albums: OrderedMap<AlbumKey, Album>(),
     weights: List<[AlbumKey, string]>(),
     choices: List<Choice>(),
+    ambientSelected: Map<TrackId, ChoiceTrackSelection>(),
     keyboardAvailable: true,
     keysDown: Map<string, boolean>(),
 }) {
@@ -59,11 +94,18 @@ export class TimefillSelector extends Record({
     }
 
     reversedSelection(): Map<ChoiceTrackSelection, Set<TrackId>> {
-        return this.choices.toSeq()
-            .flatMap((choice) => choice.selected.entrySeq())
-            .groupBy(([_, sel]) => sel)
-            .map((seq) => seq.valueSeq().map(([tid, _]) => tid).toSet())
-            .toMap()
+        return reverseSelection(this.choices.toSeq().map((choice) => choice.selected))
+    }
+
+    reversedAmbientSelection(): Map<ChoiceTrackSelection, Set<TrackId>> {
+        return reverseSelection(Seq.Indexed([this.ambientSelected]))
+    }
+
+    reversedTotalSelection(): Map<ChoiceTrackSelection, Set<TrackId>> {
+        return reverseSelection(
+            Seq.Indexed([this.ambientSelected])
+                .concat(this.choices.toSeq().map((choice) => choice.selected))
+        )
     }
 
     withArgv(j: {
@@ -90,6 +132,23 @@ export class TimefillSelector extends Record({
         return this.merge({tracks, albums})
     }
 
+    withPlaylistsResponse(j: any): this {
+        const selected = Map<TrackId, ChoiceTrackSelection>().withMutations((m) => {
+            for (const [playlist, tracks] of j.playlists) {
+                const selection = reverseSelectionPlaylists.get(playlist)
+                if (selection === undefined) {
+                    continue
+                }
+                for (const track of tracks) {
+                    if (this.tracks.has(track)) {
+                        m.set(track, selection)
+                    }
+                }
+            }
+        })
+        return this.set('ambientSelected', selected)
+    }
+
     withTimefillResponse(j: any, replace?: Lens<TimefillSelector, Choice>): TimefillSelector {
         const selected = this.condensedSelection()
         const choices = List(j.playlists as {tracks: TrackId[], score: string}[])
@@ -102,6 +161,13 @@ export class TimefillSelector extends Record({
         } else {
             return this.set('choices', choices)
         }
+    }
+
+    afterPlaylistsUpdated(): this {
+        return this.update('choices', (choices) =>
+            choices.map((choice) =>
+                choice.update('selected', (selected) =>
+                    selected.filter((sel) => !playlistSelectionsToClear.has(sel)))))
     }
 
     allCriteria(): List<string> {
@@ -117,5 +183,21 @@ export class TimefillSelector extends Record({
     withClearedSelection(tid: TrackId): this {
         return this.update('choices', (choices) =>
             choices.map((choice) => choice.withClearedSelection(tid)))
+    }
+
+    playlistModifications(): Seq.Indexed<PlaylistModification> {
+        const reversed = this.reversedSelection()
+        return playlistModificationRemovalSources.entrySeq()
+            .map(([sel, toRemove]) => {
+                const remove = Seq.Indexed(toRemove)
+                    .flatMap((v) => reversed.get(v, Set()))
+                    .toSet()
+                    .toArray()
+                return {
+                    name: selectionPlaylists.get(sel),
+                    add: reversed.get(sel, Set()).toArray(),
+                    remove,
+                }
+            })
     }
 }

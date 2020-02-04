@@ -270,6 +270,42 @@ def timefill_criteria(request):
     return {'playlists': playlists}
 
 
+modify_playlists_service = Service(name='modify_playlists', path='/_api/modify-playlists')
+
+
+class PlaylistModificationSchema(Schema):
+    name = fields.String(required=True)
+    add = fields.List(TrackField(), missing=())
+    remove = fields.List(TrackField(), missing=())
+
+
+class ModifyPlaylistsBodySchema(Schema):
+    modifications = fields.List(fields.Nested(PlaylistModificationSchema()))
+
+
+class ModifyPlaylistsSchema(Schema):
+    class Meta:
+        unknown = marshmallow.EXCLUDE
+
+    body = fields.Nested(ModifyPlaylistsBodySchema)
+
+
+@modify_playlists_service.post(schema=ModifyPlaylistsSchema, validators=(marshmallow_validator,))
+def modify_playlists(request):
+    parsed = request.validated['body']
+    all_splut = []
+    for mod in parsed['modifications']:
+        splut = mod['name'].splitlines()
+        all_splut.append(splut)
+        playlistgen.scripts.call(
+            'append_tracks', splut, [t[typ.pPIS] for t in mod['add']], False)
+        playlistgen.scripts.call(
+            'remove_tracks', splut, [t[typ.pPIS] for t in mod['remove']])
+    playlists = playlistgen.scripts.call(
+        'get_specific_playlists', all_splut)
+    return {'done': True, 'playlists': playlists}
+
+
 save_service = Service(name='save', path='/_api/save')
 
 

@@ -48,9 +48,13 @@ export default function timefillReducer(state = new TimefillSelector(), action: 
     case getType(actions.toggleChoiceTrack): {
         const { lens, track } = action.payload
         const selection = state.currentSelection()
+        const isAmbient = state.ambientSelected.has(track)
         return lens.modify((pl) =>
             pl.update('selected', (m) =>
-                m.update(track, undefined, (cur) => cur === selection? undefined : selection))
+                m.update(track, (cur) =>
+                    cur === selection
+                        ? (isAmbient? '_cleared' : undefined)
+                        : selection))
         )(state)
     }
 
@@ -76,8 +80,16 @@ export default function timefillReducer(state = new TimefillSelector(), action: 
     case getType(baseActions.fetchTracks.success):
         return state.withTracksResponse(action.payload.tracks)
 
+    case getType(baseActions.fetchPlaylists.success):
+        return state.withPlaylistsResponse(action.payload.json)
+
     case getType(actions.runTimefill.success):
         return state.withTimefillResponse(action.payload.json, action.payload.replace)
+
+    case getType(actions.modifyPlaylists.success): {
+        return state.withPlaylistsResponse(action.payload.json)
+            .afterPlaylistsUpdated()
+    }
 
     default:
         return state

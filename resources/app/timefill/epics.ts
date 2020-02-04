@@ -68,6 +68,38 @@ const runTimefillEpic: Epic<AllActions, AllActions> = (action$) => (
     )
 )
 
+const modifyPlaylistsEpic: Epic<AllActions, AllActions> = (action$) => (
+    action$.pipe(
+        filter(isActionOf(actions.modifyPlaylists.request)),
+        switchMap((action) => {
+            const { modifications } = action.payload
+            return from(
+                fetch('/_api/modify-playlists', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({modifications}),
+                })
+                    .then((resp) => resp.json().then((json) => ({resp, json})))
+            ).pipe(
+                map(({resp, json}) => {
+                    if (resp.status !== 200) {
+                        throw new RemoteError(resp, json)
+                    } else {
+                        return actions.modifyPlaylists.success({json})
+                    }
+                }),
+                catchError((err) => of(
+                    actions.modifyPlaylists.failure(err),
+                    baseActions.showError(err),
+                )),
+            )
+        }),
+    )
+)
+
 export default combineEpics(
     runTimefillEpic,
+    modifyPlaylistsEpic,
 )

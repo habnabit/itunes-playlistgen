@@ -74,15 +74,35 @@ end delete_playlists
 
 on fill_tracks(plns, tl, ctrl)
 	tell application "iTunes"
-		if ctrl then stop
 		set pl to my nested_playlist(plns)
 		delete tracks of pl
-		repeat with t in tl
-			duplicate (the first track whose persistent ID is t) to the end of pl
-		end repeat
-		if ctrl then play pl
 	end tell
+	my append_tracks(plns, tl, true)
 end fill_tracks
+
+on append_tracks(plns, tl, dupes)
+	tell application "iTunes"
+		set pl to my nested_playlist(plns)
+		repeat with tid in tl
+			set track_ok to true
+			if not dupes then
+				set track_ok to (count (every track of pl whose persistent ID is tid)) = 0
+			end if
+			if track_ok then
+				duplicate (the first track whose persistent ID is tid) to the end of pl
+			end if
+		end repeat
+	end tell
+end append_tracks
+
+on remove_tracks(plns, tl)
+	tell application "iTunes"
+		set pl to my nested_playlist(plns)
+		repeat with tid in tl
+			delete (every track of pl whose persistent ID is tid)
+		end repeat
+	end tell
+end remove_tracks
 
 on get_genius()
 	tell application "iTunes"
@@ -102,3 +122,12 @@ on get_playlists()
 	end tell
 	return ret
 end get_playlists
+
+on get_specific_playlists(plnl)
+	set ret to {}
+	repeat with pln in plnl
+		set pl to my nested_playlist(pln)
+		tell application "iTunes" to copy {the name of pl, the persistent ID of tracks of pl} to the end of ret
+	end repeat
+	return ret
+end get_specific_playlists
