@@ -109,7 +109,7 @@ export const ConnectedChoiceComponent = connect(
         return {
             onToggle: (track: TrackId) => () => dispatchProps.onToggle({lens, track}),
             onReroll: () => {
-                const selections = top.reversedSelection()
+                const selections = top.reversedTotalSelection()
                 dispatchProps.onLoading({lens, loading: true})
                 dispatchProps.onReroll({
                     criteria: top.allCriteria(), selections, narrow: true,
