@@ -161,7 +161,7 @@ const AlbumSelectorComponent = onlyUpdateForKeys(
 
     return <div className={classes.join(' ')}>
         <header>
-            <h3 style={{background: props.color}}>{album.id}</h3>
+            <h3 style={{background: props.color}}>{album.prettyName()}</h3>
             <h5 className="playlists">{allPlaylists.join('; ')}</h5>
             {controls}
         </header>

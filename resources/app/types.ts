@@ -41,15 +41,26 @@ export class Track {
 
     asAlbum(): Album {
         const nameLower = (this.album + ' ' + this.artist).toLowerCase()
-        return new Album({id: this.albumId, nameLower})
+        return new Album({
+            id: this.albumId,
+            title: this.album,
+            artist: this.artist,
+            nameLower,
+        })
     }
 }
 
 export class Album extends Record({
     id: undefined as AlbumId,
+    title: undefined as string,
+    artist: undefined as string,
     nameLower: undefined as string,
     tracks: List<Track>(),
 }) {
+    prettyName(): string {
+        return `${this.title}; ${this.artist}`
+    }
+
     withTrack(track: Track): Album {
         return this.set('tracks', this.tracks.push(track))
     }
