@@ -929,10 +929,15 @@ def delete_older(pattern, max_age):
               help='Start playing the playlist after being filled.')
 @click.option('-c', '--criterion', type=parse_criterion, multiple=True,
               help='XXX')
-def main(ctx, source_playlist, dest_playlist, start_playing, criterion):
+@click.option('-b', '--debug/--no-debug', help='install a pdb trap')
+def main(ctx, source_playlist, dest_playlist, start_playing, criterion, debug):
     """
     Generate iTunes playlists in smarter ways than iTunes can.
     """
+
+    if debug:
+        import signal, pdb
+        signal.signal(signal.SIGINFO, lambda *a: pdb.set_trace())
 
     rng = random.Random()
     ctx.obj = TrackContext(
