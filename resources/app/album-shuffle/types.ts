@@ -21,6 +21,7 @@ export class AlbumSelectors extends Record({
     selectors: List<AlbumSelector>(),
     shuffled: List<Track>(),
     shuffleInfo: undefined as any,
+    hovered: undefined as number,
 }) {
     withShuffleResponse(shuffled: List<Track>, shuffleInfo: any): this {
         return this.merge({shuffled, shuffleInfo})

@@ -30,6 +30,10 @@ export default function albumShuffleReducer(state = new AlbumShuffleSelector(), 
     case getType(actions.performSearch):
         return state.performSearch()
 
+    case getType(actions.hoverTrack):
+        return state.update('selectors', (sel) =>
+            sel.set('hovered', action.payload.idx))
+
     case getType(baseActions.fetchTracks.success):
         return state.withTracksResponse(action.payload.tracks)
 

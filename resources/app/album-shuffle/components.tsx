@@ -22,6 +22,7 @@ const colorOrder = [
 class ShuffleInfoComponent extends React.PureComponent<{
     info: any
     colorByAlbum: Map<AlbumId, string>
+    highlightIndex?: number
 }> {
     colorByAlbumIndex(): Map<number, string> {
         const seq = Seq.Indexed.of(...this.props.info.albums)
@@ -66,8 +67,15 @@ class ShuffleInfoComponent extends React.PureComponent<{
             flatCircles[e].style.fill = colors.get(pick)
         })
         let lastCircle: typeof flatCircles[number]
-        for (const c of flatCircles) {
+        flatCircles.forEach((c, idx) => {
             const {x, y} = c
+            if (idx === this.props.highlightIndex) {
+                circles.push(<circle cx={x} cy={y} r="0.375" key="highlight" style={{
+                    fill: 'rgba(0, 0, 0, 0)',
+                    stroke: 'rgba(0, 187, 255, 0.5)',
+                    strokeWidth: '0.1',
+                }} />)
+            }
             const localCircleStyle = {...c.style, ...circleStyle}
             circles.push(<circle cx={x} cy={y} r="0.125" key={elementIdx++} style={localCircleStyle} />)
             if (lastCircle !== undefined) {
@@ -75,7 +83,7 @@ class ShuffleInfoComponent extends React.PureComponent<{
                 lines.push(<line x1={x1} y1={y1} x2={x} y2={y} key={elementIdx++} style={lineStyle} />)
             }
             lastCircle = c
-        }
+        })
         return {
             xMax, yMax: coords.length,
             element: <>{lines}{circles}</>,
@@ -106,12 +114,15 @@ const TrackComponent = onlyUpdateForKeys(
 )((props: {
     track: Track
     color?: string
+    onMouseEnter?: () => void
+    onMouseLeave?: () => void
 }) => {
     const style: StandardProperties = {}
     if (props.color) {
         style.background = props.color
+        style.cursor = 'pointer'
     }
-    return <li style={style}>
+    return <li style={style} onMouseEnter={props.onMouseEnter} onMouseLeave={props.onMouseLeave}>
         {props.track.title}
     </li>
 })
@@ -121,10 +132,18 @@ const TracksComponent = onlyUpdateForKeys(
 )((props: {
     tracks: List<Track>
     colorByAlbum?: Map<AlbumId, string>
+    onHoverTrack?: typeof actions.hoverTrack
 }) => {
     const colorByAlbum = props.colorByAlbum || Map()
     return <ol className="tracklist horizontal">
-        {props.tracks.map((track, e) => <TrackComponent track={track} color={colorByAlbum.get(track.albumId)} key={e} />)}
+        {props.tracks.map((track, e) => {
+            var onMouseEnter, onMouseLeave
+            if (props.onHoverTrack) {
+                onMouseEnter = () => props.onHoverTrack({idx: e})
+                onMouseLeave = () => props.onHoverTrack({idx: undefined})
+            }
+            return <TrackComponent color={colorByAlbum.get(track.albumId)} key={e} {...{track, onMouseEnter, onMouseLeave}} />
+        })}
     </ol>
 })
 
@@ -196,6 +215,7 @@ class AlbumSelectorsComponent extends React.PureComponent<{
     allowAdd: boolean
     onAddSelection: typeof actions.addSelection
     onShuffle: typeof actions.shuffleTracks.request
+    onHoverTrack: typeof actions.hoverTrack
     onSave: typeof baseActions.savePlaylist.request
 }> {
     colorByAlbum(): Map<AlbumId, string> {
@@ -227,7 +247,7 @@ class AlbumSelectorsComponent extends React.PureComponent<{
         const shuffled = this.shuffled()
         if (!shuffled.isEmpty()) {
             shuffledDisplay = <>
-                <TracksComponent tracks={shuffled} colorByAlbum={colors} />
+                <TracksComponent tracks={shuffled} colorByAlbum={colors} onHoverTrack={this.props.onHoverTrack} />
                 <button key="save" onClick={() => this.save()}>Save</button>
             </>
         }
@@ -239,7 +259,7 @@ class AlbumSelectorsComponent extends React.PureComponent<{
                 return <ConnectedAlbumSelectorComponent key={e} {...{selector, color}} />
             })}
             <button onClick={() => this.shuffle()}>Shuffle tracks</button>
-            <ShuffleInfoComponent info={this.props.selectors.shuffleInfo} colorByAlbum={colors} />
+            <ShuffleInfoComponent info={this.props.selectors.shuffleInfo} colorByAlbum={colors} highlightIndex={this.props.selectors.hovered} />
             {shuffledDisplay}
         </div>
     }
@@ -256,6 +276,7 @@ export const ConnectedAlbumSelectorsComponent = connect(
     (d: Dispatch) => bindActionCreators({
         onAddSelection: actions.addSelection,
         onShuffle: actions.shuffleTracks.request,
+        onHoverTrack: actions.hoverTrack,
         onSave: baseActions.savePlaylist.request,
     }, d),
     (props, dispatch, ownProps) => ({...props, ...dispatch, ...ownProps}),

@@ -22,6 +22,10 @@ export const changeControl = createStandardAction('playlistgen/album-shuffle/con
 
 export const performSearch = createStandardAction('playlistgen/performSearch')()
 
+export const hoverTrack = createStandardAction('playlistgen/album-shuffle/hoverTrack')<{
+    idx: number
+}>()
+
 export const shuffleTracks = createAsyncAction('playlistgen/album-shuffle/shuffleTracks/request', 'playlistgen/album-shuffle/shuffleTracks/success', 'playlistgen/album-shuffle/shuffleTracks/failure')<{
     tracks: List<Track>
 }, {
