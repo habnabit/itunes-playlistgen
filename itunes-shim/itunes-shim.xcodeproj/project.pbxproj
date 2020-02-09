@@ -9,8 +9,7 @@
 /* Begin PBXBuildFile section */
 		1D8BD41323EEE213002DEB19 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D8BD41223EEE213002DEB19 /* main.swift */; };
 		1D8BD41B23EEE250002DEB19 /* iTunesLibrary.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1D8BD41A23EEE250002DEB19 /* iTunesLibrary.framework */; };
-		1D8BD44523F05F2D002DEB19 /* itunes-shim-python.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 1D8BD42D23F05508002DEB19 /* itunes-shim-python.dylib */; };
-		1D8BD44923F06261002DEB19 /* itunes-shim-python.dylib in Embed Libraries */ = {isa = PBXBuildFile; fileRef = 1D8BD42D23F05508002DEB19 /* itunes-shim-python.dylib */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
+		1D8BD45E23F0758A002DEB19 /* itunes-shim-python.c in Sources */ = {isa = PBXBuildFile; fileRef = 1D8BD45D23F0758A002DEB19 /* itunes-shim-python.c */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -20,7 +19,6 @@
 			dstPath = "";
 			dstSubfolderSpec = 10;
 			files = (
-				1D8BD44923F06261002DEB19 /* itunes-shim-python.dylib in Embed Libraries */,
 			);
 			name = "Embed Libraries";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -33,10 +31,12 @@
 		1D8BD41A23EEE250002DEB19 /* iTunesLibrary.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = iTunesLibrary.framework; path = System/Library/Frameworks/iTunesLibrary.framework; sourceTree = SDKROOT; };
 		1D8BD41F23EEE8A3002DEB19 /* itunes-shim-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "itunes-shim-Bridging-Header.h"; sourceTree = "<group>"; };
 		1D8BD42423EEEBD6002DEB19 /* itunes-shim.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "itunes-shim.entitlements"; sourceTree = "<group>"; };
-		1D8BD42D23F05508002DEB19 /* itunes-shim-python.dylib */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.dylib"; includeInIndex = 0; path = "itunes-shim-python.dylib"; sourceTree = BUILT_PRODUCTS_DIR; };
 		1D8BD43323F055BC002DEB19 /* embedding-init.py */ = {isa = PBXFileReference; lastKnownFileType = text.script.python; path = "embedding-init.py"; sourceTree = "<group>"; };
 		1D8BD43423F055E3002DEB19 /* cffi-generator.py */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.python; path = "cffi-generator.py"; sourceTree = "<group>"; };
 		1D8BD43623F058D6002DEB19 /* embedding-api.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "embedding-api.h"; sourceTree = "<group>"; };
+		1D8BD44F23F06674002DEB19 /* sysconfig-emitter.py */ = {isa = PBXFileReference; lastKnownFileType = text.script.python; path = "sysconfig-emitter.py"; sourceTree = "<group>"; };
+		1D8BD45C23F074CD002DEB19 /* python.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = python.xcconfig; sourceTree = "<group>"; };
+		1D8BD45D23F0758A002DEB19 /* itunes-shim-python.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = "itunes-shim-python.c"; path = "../../../../Library/Developer/Xcode/DerivedData/itunes-shim-dgsfanapqcswgufaxwvueoobrxdu/Build/Intermediates.noindex/itunes-shim.build/Debug/itunes-shim.build/DerivedSources/itunes-shim-python.c"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -45,7 +45,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				1D8BD41B23EEE250002DEB19 /* iTunesLibrary.framework in Frameworks */,
-				1D8BD44523F05F2D002DEB19 /* itunes-shim-python.dylib in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -67,7 +66,6 @@
 			isa = PBXGroup;
 			children = (
 				1D8BD40F23EEE213002DEB19 /* itunes-shim */,
-				1D8BD42D23F05508002DEB19 /* itunes-shim-python.dylib */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -77,6 +75,7 @@
 			children = (
 				1D8BD42423EEEBD6002DEB19 /* itunes-shim.entitlements */,
 				1D8BD41223EEE213002DEB19 /* main.swift */,
+				1D8BD45D23F0758A002DEB19 /* itunes-shim-python.c */,
 			);
 			path = "itunes-shim";
 			sourceTree = "<group>";
@@ -95,6 +94,8 @@
 				1D8BD43423F055E3002DEB19 /* cffi-generator.py */,
 				1D8BD43323F055BC002DEB19 /* embedding-init.py */,
 				1D8BD43623F058D6002DEB19 /* embedding-api.h */,
+				1D8BD44F23F06674002DEB19 /* sysconfig-emitter.py */,
+				1D8BD45C23F074CD002DEB19 /* python.xcconfig */,
 			);
 			path = "itunes-shim-python";
 			sourceTree = "<group>";
@@ -106,6 +107,8 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 1D8BD41623EEE213002DEB19 /* Build configuration list for PBXNativeTarget "itunes-shim" */;
 			buildPhases = (
+				1D8BD44B23F063DE002DEB19 /* Build cffi shim .c file */,
+				1D8BD45023F06916002DEB19 /* Export python build flags .xcconfig file */,
 				1D8BD40B23EEE213002DEB19 /* Sources */,
 				1D8BD40C23EEE213002DEB19 /* Frameworks */,
 				1D8BD44A23F06261002DEB19 /* Embed Libraries */,
@@ -118,21 +121,6 @@
 			productName = "itunes-shim";
 			productReference = 1D8BD40F23EEE213002DEB19 /* itunes-shim */;
 			productType = "com.apple.product-type.tool";
-		};
-		1D8BD42C23F05508002DEB19 /* itunes-shim-python */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = 1D8BD42E23F05508002DEB19 /* Build configuration list for PBXNativeTarget "itunes-shim-python" */;
-			buildPhases = (
-				1D8BD43123F05510002DEB19 /* ShellScript */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-			);
-			name = "itunes-shim-python";
-			productName = "itunes-shim-python";
-			productReference = 1D8BD42D23F05508002DEB19 /* itunes-shim-python.dylib */;
-			productType = "com.apple.product-type.library.dynamic";
 		};
 /* End PBXNativeTarget section */
 
@@ -147,9 +135,6 @@
 					1D8BD40E23EEE213002DEB19 = {
 						CreatedOnToolsVersion = 11.2.1;
 						LastSwiftMigration = 1120;
-					};
-					1D8BD42C23F05508002DEB19 = {
-						CreatedOnToolsVersion = 11.2.1;
 					};
 				};
 			};
@@ -167,13 +152,12 @@
 			projectRoot = "";
 			targets = (
 				1D8BD40E23EEE213002DEB19 /* itunes-shim */,
-				1D8BD42C23F05508002DEB19 /* itunes-shim-python */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXShellScriptBuildPhase section */
-		1D8BD43123F05510002DEB19 /* ShellScript */ = {
+		1D8BD44B23F063DE002DEB19 /* Build cffi shim .c file */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -185,10 +169,31 @@
 				"$(SRCROOT)/itunes-shim-python/embedding-api.h",
 				"$(SRCROOT)/itunes-shim-python/embedding-init.py",
 			);
+			name = "Build cffi shim .c file";
 			outputFileListPaths = (
 			);
 			outputPaths = (
-				"$(BUILT_PRODUCTS_DIR)/itunes-shim-python.dylib",
+				"$(DERIVED_FILE_DIR)/itunes-shim-python.c",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "exec poetry run python ${SCRIPT_INPUT_FILE_0}\n";
+		};
+		1D8BD45023F06916002DEB19 /* Export python build flags .xcconfig file */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/itunes-shim-python/sysconfig-emitter.py",
+			);
+			name = "Export python build flags .xcconfig file";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(SRCROOT)/itunes-shim-python/python.xcconfig",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
@@ -201,6 +206,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				1D8BD45E23F0758A002DEB19 /* itunes-shim-python.c in Sources */,
 				1D8BD41323EEE213002DEB19 /* main.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -210,6 +216,7 @@
 /* Begin XCBuildConfiguration section */
 		1D8BD41423EEE213002DEB19 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 1D8BD45C23F074CD002DEB19 /* python.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ANALYZER_NONNULL = YES;
@@ -270,6 +277,7 @@
 		};
 		1D8BD41523EEE213002DEB19 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 1D8BD45C23F074CD002DEB19 /* python.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ANALYZER_NONNULL = YES;
@@ -323,16 +331,17 @@
 		};
 		1D8BD41723EEE213002DEB19 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 1D8BD45C23F074CD002DEB19 /* python.xcconfig */;
 			buildSettings = {
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = "itunes-shim/itunes-shim.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = ZK6BD934EP;
 				ENABLE_HARDENED_RUNTIME = YES;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/../Frameworks",
-					"@loader_path/../Frameworks",
+				HEADER_SEARCH_PATHS = "$(PYTHON_INCLUDEPY)";
+				OTHER_LDFLAGS = (
+					"-L$(PYTHON_LIBDIR)",
+					"-lpython$(PYTHON_LDVERSION)",
 				);
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_OBJC_BRIDGING_HEADER = "itunes-shim-Bridging-Header.h";
@@ -343,46 +352,21 @@
 		};
 		1D8BD41823EEE213002DEB19 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 1D8BD45C23F074CD002DEB19 /* python.xcconfig */;
 			buildSettings = {
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = "itunes-shim/itunes-shim.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = ZK6BD934EP;
 				ENABLE_HARDENED_RUNTIME = YES;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/../Frameworks",
-					"@loader_path/../Frameworks",
+				HEADER_SEARCH_PATHS = "$(PYTHON_INCLUDEPY)";
+				OTHER_LDFLAGS = (
+					"-L$(PYTHON_LIBDIR)",
+					"-lpython$(PYTHON_LDVERSION)",
 				);
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_OBJC_BRIDGING_HEADER = "itunes-shim-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
-			};
-			name = Release;
-		};
-		1D8BD42F23F05508002DEB19 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = ZK6BD934EP;
-				DYLIB_COMPATIBILITY_VERSION = 1;
-				DYLIB_CURRENT_VERSION = 1;
-				EXECUTABLE_PREFIX = "";
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SKIP_INSTALL = YES;
-			};
-			name = Debug;
-		};
-		1D8BD43023F05508002DEB19 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = ZK6BD934EP;
-				DYLIB_COMPATIBILITY_VERSION = 1;
-				DYLIB_CURRENT_VERSION = 1;
-				EXECUTABLE_PREFIX = "";
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SKIP_INSTALL = YES;
 			};
 			name = Release;
 		};
@@ -403,15 +387,6 @@
 			buildConfigurations = (
 				1D8BD41723EEE213002DEB19 /* Debug */,
 				1D8BD41823EEE213002DEB19 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		1D8BD42E23F05508002DEB19 /* Build configuration list for PBXNativeTarget "itunes-shim-python" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				1D8BD42F23F05508002DEB19 /* Debug */,
-				1D8BD43023F05508002DEB19 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
