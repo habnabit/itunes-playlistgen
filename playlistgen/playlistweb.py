@@ -1,10 +1,10 @@
 from __future__ import print_function
 
-import applescript
 import arrow
 import attr
 import datetime
 import functools
+import iTunesLibrary
 import logging
 import marshmallow
 import numpy
@@ -24,24 +24,28 @@ from pyramid.renderers import JSON
 from pyramid.view import view_config
 
 from . import playlistgen
-from .playlistgen import typ
+from .playlistgen import ppis
 
 log = logging.getLogger(__name__)
 
 
-def applescript_as_json(obj):
+def itunes_as_json(obj):
     if isinstance(obj, (list, tuple, set, frozenset)):
-        return [applescript_as_json(x) for x in obj]
+        return [itunes_as_json(x) for x in obj]
     elif isinstance(obj, dict):
-        return {applescript_as_json(k): applescript_as_json(v)
+        return {itunes_as_json(k): itunes_as_json(v)
                 for k, v in obj.items()}
-    elif isinstance(obj, applescript.AEType):
-        return 'T_{}'.format(obj.code.strip().decode())
-    elif isinstance(obj, applescript.AEEnum):
-        if obj.code == 'kNon':
-            return None
-        else:
-            return 'E_{}'.format(obj.code.strip().decode())
+    elif isinstance(obj, iTunesLibrary.ITLibMediaItem):
+        return {
+            'ppis': ppis(obj),
+            'albumPpis': ppis(obj.album()),
+
+            'title': obj.title(),
+            'artist': obj.artist().name(),
+            'album': obj.album().title(),
+
+            'totalTime': obj.totalTime() / 1000,
+        }
     elif isinstance(obj, datetime.datetime):
         return (arrow.get(obj)
                 .replace(tzinfo='local')
@@ -55,12 +59,12 @@ def applescript_as_json(obj):
         return obj
 
 
-def serialize_applescript(obj, *a, **kw):
-    return simplejson.dumps(applescript_as_json(obj), *a, **kw)
+def serialize_itunes(obj, *a, **kw):
+    return simplejson.dumps(itunes_as_json(obj), *a, **kw)
 
 
 def track_methods(tracks, argv):
-    tracks_by_id = {t[typ.pPIS]: t for t in tracks.tracklist}
+    tracks_by_id = {ppis(t): t for t in tracks.tracklist}
 
     def configurate(config):
         config.add_request_method(lambda _: argv, name='web_argv', reify=True)
@@ -129,7 +133,7 @@ playlists_service = Service(name='playlists', path='/_api/playlists')
 
 
 class PlaylistsBodySchema(Schema):
-    names = fields.List(fields.List(fields.String()), missing=())
+    names = fields.List(fields.String(), missing=())
 
 
 class PlaylistsSchema(Schema):
@@ -150,11 +154,14 @@ def tracks(request):
 def tracks(request):
     names = request.validated['body']['names']
     if len(names) > 0:
-        playlists = playlistgen.scripts.call('get_specific_playlists', names)
+        playlists = [request.tracks.playlists_by_name[n] for n in names]
     else:
-        playlists = playlistgen.scripts.call('get_playlists')
+        playlists = request.tracks.library.allPlaylists()
     return {
-        'playlists': playlists,
+        'playlists': [
+            (pl.name(), [ppis(t) for t in pl.items()])
+            for pl in playlists
+        ],
     }
 
 
@@ -238,15 +245,16 @@ class TimefillCriteriaSchema(Schema):
 @timefill_criteria_service.post(schema=TimefillCriteriaSchema, validators=(marshmallow_validator,))
 def timefill_criteria(request):
     parsed = request.validated['body']
-    to_exclude = {t[typ.pPIS] for t in parsed.pop('exclude')}
-    local_tracklist = [t for t in request.tracks.tracklist if t[typ.pPIS] not in to_exclude]
+    to_exclude = set(parsed.pop('exclude'))
+    local_tracklist = list(set(request.tracks.tracklist) - to_exclude)
     raw_criteria = tuple(request.tracks.raw_criteria) + tuple(parsed.pop('criteria'))
     local_tracks = attr.evolve(request.tracks, raw_criteria=raw_criteria)
     selections = playlistgen.search_criteria(
         local_tracks, tracklist=local_tracklist, **parsed)
     playlists = [{
         'score': str(s.score),
-        'tracks': [t[typ.pPIS] for t in s.track_objs],
+        'tracks': list(s.track_persistent_ids),
+        'explanations': [e.format() for e in s.explanations.collapsed()],
     } for s in selections]
     return {'playlists': playlists}
 
@@ -279,9 +287,9 @@ def modify_playlists(request):
         splut = mod['name'].splitlines()
         all_splut.append(splut)
         playlistgen.scripts.call(
-            'append_tracks', splut, [t[typ.pPIS] for t in mod['add']], False)
+            'append_tracks', splut, [ppis(t) for t in mod['add']], False)
         playlistgen.scripts.call(
-            'remove_tracks', splut, [t[typ.pPIS] for t in mod['remove']])
+            'remove_tracks', splut, [ppis(t) for t in mod['remove']])
     playlists = playlistgen.scripts.call(
         'get_specific_playlists', all_splut)
     return {'done': True, 'playlists': playlists}
@@ -329,7 +337,7 @@ def build_app(tracks, argv):
     with Configurator() as config:
         config.include('cornice')
         config.include(track_methods(tracks, argv))
-        config.add_renderer('json', JSON(serialize_applescript))
+        config.add_renderer('json', JSON(serialize_itunes))
         config.scan(playlistweb)
 
         config.add_route('index', '')

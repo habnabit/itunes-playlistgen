@@ -11,60 +11,55 @@ export type SubsetKeys<T, S> = {
 
 export interface TrackId extends Newtype<{ readonly TrackId: unique symbol }, string> {}
 export const isoTrackId = iso<TrackId>()
+export interface AlbumId extends Newtype<{ readonly AlbumId: unique symbol }, string> {}
+export const isoAlbumId = iso<AlbumId>()
 
-export class AlbumKey extends Record({
-    album: undefined as string,
-    artist: undefined as string,
-}) {
-    prettyName(): string {
-        return this.album + "; " + this.artist
-    }
+export type RawTrack = {
+    ppis: string
+    albumPpis: string
+
+    title: string
+    artist: string
+    album: string
+
+    totalTime: number
 }
 
 export class Track {
-    id: TrackId
-    readonly _raw: any
+    private readonly raw: RawTrack
 
-    constructor(raw: any) {
-        this.id = isoTrackId.wrap(raw.T_pPIS)
-        this._raw = raw
+    constructor(raw: RawTrack) {
+        this.raw = raw
     }
 
-    albumKey(): AlbumKey {
-        return new AlbumKey({
-            album: this.t('pAlb'),
-            artist: this.t('pAlA') || this.t('pArt'),
-        })
-    }
+    get id() { return isoTrackId.wrap(this.raw.ppis) }
+    get albumId() { return isoAlbumId.wrap(this.raw.albumPpis) }
+    get title() { return this.raw.title }
+    get artist() { return this.raw.artist }
+    get album() { return this.raw.album }
+    get totalTime() { return this.raw.totalTime }
 
-    t = (typ: string) => this._raw['T_' + typ]
+    asAlbum(): Album {
+        const nameLower = (this.album + ' ' + this.artist).toLowerCase()
+        return new Album({id: this.albumId, nameLower})
+    }
 }
 
 export class Album extends Record({
-    key: undefined as AlbumKey,
+    id: undefined as AlbumId,
     nameLower: undefined as string,
     tracks: List<Track>(),
 }) {
-    constructor(key: AlbumKey) {
-        const nameLower = (key.album + ' ' + key.artist).toLowerCase()
-        super({ key, nameLower })
-    }
-
     withTrack(track: Track): Album {
         return this.set('tracks', this.tracks.push(track))
     }
 }
 
-export function collateAlbums(tracks: IterableIterator<Track>, collated: Map<AlbumKey, Album> = Map()): Map<AlbumKey, Album> {
+export function collateAlbums(tracks: IterableIterator<Track>, collated: Map<AlbumId, Album> = Map()): Map<AlbumId, Album> {
     return collated.withMutations((collated) => {
         for (const t of tracks) {
-            const key = t.albumKey()
-            collated.update(key, undefined, (album) => {
-                if (!album) {
-                    album = new Album(key)
-                }
-                return album.withTrack(t)
-            })
+            collated.update(t.albumId, undefined, (album) =>
+                (album || t.asAlbum()).withTrack(t))
         }
     })
 }

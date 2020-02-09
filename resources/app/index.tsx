@@ -15,9 +15,7 @@ function makeRootElement(): JSX.Element {
     if (location.search == '?timefill') {
         store = stores.timefillStore()
         component = <ConnectedTimefillSelectorComponent />
-        initialPlaylists = selectionPlaylists.valueSeq()
-            .map((pl) => [pl])
-            .toArray()
+        initialPlaylists = selectionPlaylists.valueSeq().toArray()
     } else {
         store = stores.albumShuffleStore()
         component = <ConnectedAlbumShuffleSelectorComponent />

@@ -24,7 +24,7 @@ const scrollFromTop = {
 class TopComponent extends React.PureComponent<{
     state: OverallState
     errors: List<string>
-    initialPlaylists?: string[][]
+    initialPlaylists?: string[]
     fetchArgv: typeof baseActions.fetchArgv.request
     fetchTracks: typeof baseActions.fetchTracks.request
     fetchPlaylists: typeof baseActions.fetchPlaylists.request

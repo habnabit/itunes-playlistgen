@@ -28,7 +28,6 @@ const ChoiceTrackComponent = onlyUpdateForKeys(
     ambient?: boolean
     onToggle: () => void
 }) => {
-    const key = props.track.albumKey()
     const classes = []
     if (props.selected !== undefined && props.selected !== '_cleared') {
         classes.push(props.selected)
@@ -37,7 +36,8 @@ const ChoiceTrackComponent = onlyUpdateForKeys(
         classes.push('ambient')
     }
     return <li className={classes.join(' ')} onClick={props.onToggle}>
-        <DurationComponent duration={props.track.t('pDur')} /> {props.track.t('pnam')} ({key.prettyName()})
+        <DurationComponent duration={props.track.totalTime} />&nbsp;
+        {props.track.title} ({props.track.album}; {props.track.artist})
     </li>
 })
 
@@ -58,7 +58,7 @@ const ChoiceComponent = onlyUpdateForKeys(
         </div>
     }
 
-    const totalDuration = choice.tracks.reduce((totalDuration, track) => totalDuration + track.t('pDur') as number, 0)
+    const totalDuration = choice.tracks.reduce((totalDuration, track) => totalDuration + track.totalTime, 0)
     return <div className="choice">
         <div className="actions">
             <button onClick={() => props.onReroll()}>Reroll</button>

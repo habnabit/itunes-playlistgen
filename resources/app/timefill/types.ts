@@ -3,7 +3,7 @@ import { Lens } from 'monocle-ts'
 import { ActionType } from 'typesafe-actions'
 
 import * as baseActions from '../actions'
-import { Album, AlbumKey, collateAlbums, isoTrackId, Track, TrackId } from '../types'
+import { Album, AlbumId, collateAlbums, isoTrackId, Track, TrackId } from '../types'
 import * as actions from './actions'
 
 export type AllActions = ActionType<typeof baseActions | typeof actions>
@@ -66,8 +66,8 @@ export class TimefillSelector extends Record({
     tracks: Map<TrackId, Track>(),
     name: '',
     criteria: List<string>(),
-    albums: OrderedMap<AlbumKey, Album>(),
-    weights: List<[AlbumKey, string]>(),
+    albums: OrderedMap<AlbumId, Album>(),
+    weights: List<[AlbumId, string]>(),
     choices: List<Choice>(),
     ambientSelected: Map<TrackId, ChoiceTrackSelection>(),
     savingPlaylists: false,
@@ -123,7 +123,8 @@ export class TimefillSelector extends Record({
         const orderedTracks = OrderedMap<TrackId, Track>().withMutations((m) => {
             for (const ts of j) {
                 for (const t of ts) {
-                    m.set(isoTrackId.wrap(t.T_pPIS), new Track(t))
+                    const track = new Track(t)
+                    m.set(track.id, track)
                 }
             }
         })

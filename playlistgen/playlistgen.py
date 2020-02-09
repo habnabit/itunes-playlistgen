@@ -30,7 +30,7 @@ zeroth = operator.itemgetter(0)
 
 @attr.s
 class TrackContext(object):
-    source_playlist = attr.ib()
+    source_playlists = attr.ib()
     dest_playlist = attr.ib()
     start_playing = attr.ib()
     raw_criteria = attr.ib(factory=list)
@@ -44,10 +44,32 @@ class TrackContext(object):
         return itl
 
     @reify
+    def playlists_by_id(self):
+        ret = {}
+        for pl in self.library.allPlaylists():
+            ret[pl.persistentID()] = pl
+        return ret
+
+    @reify
     def playlists_by_name(self):
         ret = {}
         for pl in self.library.allPlaylists():
             ret[pl.name()] = pl
+        return ret
+
+    def nested_name_for(self, playlist):
+        ret = []
+        cur = playlist
+        while cur is not None:
+            ret.append(cur.name())
+            cur = self.playlists_by_id.get(cur.parentID())
+        return tuple(reversed(ret))
+
+    @reify
+    def playlists_by_nested_name(self):
+        ret = {}
+        for pl in self.library.allPlaylists():
+            ret[self.nested_name_for(pl)] = pl
         return ret
 
     @reify
@@ -69,8 +91,11 @@ class TrackContext(object):
         return self.playlist_children(container)[name]
 
     def get_tracklist(self, batch_size=125):
-        click.echo('Pulling tracks from {!r}.'.format(self.source_playlist))
-        return self.playlists_by_name[self.source_playlist].items()
+        click.echo('Pulling tracks from {!r}.'.format(self.source_playlists))
+        ret = set()
+        for name in self.source_playlists:
+            ret.update(self.playlists_by_name[name].items())
+        return list(ret)
 
     @reify
     def tracklist(self):
@@ -853,8 +878,8 @@ def delete_older(pattern, max_age):
 
 @click.group(context_settings=dict(help_option_names=('-h', '--help')))
 @click.pass_context
-@click.option('-i', '--source-playlist', default='Songs Worth Playing',
-              metavar='NAME', help='Playlist from which to pull tracks.')
+@click.option('-i', '--source-playlist', multiple=True, metavar='NAME',
+              help='Playlist from which to pull tracks.')
 @click.option('-o', '--dest-playlist', metavar='NAME',
               help='Playlist into which to push tracks.')
 @click.option('--start-playing/--no-start-playing', default=False,
@@ -873,7 +898,7 @@ def main(ctx, source_playlist, dest_playlist, start_playing, criterion, debug):
 
     rng = random.Random()
     ctx.obj = TrackContext(
-        source_playlist=source_playlist, dest_playlist=dest_playlist,
+        source_playlists=source_playlist, dest_playlist=dest_playlist,
         start_playing=start_playing, raw_criteria=criterion, rng=rng)
 
 
