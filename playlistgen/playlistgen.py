@@ -6,8 +6,10 @@ import bisect
 import click
 import collections
 import datetime
+import Foundation
 import functools
 import heapq
+import iTunesLibrary
 import io
 import itertools
 import json
@@ -34,22 +36,41 @@ class TrackContext(object):
     raw_criteria = attr.ib(factory=list)
     rng = attr.ib(default=attr.Factory(random.Random))
 
+    @reify
+    def library(self):
+        itl, error = iTunesLibrary.ITLibrary.libraryWithAPIVersion_error_('1.0', None)
+        if error is not None:
+            raise RuntimeError('not sure what to do with', error)
+        return itl
+
+    @reify
+    def playlists_by_name(self):
+        ret = {}
+        for pl in self.library.allPlaylists():
+            ret[pl.name()] = pl
+        return ret
+
+    @reify
+    def _playlist_hierarchy(self):
+        ret = {}
+        for pl in self.library.allPlaylists():
+            ret.setdefault(pl.parentID(), {})[pl.name()] = pl
+        return ret
+
+    def playlist_children(self, names):
+        node = None
+        for name in names:
+            children = self._playlist_hierarchy[node]
+            node = children[name].persistentID()
+        return self._playlist_hierarchy[node]
+
+    def nested_playlist(self, names):
+        *container, name = names
+        return self.playlist_children(container)[name]
+
     def get_tracklist(self, batch_size=125):
         click.echo('Pulling tracks from {!r}.'.format(self.source_playlist))
-        track_pids = scripts.call('all_track_pids', self.source_playlist)
-        ret = []
-        with tqdm.tqdm(total=len(track_pids), unit='track', miniters=1) as bar:
-            for e in range(0, len(track_pids), batch_size):
-                batch = scripts.call(
-                    'get_track_batch',
-                    self.source_playlist,
-                    e + 1,
-                    min(e + batch_size, len(track_pids)))
-                bar.update(len(batch))
-                ret.extend(batch)
-        if {t[typ.pPIS] for t in ret} != set(track_pids):
-            raise RuntimeError("track fetching didn't get the right tracks")
-        return ret
+        return self.playlists_by_name[self.source_playlist].items()
 
     @reify
     def tracklist(self):
@@ -67,7 +88,7 @@ class TrackContext(object):
             self.dest_playlist = name
 
     def save_selection(self, selection):
-        persistent_tracks = [t[typ.pPIS] for t in selection.track_objs]
+        persistent_tracks = list(selection.track_persistent_ids)
         splut = self.dest_playlist.splitlines()
         click.echo('Putting {} tracks into {!r}.'.format(
             len(persistent_tracks), splut[-1]))
@@ -78,26 +99,8 @@ class TrackContext(object):
         return search_criteria(self, **kw)
 
 
-@attr.s
-class IDGen(object):
-    _cls = attr.ib()
-
-    def __getattr__(self, attr):
-        r = self._cls(attr.ljust(4, ' ').encode())
-        setattr(self, attr, r)
-        return r
-
-
-@attr.s
-class IDWrap(object):
-    _idgen = attr.ib()
-    _obj = attr.ib()
-
-    def __getattr__(self, attr):
-        return self._obj[getattr(self._idgen, attr)]
-
-
-typ = IDGen(applescript.AEType)
+def ppis(t):
+    return format(t.persistentID(), 'x')
 
 
 @attr.s
@@ -185,7 +188,7 @@ class CriterionTime(object):
 
     def prepare(self, tracks):
         for i, track in tracks.items():
-            self._track_lengths[i] = track[typ.pDur]
+            self._track_lengths[i] = track.totalTime() / 1000
 
     def pick_score(self, scores):
         if self.at == 'end':
@@ -232,7 +235,7 @@ class CriterionAlbums(object):
 
     def prepare(self, tracks):
         for i, track in tracks.items():
-            self._track_albums[i] = track[typ.pAlb]
+            self._track_albums[i] = track.album().persistentID()
 
     def score(self, tracks):
         if len(tracks) == 0:
@@ -262,7 +265,7 @@ class CriterionTrackWeights(object):
 
     def prepare(self, tracks):
         for i, track in tracks.items():
-            pid = track[typ.pPIS]
+            pid = ppis(track)
             if pid in self.weights:
                 self._track_weights[i] = self.weights[pid]
 
@@ -321,7 +324,7 @@ class CriterionAlbumSelector(object):
             raise ValueError('uniform only for now')
 
         for i, track in tracks.items():
-            album = self._albums.setdefault(track[typ.pAlb], {})
+            album = self._albums.setdefault(track.album().persistentID(), {})
             album[i] = track
 
         if self.collapse == 'singletons':
@@ -352,7 +355,7 @@ class CriterionPickFrom(object):
 
     def prepare(self, tracks):
         include_set = set(self.include)
-        self._include_set = {i for i, t in tracks.items() if t[typ.pPIS] in include_set}
+        self._include_set = {i for i, t in tracks.items() if ppis(t) in include_set}
 
     def select(self, rng, track_ids):
         pick_from = list(self._include_set & track_ids)
@@ -374,7 +377,7 @@ class CriterionArtistSelector(object):
 
         artists = {}
         for i, track in tracks.items():
-            artist = artists.setdefault(track[typ.pAlA], {})
+            artist = artists.setdefault(track.album().artist().name(), {})
             artist[i] = track
 
         for artist_tracks in artists.values():
@@ -617,6 +620,11 @@ class Selection:
         for i in self.track_indices:
             yield self._tracklist[i]
 
+    @property
+    def track_persistent_ids(self):
+        for t in self.track_objs:
+            yield ppis(t)
+
     @classmethod
     def from_criteria(cls, tracklist, criteria, indices, prev=None):
         kw = {
@@ -743,21 +751,25 @@ parse_criterion.__name__ = 'criterion'
 
 
 def unrecent_score_tracks(track_map, bias_recent_adds, unrecentness_days):
-    def date_for(t):
-        return max(d for d in [t.get(typ.pPlD), t.get(typ.pSkD), t[typ.pAdd]]
-                   if d is not None)
+    nsnow = Foundation.NSDate.date()
 
-    now = datetime.datetime.now()
-    unrecentness = datetime.timedelta(days=unrecentness_days)
-    tracklist = [(date_for(t), e, t) for e, t in track_map.items()]
+    def delta_for(t):
+        when = max(
+            d
+            for d in (t.lastPlayedDate(), t.skipDate(), t.addedDate())
+            if d is not None)
+        return nsnow.timeIntervalSinceDate_(when)
+
+    unrecentness = unrecentness_days * 60 * 60 * 24
+    tracklist = [(delta_for(t), e, t) for e, t in track_map.items()]
     tracklist.sort(key=zeroth)
-    bounding_index = bisect.bisect_left(tracklist, (now - unrecentness,))
-    del tracklist[bounding_index:]
+    bounding_index = bisect.bisect_left(tracklist, (unrecentness,))
+    del tracklist[:bounding_index]
 
-    def score(last_played, track):
-        score = (now - last_played).total_seconds() ** 0.5
+    def score(delta, track):
+        score = delta ** 0.5
         if bias_recent_adds:
-            score /= (now - track[typ.pAdd]).total_seconds() ** 0.5
+            score /= nsnow.timeIntervalSinceDate_(track.addedDate()) ** 0.5
         return score
 
     tracklist = [(score(played, track), e, track) for played, e, track in tracklist]
@@ -774,67 +786,11 @@ def make(cls, **kw):
 
 
 def album_key(track):
-    return track.get(typ.pAlb), track.get(typ.pAlA) or track.get(typ.pArt)
-
-
-def collate_album_score(rng, tracks):
-    albums = {}
-    for score, track in tracks:
-        key = album_key(track)
-        if not all(key):
-            continue
-        albums.setdefault(key, []).append((score, track))
-
-    ret = []
-    for album_name, album_scores_tracks in albums.items():
-        album_scores, album_tracks = zip(*album_scores_tracks)
-        album_score = rng.choice(album_scores)
-        ret.append((album_score, album_name, album_tracks))
-
-    ret.sort(key=lambda t: t[:2])
-    return ret
-
-
-def pick_albums(rng, tracks, n_albums, n_choices, iterations=10000):
-    all_albums = collate_album_score(rng, tracks)
-    bottom_score, top_score = all_albums[0][0], all_albums[-1][0]
-    results = []
-
-    def maybe_add(album_indices):
-        if len(album_indices) < n_albums:
-            return False
-        elif any(not album_indices.isdisjoint(extant)
-                 for _, extant, _ in results):
-            return True
-        albums = [all_albums[i] for i in album_indices]
-        score = statistics.pvariance(
-            sum(t[typ.pDur] for t in tracks)
-            for _, _, tracks in albums)
-        score = -math.log(score) if score != 0 else 0
-        t = score, album_indices, albums
-        if len(results) < n_choices:
-            heapq.heappush(results, t)
-        else:
-            heapq.heappushpop(results, t)
-        return True
-
-    pool = [frozenset()]
-    for _ in range(iterations):
-        root = random.choice(pool)
-        score = rng.uniform(bottom_score, top_score)
-        index = bisect.bisect_left(all_albums, (score,))
-        if index in root:
-            continue
-        cur = root | {index}
-        if not maybe_add(cur):
-            pool.append(cur)
-
-    results.sort(key=lambda t: t[:2])
-    return results
+    return track.album().persistentID()
 
 
 def album_track_position(track):
-    return track.get(typ.pTrN), track.get(typ.pDsN)
+    return track.album().discNumber(), track.trackNumber()
 
 
 def shuffle_together_album_tracks(rng, albums):
@@ -844,40 +800,17 @@ def shuffle_together_album_tracks(rng, albums):
     return _album_shuffle.stretch_shuffle(rng, albums_dict)
 
 
-def filter_tracks_to_genius_albums(tracks):
-    genius_track_pids = set(scripts.call('get_genius'))
-    genius_albums = {
-        album_key(t)
-        for _, t in tracks
-        if t[typ.pPIS] in genius_track_pids and typ.pAlb in t}
-    return [(s, t) for s, t in tracks if album_key(t) in genius_albums]
-
-
-def album_search(rng, tracks, n_albums=5, n_choices=5, source_genius=False):
-    if source_genius:
-        tracks = filter_tracks_to_genius_albums(tracks)
-    ret = []
-    all_choices = pick_albums(rng, tracks, n_albums, n_choices ** 2)
-    choices = rng.sample(all_choices, min(n_choices, len(all_choices)))
-    for score, _, albums in choices:
-        album_names = sorted(
-            album for _, (album, _), _ in albums)
-        names = u' ✕ '.join(album_names) + u' ({:.2f})'.format(score)
-        _, playlist = shuffle_together_album_tracks(rng, albums)
-        ret.append((names, [(0, t) for t in playlist]))
-
-    return ret
-
-
-def seconds(s):
-    return datetime.timedelta(seconds=int(s))
+def seconds(tl):
+    ms = sum(t.totalTime() for t in tl)
+    return datetime.timedelta(seconds=ms / 1000)
 
 
 def show_selection(selection):
     for f, t in enumerate(selection.track_objs, start=1):
-        click.echo(
-            u'    {2:2}. [{1}] {0.pArt} - {0.pnam} ({0.pAlb})'.format(
-                IDWrap(typ, t), seconds(t[typ.pDur]), f))
+        click.echo('    {:2}. [{}] {} - {} ({})'.format(
+            f, seconds([t]),
+            t.artist().name(), t.title(), t.album().title(),
+        ))
 
     for e in selection.explanations.collapsed():
         click.secho(u'   ' + e.format())
@@ -885,8 +818,7 @@ def show_selection(selection):
 
 def show_selections(selections):
     for e, s in enumerate(selections, start=1):
-        length = sum(t[typ.pDur] for t in s.track_objs)
-        click.secho(u'{:2}. {} ({})'.format(e, seconds(length), s.score),
+        click.secho(u'{:2}. {} ({})'.format(e, seconds(s.track_objs), s.score),
                     fg='green')
         show_selection(s)
         click.echo('')
@@ -977,8 +909,7 @@ def daily_unrecent(tracks, playlist_pattern, delete_older_than):
     date = datetime.datetime.now().strftime(playlist_pattern)
     tracks.set_default_dest(date)
     container = playlist_pattern.splitlines()[:-1]
-    previous_pids = set(scripts.call('all_track_pids', container))
-    tracklist = [t for t in tracks.tracklist if t[typ.pPIS] not in previous_pids]
+    tracklist = list(set(tracks.tracklist) - set(tracks.nested_playlist(container).items()))
     selection = tracks.search_with_criteria(
         tracklist=tracklist, pull_prev=1, keep=1, n_options=1)[0]
     show_selection(selection)
@@ -999,6 +930,18 @@ def web(tracks, listen, argv):
 
     from . import playlistweb
     playlistweb.run(tracks, listen, argv)
+
+
+@main.command()
+@click.pass_obj
+@click.argument('argv', nargs=-1, type=click.UNPROCESSED)
+def shell(tracks, argv):
+    """
+    Launch IPython.
+    """
+
+    import IPython
+    IPython.start_ipython(argv=argv, user_ns={'tracks': tracks})
 
 
 if __name__ == '__main__':

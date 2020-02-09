@@ -185,51 +185,6 @@ def tracks(request):
     return {'tracks': tracks}
 
 
-pick_albums_service = Service(name='pick_albums', path='/_api/pick-albums')
-
-
-class PickAlbumsBodySchema(Schema):
-    n_albums = fields.Integer(missing=5)
-    n_choices = fields.Integer(missing=5)
-    unrecentness = fields.Integer(missing=None)
-    scoring_cls = fields.Method(
-        deserialize='load_scoring_cls', missing=lambda: playlistgen.ScoreUniform)
-
-    def load_scoring_cls(self, value):
-        return playlistgen.SCORING[value]
-
-
-class PickAlbumsSchema(Schema):
-    class Meta:
-        unknown = marshmallow.EXCLUDE
-
-    body = fields.Nested(PickAlbumsBodySchema)
-
-
-@pick_albums_service.post(schema=PickAlbumsSchema, validators=(marshmallow_validator,))
-def pick_albums(request):
-    parsed = request.validated['body']
-    scoring = playlistgen.make(
-        parsed.pop('scoring_cls'), unrecentess=parsed.pop('unrecentness'), rng=random)
-    tracks = scoring.score(request.tracks)
-    picks = [
-        {
-            'score': score,
-            'albums': [
-                {
-                    'score': score,
-                    'name': name,
-                    'tracks': [t[typ.pPIS] for t in tracks],
-                }
-                for score, name, tracks in albums
-            ],
-        }
-        for score, _, albums
-        in playlistgen.pick_albums(random, tracks, **parsed)
-    ]
-    return {'picks': picks}
-
-
 shuffle_together_albums_service = Service(
     name='shuffle_together_albums', path='/_api/shuffle-together-albums')
 
