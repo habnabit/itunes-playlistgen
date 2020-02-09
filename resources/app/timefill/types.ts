@@ -157,6 +157,7 @@ export class TimefillSelector extends Record({
     withTimefillResponse(j: any, replace?: Lens<TimefillSelector, Choice>): TimefillSelector {
         const selected = this.condensedSelection()
         const choices = List(j.playlists as {tracks: TrackId[], score: string}[])
+            .take(15)
             .map((p) => {
                 const tracks = List(p.tracks).map((tid) => this.tracks.get(tid))
                 return new Choice({...p, tracks, selected})

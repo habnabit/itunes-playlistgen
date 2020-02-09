@@ -89,15 +89,6 @@ def web_argv(request):
     }
 
 
-@view_config(route_name='genius_albums', renderer='json')
-def genius_albums(request):
-    tracks = playlistgen.filter_tracks_to_genius_albums(
-        [(0, t) for t in self.tracks])
-    return {
-        'albums': [t[typ.pPIS] for _, t in tracks],
-    }
-
-
 class TrackField(fields.Field):
     def _serialize(self, value, attr, obj, **kwargs):
         raise NotImplementedError()
@@ -170,7 +161,7 @@ tracks_service = Service(name='tracks', path='/_api/tracks')
 
 class TracksQuerySchema(Schema):
     offset = fields.Integer(missing=0)
-    count = fields.Integer(missing=250)
+    count = fields.Integer(missing=2500)
     by_id = DelimitedString(',', TrackField)
 
 
