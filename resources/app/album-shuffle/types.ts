@@ -4,7 +4,7 @@ import { ActionType } from 'typesafe-actions'
 
 import * as baseActions from '../actions'
 import { lensFromImplicitAccessors } from '../extlens'
-import { Album, AlbumKey, collateAlbums, isoTrackId, Track, TrackId } from '../types'
+import { Album, AlbumId, collateAlbums, isoTrackId, Track, TrackId } from '../types'
 import * as actions from './actions'
 
 export type AllActions = ActionType<typeof baseActions | typeof actions>
@@ -26,15 +26,15 @@ export class AlbumSelectors extends Record({
         return this.merge({shuffled, shuffleInfo})
     }
 
-    withoutAlbum(album: AlbumKey): this {
+    withoutAlbum(album: AlbumId): this {
         return this.update('selectors', (selsList) =>
-            selsList.filter((sel) => sel.album.key != album))
+            selsList.filter((sel) => sel.album.id != album))
     }
 }
 
 export class AlbumShuffleSelector extends Record({
     tracks: Map<TrackId, Track>(),
-    albums: Map<AlbumKey, Album>(),
+    albums: Map<AlbumId, Album>(),
     existingPlaylists: Map<TrackId, Set<string>>(),
     selectors: new AlbumSelectors(),
     searchQuery: '',
@@ -48,7 +48,8 @@ export class AlbumShuffleSelector extends Record({
         const orderedTracks = OrderedMap<TrackId, Track>().withMutations((m) => {
             for (const ts of j) {
                 for (const t of ts) {
-                    m.set(isoTrackId.wrap(t.T_pPIS), new Track(t))
+                    const track = new Track(t)
+                    m.set(track.id, track)
                 }
             }
         })

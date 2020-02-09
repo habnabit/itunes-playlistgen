@@ -218,7 +218,7 @@ def shuffle_together_albums(request):
     info, playlist = playlistgen.shuffle_together_album_tracks(random, albums_list)
     return {
         'info': info,
-        'tracks': [t[typ.pPIS] for t in playlist],
+        'tracks': [ppis(t) for t in playlist],
     }
 
 

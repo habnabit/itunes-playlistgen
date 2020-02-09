@@ -8,7 +8,7 @@ import { bindActionCreators, Dispatch } from 'redux'
 
 import * as baseActions from '../actions'
 import { lensFromImplicitAccessors } from '../extlens'
-import { Album, AlbumKey, Track, TrackId } from '../types'
+import { Album, AlbumId, Track, TrackId } from '../types'
 import * as actions from './actions'
 import { AlbumSelector, AlbumSelectors, AlbumShuffleSelector } from './types'
 
@@ -21,13 +21,12 @@ const colorOrder = [
 
 class ShuffleInfoComponent extends React.PureComponent<{
     info: any
-    colorByAlbum: Map<AlbumKey, string>
+    colorByAlbum: Map<AlbumId, string>
 }> {
     colorByAlbumIndex(): Map<number, string> {
-        const seq = Seq.Indexed.of(...this.props.info.albums as string[][])
-            .map(([album, artist], e) => {
-                const key = new AlbumKey({album, artist})
-                return [e, this.props.colorByAlbum.get(key)] as [number, string]
+        const seq = Seq.Indexed.of(...this.props.info.albums)
+            .map((id: AlbumId, e) => {
+                return [e, this.props.colorByAlbum.get(id)] as [number, string]
             })
         return Map(seq)
     }
@@ -113,7 +112,7 @@ const TrackComponent = onlyUpdateForKeys(
         style.background = props.color
     }
     return <li style={style}>
-        {props.track.t('pnam')}
+        {props.track.title}
     </li>
 })
 
@@ -121,11 +120,11 @@ const TracksComponent = onlyUpdateForKeys(
     ['tracks', 'colorByAlbum']
 )((props: {
     tracks: List<Track>
-    colorByAlbum?: Map<AlbumKey, string>
+    colorByAlbum?: Map<AlbumId, string>
 }) => {
     const colorByAlbum = props.colorByAlbum || Map()
     return <ol className="tracklist horizontal">
-        {props.tracks.map((track, e) => <TrackComponent track={track} color={colorByAlbum.get(track.albumKey())} key={e} />)}
+        {props.tracks.map((track, e) => <TrackComponent track={track} color={colorByAlbum.get(track.albumId)} key={e} />)}
     </ol>
 })
 
@@ -157,12 +156,12 @@ const AlbumSelectorComponent = onlyUpdateForKeys(
             Add album
         </label>
     } else {
-        controls = <button onClick={() => props.onRemove({album: album.key})}>Remove</button>
+        controls = <button onClick={() => props.onRemove({album: album.id})}>Remove</button>
     }
 
     return <div className={classes.join(' ')}>
         <header>
-            <h3 style={{background: props.color}}>{album.key.prettyName()}</h3>
+            <h3 style={{background: props.color}}>{album.id}</h3>
             <h5 className="playlists">{allPlaylists.join('; ')}</h5>
             {controls}
         </header>
@@ -199,8 +198,8 @@ class AlbumSelectorsComponent extends React.PureComponent<{
     onShuffle: typeof actions.shuffleTracks.request
     onSave: typeof baseActions.savePlaylist.request
 }> {
-    colorByAlbum(): Map<AlbumKey, string> {
-        return Map(this.props.selectors.selectors.toSeq().map((a, e) => [a.album.key, colorOrder[e]] as [AlbumKey, string]))
+    colorByAlbum(): Map<AlbumId, string> {
+        return Map(this.props.selectors.selectors.toSeq().map((a, e) => [a.album.id, colorOrder[e]] as [AlbumId, string]))
     }
 
     shuffled(): List<Track> {
@@ -216,7 +215,7 @@ class AlbumSelectorsComponent extends React.PureComponent<{
 
     save() {
         const albumNames = this.props.selectors.selectors
-            .map((sel) => sel.album.key.album)
+            .map((sel) => sel.album.id)
             .sort()
         const name = '\u203b Album Shuffle\n' + albumNames.join(' \u2715 ')
         this.props.onSave({name, tracks: this.props.selectors.shuffled})
@@ -236,7 +235,7 @@ class AlbumSelectorsComponent extends React.PureComponent<{
         return <div className="albums-selector">
             <button onClick={() => { this.props.onAddSelection() }} disabled={!this.props.allowAdd}>Add albums</button>
             {this.props.selectors.selectors.map((selector, e) => {
-                const color = colors.get(selector.album.key)
+                const color = colors.get(selector.album.id)
                 return <ConnectedAlbumSelectorComponent key={e} {...{selector, color}} />
             })}
             <button onClick={() => this.shuffle()}>Shuffle tracks</button>
@@ -279,7 +278,7 @@ export const ConnectedAlbumSelectorsComponent = connect(
 const AlbumSearchComponent = onlyUpdateForKeys(
     ['albums', 'searchQuery', 'searchResults']
 )((props: {
-    albums: Map<AlbumKey, Album>
+    albums: Map<AlbumId, Album>
     searchQuery: string
     searchResults: List<AlbumSelector>
     onChange: typeof actions.changeControl

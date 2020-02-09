@@ -811,7 +811,7 @@ def make(cls, **kw):
 
 
 def album_key(track):
-    return track.album().persistentID()
+    return ppis(track.album())
 
 
 def album_track_position(track):
