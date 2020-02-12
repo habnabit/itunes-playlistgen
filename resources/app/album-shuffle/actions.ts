@@ -2,7 +2,7 @@ import { List } from 'immutable'
 import { Lens } from 'monocle-ts'
 import { createAsyncAction, createStandardAction } from 'typesafe-actions'
 
-import { AlbumId, SubsetKeys, Track } from '../types'
+import { AlbumId, SubsetKeys, Track, TrackId } from '../types'
 import { AlbumSelector, AlbumSelectors, AlbumShuffleSelector } from './types'
 
 export const toggleAlbumSelected = createStandardAction('playlistgen/album-shuffle/toggleAlbumSelected')<{
@@ -24,6 +24,10 @@ export const performSearch = createStandardAction('playlistgen/performSearch')()
 
 export const hoverTrack = createStandardAction('playlistgen/album-shuffle/hoverTrack')<{
     idx: number
+}>()
+
+export const trackArtworkMissing = createStandardAction('playlistgen/album-shuffle/trackArtworkMissing')<{
+    id: TrackId
 }>()
 
 export const shuffleTracks = createAsyncAction('playlistgen/album-shuffle/shuffleTracks/request', 'playlistgen/album-shuffle/shuffleTracks/success', 'playlistgen/album-shuffle/shuffleTracks/failure')<{

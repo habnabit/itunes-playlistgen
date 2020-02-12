@@ -147,6 +147,33 @@ const TracksComponent = onlyUpdateForKeys(
     </ol>
 })
 
+const TrackArtworkComponent = onlyUpdateForKeys(
+    ['track', 'errored']
+)((props: {
+    track: Track
+    errored: boolean
+    onError: typeof actions.trackArtworkMissing
+}) => {
+    if (props.errored) {
+        // lovingly taken from http://probablyprogramming.com/2009/03/15/the-tiniest-gif-ever
+        return <img src="data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs" />
+    }
+    const id = props.track.id
+    return <img src={`/_api/track/${id}/artwork`} onError={() => props.onError({id})} />
+})
+
+export const ConnectedTrackArtworkComponent = connect(
+    ({base: top}: {base: AlbumShuffleSelector}, {track}: {
+        track: Track
+    }) => ({
+        errored: top.artworkErroredFor.has(track.id),
+    }),
+    (d: Dispatch) => bindActionCreators({
+        onError: actions.trackArtworkMissing,
+    }, d),
+    (props, dispatch, ownProps) => ({...props, ...dispatch, ...ownProps}),
+)(TrackArtworkComponent)
+
 const AlbumSelectorComponent = onlyUpdateForKeys(
     ['selector', 'playlists', 'color']
 )((props: {
@@ -162,6 +189,11 @@ const AlbumSelectorComponent = onlyUpdateForKeys(
     if (props.selector.fading) {
         classes.push('fading')
     }
+
+    var artwork
+    album.tracks.take(1).forEach((track) => {
+        artwork = <ConnectedTrackArtworkComponent track={track} />
+    })
 
     const allPlaylists = props.selector.album.tracks
         .flatMap((t) => props.playlists.get(t.id, []))
@@ -179,6 +211,7 @@ const AlbumSelectorComponent = onlyUpdateForKeys(
     }
 
     return <div className={classes.join(' ')}>
+        {artwork}
         <header>
             <h3 style={{background: props.color}}>{album.prettyName()}</h3>
             <h5 className="playlists">{allPlaylists.join('; ')}</h5>

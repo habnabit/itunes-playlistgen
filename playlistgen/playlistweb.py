@@ -17,7 +17,7 @@ from cornice import Service
 from cornice.validators import marshmallow_validator
 from marshmallow import Schema, fields
 from pyramid.config import Configurator
-from pyramid.httpexceptions import HTTPException
+from pyramid.httpexceptions import HTTPException, HTTPNotFound, HTTPNotImplemented
 from pyramid.request import Request
 from pyramid.response import Response
 from pyramid.renderers import JSON
@@ -87,6 +87,32 @@ def web_argv(request):
         'dest_playlist': request.tracks.dest_playlist,
         'web_argv': request.web_argv,
     }
+
+
+artwork_content_types = {
+    iTunesLibrary.ITLibArtworkFormatBMP: 'image/bmp',
+    iTunesLibrary.ITLibArtworkFormatGIF: 'image/gif',
+    iTunesLibrary.ITLibArtworkFormatJPEG: 'image/jpeg',
+    iTunesLibrary.ITLibArtworkFormatJPEG2000: 'image/jp2',
+    iTunesLibrary.ITLibArtworkFormatPNG: 'image/png',
+    iTunesLibrary.ITLibArtworkFormatTIFF: 'image/tiff',
+}
+
+
+@view_config(route_name='track_artwork')
+def track_artwork(request):
+    track = request.tracks_by_id.get(request.matchdict['id'])
+    if track is None:
+        raise HTTPNotFound()
+    artwork = track.artwork()
+    if artwork is None:
+        raise HTTPNotFound()
+    content_type = artwork_content_types.get(artwork.imageDataFormat())
+    if content_type is None:
+        raise HTTPNotImplemented()
+    return Response(
+        body=artwork.imageData().bytes(),
+        content_type=content_type)
 
 
 class TrackField(fields.Field):
@@ -337,6 +363,7 @@ def build_app(tracks, argv):
         with config.route_prefix_context('_api'):
             config.add_route('web_argv', 'argv')
             config.add_route('genius_albums', 'genius-albums')
+            config.add_route('track_artwork', 'track/{id}/artwork')
             config.add_exception_view(api_exception_view, renderer='json')
 
         app = config.make_wsgi_app()

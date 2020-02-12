@@ -44,6 +44,7 @@ export class AlbumShuffleSelector extends Record({
     sources: Map<string, string>(),
     sourcingGenius: false,
     pickingAlbums: false,
+    artworkErroredFor: Set<TrackId>(),
 }) {
     withTracksResponse(j: any[][]): this {
         const orderedTracks = OrderedMap<TrackId, Track>().withMutations((m) => {
