@@ -95,7 +95,7 @@ class TrackContext(object):
         ret = set()
         for name in self.source_playlists:
             ret.update(self.playlists_by_name[name].items())
-        return list(ret)
+        return sorted(ret, key=by_album)
 
     @reify
     def tracklist(self):
@@ -816,6 +816,10 @@ def album_key(track):
 
 def album_track_position(track):
     return track.album().discNumber(), track.trackNumber()
+
+
+def by_album(track):
+    return album_key(track), album_track_position(track)
 
 
 def shuffle_together_album_tracks(rng, albums):
