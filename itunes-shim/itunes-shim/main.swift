@@ -1,6 +1,7 @@
 import Foundation
 import iTunesLibrary
 
+signal(SIGPIPE, SIG_IGN)
 set_argv(CommandLine.argc, CommandLine.unsafeArgv)
 
 var source = """
