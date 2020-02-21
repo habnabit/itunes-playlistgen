@@ -868,15 +868,15 @@ def search_and_choose(f):
                 return results[e - 1]
 
 
-def delete_older(pattern, max_age):
+def delete_older(tracks, pattern, max_age):
     *container, pattern = pattern.splitlines()
-    playlists = scripts.call('contained_playlists', container)
     min_date = datetime.datetime.now() - max_age
     to_delete = []
-    for (name, pid) in playlists:
+    for name, pl in tracks.playlist_children(container).items():
         playlist_date = datetime.datetime.strptime(name, pattern)
         if playlist_date < min_date:
-            to_delete.append(pid)
+            to_delete.append(ppis(pl))
+    click.echo('Deleting {} old playlists.'.format(len(to_delete)))
     scripts.call('delete_playlists', to_delete)
 
 
@@ -945,7 +945,7 @@ def daily_unrecent(tracks, playlist_pattern, delete_older_than):
     tracks.save_selection(selection)
     if delete_older_than is not None:
         delete_older(
-            playlist_pattern, datetime.timedelta(days=delete_older_than))
+            tracks, playlist_pattern, datetime.timedelta(days=delete_older_than))
 
 
 @main.command()

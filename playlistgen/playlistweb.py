@@ -15,7 +15,7 @@ import waitress
 import webbrowser
 from cornice import Service
 from cornice.validators import marshmallow_validator
-from marshmallow import Schema, fields
+from marshmallow import Schema, ValidationError, fields
 from pyramid.config import Configurator
 from pyramid.httpexceptions import HTTPException, HTTPNotFound, HTTPNotImplemented
 from pyramid.request import Request
@@ -120,7 +120,21 @@ class TrackField(fields.Field):
         raise NotImplementedError()
 
     def _deserialize(self, value, attr, data, **kwargs):
-        return self.context['request'].tracks_by_id[value]
+        tracks = self.context['request'].tracks_by_id
+        if value not in tracks:
+            raise ValidationError('no track by this id')
+        return tracks[value]
+
+
+class PlaylistField(fields.Field):
+    def _serialize(self, value, attr, obj, **kwargs):
+        raise NotImplementedError()
+
+    def _deserialize(self, value, attr, data, **kwargs):
+        playlists = self.context['request'].tracks.playlists_by_name
+        if value not in playlists:
+            raise ValidationError('no playlist by this name')
+        return playlists[value]
 
 
 class DelimitedString(fields.Field):
@@ -150,7 +164,7 @@ playlists_service = Service(name='playlists', path='/_api/playlists')
 
 
 class PlaylistsBodySchema(Schema):
-    names = fields.List(fields.String(), missing=())
+    names = fields.List(PlaylistField(), missing=())
 
 
 class PlaylistsSchema(Schema):
@@ -160,26 +174,36 @@ class PlaylistsSchema(Schema):
     body = fields.Nested(PlaylistsBodySchema)
 
 
-@playlists_service.get()
-def tracks(request):
-    return {
-        'playlists': playlistgen.scripts.call('get_playlists'),
-    }
+def _default_playlists(tracks):
+    return [
+        pl
+        for pl in tracks.library.allPlaylists()
+        if pl.kind() in {iTunesLibrary.ITLibPlaylistKindRegular, iTunesLibrary.ITLibPlaylistKindSmart}
+        and pl.distinguishedKind() == iTunesLibrary.ITLibDistinguishedPlaylistKindNone
+        and not pl.name().startswith('<')
+    ]
 
 
-@playlists_service.post(schema=PlaylistsSchema, validators=(marshmallow_validator,))
-def tracks(request):
-    names = request.validated['body']['names']
-    if len(names) > 0:
-        playlists = [request.tracks.playlists_by_name[n] for n in names]
-    else:
-        playlists = request.tracks.library.allPlaylists()
+def _playlists_response(playlists, tracks):
     return {
         'playlists': [
             (pl.name(), [ppis(t) for t in pl.items()])
             for pl in playlists
         ],
     }
+
+
+@playlists_service.get()
+def get_playlists(request):
+    return _playlists_response(_default_playlists(request.tracks), request.tracks)
+
+
+@playlists_service.post(schema=PlaylistsSchema, validators=(marshmallow_validator,))
+def get_specific_playlists(request):
+    playlists = request.validated['body']['names']
+    if len(playlists) == 0:
+        playlists = _default_playlists(request.tracks)
+    return _playlists_response(playlists, request.tracks)
 
 
 tracks_service = Service(name='tracks', path='/_api/tracks')
@@ -280,7 +304,7 @@ modify_playlists_service = Service(name='modify_playlists', path='/_api/modify-p
 
 
 class PlaylistModificationSchema(Schema):
-    name = fields.String(required=True)
+    name = PlaylistField(required=True)
     add = fields.List(TrackField(), missing=())
     remove = fields.List(TrackField(), missing=())
 
@@ -299,17 +323,15 @@ class ModifyPlaylistsSchema(Schema):
 @modify_playlists_service.post(schema=ModifyPlaylistsSchema, validators=(marshmallow_validator,))
 def modify_playlists(request):
     parsed = request.validated['body']
-    all_splut = []
+    all_playlists = []
     for mod in parsed['modifications']:
-        splut = mod['name'].splitlines()
-        all_splut.append(splut)
+        playlist = mod['name']
+        all_playlists.append(playlist)
         playlistgen.scripts.call(
-            'append_tracks', splut, [ppis(t) for t in mod['add']], False)
+            'append_tracks', ppis(playlist), [ppis(t) for t in mod['add']], False)
         playlistgen.scripts.call(
-            'remove_tracks', splut, [ppis(t) for t in mod['remove']])
-    playlists = playlistgen.scripts.call(
-        'get_specific_playlists', all_splut)
-    return {'done': True, 'playlists': playlists}
+            'remove_tracks', ppis(playlist), [ppis(t) for t in mod['remove']])
+    return _playlists_response(all_playlists, request.tracks)
 
 
 save_service = Service(name='save', path='/_api/save')
