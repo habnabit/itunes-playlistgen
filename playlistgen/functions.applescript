@@ -29,26 +29,6 @@ on nested_playlist(plns)
 	end tell
 end nested_playlist
 
-on all_track_pids(pl)
-	tell application "iTunes" to return (the persistent ID of tracks of (the first playlist whose name is pl))
-end all_track_pids
-
-on get_track_batch(pln, firstIndex, lastIndex)
-	tell application "iTunes"
-		set pl to the first playlist whose name is pln
-		return (properties of tracks firstIndex through lastIndex of pl)
-	end tell
-end get_track_batch
-
-on all_tracks(pl)
-	tell application "iTunes" to return (properties of tracks of (the first playlist whose name is pl))
-end all_tracks
-
-on all_tracks_under_duration(pl, l)
-	tell application "iTunes" to Â
-		return (properties of tracks of (the first playlist whose name is pl) whose duration < l)
-end all_tracks_under_duration
-
 on contained_playlists(plns)
 	set plp to my nested_playlist(plns)
 	set pls to {}
@@ -103,13 +83,6 @@ on remove_tracks(plns, tl)
 		end repeat
 	end tell
 end remove_tracks
-
-on get_genius()
-	tell application "iTunes"
-		set pls to every playlist whose name is "Genius Mixes"
-		return the persistent ID of every track of the first item in pls
-	end tell
-end get_genius
 
 on get_playlists()
 	set ret to {}
