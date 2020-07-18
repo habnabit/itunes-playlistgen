@@ -35,6 +35,7 @@ class TrackContext(object):
     start_playing = attr.ib()
     raw_criteria = attr.ib(factory=list)
     rng = attr.ib(default=attr.Factory(random.Random))
+    dry_run = attr.ib(default=False)
 
     @reify
     def library(self):
@@ -117,6 +118,9 @@ class TrackContext(object):
         splut = self.dest_playlist.splitlines()
         click.echo('Putting {} tracks into {!r}.'.format(
             len(persistent_tracks), splut[-1]))
+        if self.dry_run:
+            click.echo('  .. not actually committing the playlist though')
+            return
         scripts.call(
             'fill_tracks', splut, persistent_tracks, self.start_playing)
 
@@ -891,7 +895,10 @@ def delete_older(tracks, pattern, max_age):
 @click.option('-c', '--criterion', type=parse_criterion, multiple=True,
               help='XXX')
 @click.option('-b', '--debug/--no-debug', help='install a pdb trap')
-def main(ctx, source_playlist, dest_playlist, start_playing, criterion, debug):
+@click.option('-n', '--dry-run/--no-dry-run',
+              help="don't actually save playlists")
+def main(ctx, source_playlist, dest_playlist, start_playing, criterion, debug,
+         dry_run):
     """
     Generate iTunes playlists in smarter ways than iTunes can.
     """
@@ -903,7 +910,8 @@ def main(ctx, source_playlist, dest_playlist, start_playing, criterion, debug):
     rng = random.Random()
     ctx.obj = TrackContext(
         source_playlists=source_playlist, dest_playlist=dest_playlist,
-        start_playing=start_playing, raw_criteria=criterion, rng=rng)
+        start_playing=start_playing, raw_criteria=criterion, rng=rng,
+        dry_run=dry_run)
 
 
 @main.command()
