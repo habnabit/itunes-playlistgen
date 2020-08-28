@@ -426,6 +426,7 @@ class CriterionScoreUnrecent:
     unrecentness_days = attr.ib(converter=int)
     bias_recent_adds = attr.ib(default='', converter=lambda s: s.startswith('y'))
     _scores = attr.ib(factory=list)
+    _cumulative = attr.ib(default=0)
 
     def prepare(self, track_map):
         self._scores = list(
@@ -446,9 +447,11 @@ class CriterionScoreUnrecent:
         width = picked if score_index == 0 else picked - self._scores[score_index - 1][0]
         chance = width / top_score
         uniform_chance = 1 / len(self._scores)
+        chance_diff = (chance - uniform_chance) / uniform_chance
+        self._cumulative += chance_diff
         yield Explanation(
-            'score-unrecent: raw score {width:.1g}, {chance:.2%} chance; {chance_diff:+.2%} off uniform',
-            dict(width=width, chance=chance, chance_diff=chance - uniform_chance))
+            'score-unrecent: raw score {width:.1g}, {chance:.2%} chance; {chance_diff:+.2%} off uniform; {cumulative:+.2%} cumulative',
+            dict(width=width, chance=chance, chance_diff=chance_diff, cumulative=self._cumulative))
 
 
 @implementer(IReducerCriterion)
