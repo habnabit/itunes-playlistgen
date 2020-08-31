@@ -13,3 +13,5 @@ def run_python(size, source):
         return e.code
     else:
         return 0
+
+sys.modules['multiprocessing'] = None
