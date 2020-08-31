@@ -45,6 +45,13 @@ class TrackContext(object):
         return itl
 
     @reify
+    def all_songs(self):
+        return [
+            t for t in self.library.allMediaItems()
+            if t.mediaKind() == iTunesLibrary.ITLibMediaItemMediaKindSong
+        ]
+
+    @reify
     def playlists_by_id(self):
         ret = {}
         for pl in self.library.allPlaylists():
@@ -970,6 +977,18 @@ def web(tracks, listen, argv):
 
     from . import playlistweb
     playlistweb.run(tracks, listen, argv)
+
+
+@main.command()
+@click.pass_obj
+@click.argument('token')
+def match(tracks, token):
+    """
+    Match against discogs.
+    """
+
+    from . import _discogs_match
+    _discogs_match.run(tracks, token)
 
 
 @main.command()
