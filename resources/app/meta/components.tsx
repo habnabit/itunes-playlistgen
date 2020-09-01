@@ -3,11 +3,20 @@ import { List } from 'immutable'
 import * as React from 'react'
 import { connect } from 'react-redux'
 import PulseLoader from 'react-spinners/PulseLoader'
+import { onlyUpdateForKeys } from 'recompose'
 import { Dispatch, bindActionCreators } from 'redux'
 
 import * as baseActions from '../actions'
+import { Track } from '../types'
 import * as actions from './actions'
-import { Done, Loaded, Loading, MetaState, OverallState } from './types'
+import {
+    Done,
+    InitialFetch,
+    Loaded,
+    Loading,
+    MetaState,
+    OverallState,
+} from './types'
 
 const fadeInOut = {
     initial: { opacity: 0 },
@@ -21,21 +30,61 @@ const scrollFromTop = {
     layoutTransition: true,
 }
 
+const TrackArtworkComponent = onlyUpdateForKeys(['track', 'errored'])(
+    (props: {
+        track: Track
+        errored: boolean
+        onError: typeof actions.trackArtworkMissing
+    }) => {
+        if (props.errored) {
+            // lovingly taken from http://probablyprogramming.com/2009/03/15/the-tiniest-gif-ever
+            return (
+                <img src="data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs" />
+            )
+        }
+        const id = props.track.id
+        return (
+            <img
+                src={`/_api/track/${id}/artwork`}
+                onError={() => props.onError({ id })}
+            />
+        )
+    },
+)
+
+export const ConnectedTrackArtworkComponent = connect(
+    (top: { meta: MetaState }, { track }: { track: Track }) => ({
+        errored: top.meta.artworkErroredFor.has(track.id),
+    }),
+    (d: Dispatch) =>
+        bindActionCreators(
+            {
+                onError: actions.trackArtworkMissing,
+            },
+            d,
+        ),
+    (props, dispatch, ownProps) => ({ ...props, ...dispatch, ...ownProps }),
+)(TrackArtworkComponent)
+
 class TopComponent extends React.PureComponent<{
     state: OverallState
     errors: List<string>
-    initialPlaylists?: string[]
+    initialFetch: InitialFetch
     fetchArgv: typeof baseActions.fetchArgv.request
     fetchTracks: typeof baseActions.fetchTracks.request
     fetchPlaylists: typeof baseActions.fetchPlaylists.request
     onDismissError: typeof actions.dismissError
 }> {
     componentDidMount() {
-        this.props.fetchArgv()
-        this.props.fetchTracks()
-        this.props.fetchPlaylists({
-            names: this.props.initialPlaylists,
-        })
+        if (this.props.initialFetch.argv !== undefined) {
+            this.props.fetchArgv()
+        }
+        if (this.props.initialFetch.tracks !== undefined) {
+            this.props.fetchTracks()
+        }
+        if (this.props.initialFetch.playlists !== undefined) {
+            this.props.fetchPlaylists(this.props.initialFetch.playlists)
+        }
     }
 
     render() {
@@ -103,7 +152,11 @@ class TopComponent extends React.PureComponent<{
 export const ConnectedTopComponent = connect(
     (top: { meta: MetaState }) => {
         const { state, errors } = top.meta
-        return { state, errors }
+        var initialFetch = {}
+        if (top.meta.state instanceof Loading) {
+            initialFetch = top.meta.state.fetch
+        }
+        return { state, errors, initialFetch }
     },
     (d: Dispatch) =>
         bindActionCreators(

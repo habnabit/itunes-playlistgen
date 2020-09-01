@@ -18,7 +18,7 @@ import albumShuffleReducer from './album-shuffle/reducer'
 import { AlbumShuffleSelector } from './album-shuffle/types'
 import { postJSON } from './funcs'
 import metaReducer from './meta/reducer'
-import { Loaded, Loading, MetaState } from './meta/types'
+import { InitialFetch, Loaded, Loading, MetaState } from './meta/types'
 import timefillEpics from './timefill/epics'
 import timefillReducer from './timefill/reducer'
 import { TimefillSelector } from './timefill/types'
@@ -136,11 +136,10 @@ const combinedEpics = combineEpics(
     whenLoadedEpic,
 )
 
-function makeStore<S>(
-    reducer: Reducer<S>,
+const makeStore = <S>(reducer: Reducer<S>, epics: Epic) => (
     state: DeepPartial<S>,
-    epics: Epic,
-): Store<{ base: S; meta: MetaState }> {
+    fetch: InitialFetch,
+): Store<{ base: S; meta: MetaState }> => {
     const epicMiddleware = createEpicMiddleware()
     const store = createStore(
         combineReducers({
@@ -149,7 +148,7 @@ function makeStore<S>(
         }),
         {
             base: state,
-            meta: new MetaState(),
+            meta: new MetaState(fetch),
         },
         applyMiddleware(epicMiddleware),
     )
@@ -171,7 +170,8 @@ function makeStore<S>(
     return store
 }
 
-export const albumShuffleStore = (state = new AlbumShuffleSelector()) =>
-    makeStore(albumShuffleReducer, state, albumShuffleEpics)
-export const timefillStore = (state = new TimefillSelector()) =>
-    makeStore(timefillReducer, state, timefillEpics)
+export const albumShuffleStore = makeStore(
+    albumShuffleReducer,
+    albumShuffleEpics,
+)
+export const timefillStore = makeStore(timefillReducer, timefillEpics)

@@ -34,12 +34,6 @@ export const hoverTrack = createAction('playlistgen/album-shuffle/hoverTrack')<{
     idx: number
 }>()
 
-export const trackArtworkMissing = createAction(
-    'playlistgen/album-shuffle/trackArtworkMissing',
-)<{
-    id: TrackId
-}>()
-
 export const shuffleTracks = createAsyncAction(
     'playlistgen/album-shuffle/shuffleTracks/request',
     'playlistgen/album-shuffle/shuffleTracks/success',

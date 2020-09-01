@@ -38,11 +38,6 @@ export default function albumShuffleReducer(
                 sel.set('hovered', action.payload.idx),
             )
 
-        case getType(actions.trackArtworkMissing):
-            return state.update('artworkErroredFor', (s) =>
-                s.add(action.payload.id),
-            )
-
         case getType(baseActions.fetchTracks.success):
             return state.withTracksResponse(action.payload.tracks)
 

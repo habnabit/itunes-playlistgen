@@ -6,26 +6,36 @@ import * as ReactDOM from 'react-dom'
 import { Provider } from 'react-redux'
 
 import { ConnectedAlbumShuffleSelectorComponent } from './album-shuffle/components'
+import { AlbumShuffleSelector } from './album-shuffle/types'
 import { ConnectedTopComponent } from './meta/components'
 import * as stores from './redux'
 import { ConnectedTimefillSelectorComponent } from './timefill/components'
-import { selectionPlaylists } from './timefill/types'
+import { TimefillSelector, selectionPlaylists } from './timefill/types'
 
 function makeRootElement(): JSX.Element {
-    var store, component, initialPlaylists
+    var store, component
     if (location.search == '?timefill') {
-        store = stores.timefillStore()
+        store = stores.timefillStore(new TimefillSelector(), {
+            argv: true,
+            tracks: true,
+            playlists: {
+                names: selectionPlaylists.valueSeq().toArray(),
+            },
+        })
         component = <ConnectedTimefillSelectorComponent />
-        initialPlaylists = selectionPlaylists.valueSeq().toArray()
     } else {
-        store = stores.albumShuffleStore()
+        store = stores.albumShuffleStore(new AlbumShuffleSelector(), {
+            argv: true,
+            tracks: true,
+            playlists: {
+                names: ['<sleepytunes'],
+            },
+        })
         component = <ConnectedAlbumShuffleSelectorComponent />
     }
     return (
         <Provider store={store}>
-            <ConnectedTopComponent initialPlaylists={initialPlaylists}>
-                {component}
-            </ConnectedTopComponent>
+            <ConnectedTopComponent>{component}</ConnectedTopComponent>
         </Provider>
     )
 }

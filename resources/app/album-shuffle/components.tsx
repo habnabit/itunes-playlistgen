@@ -8,6 +8,7 @@ import { Dispatch, bindActionCreators } from 'redux'
 
 import * as baseActions from '../actions'
 import { lensFromImplicitAccessors } from '../extlens'
+import { ConnectedTrackArtworkComponent } from '../meta/components'
 import { Album, AlbumId, Track, TrackId } from '../types'
 import * as actions from './actions'
 import { AlbumSelector, AlbumSelectors, AlbumShuffleSelector } from './types'
@@ -214,49 +215,6 @@ const TracksComponent = onlyUpdateForKeys(['tracks', 'colorByAlbum'])(
         )
     },
 )
-
-const TrackArtworkComponent = onlyUpdateForKeys(['track', 'errored'])(
-    (props: {
-        track: Track
-        errored: boolean
-        onError: typeof actions.trackArtworkMissing
-    }) => {
-        if (props.errored) {
-            // lovingly taken from http://probablyprogramming.com/2009/03/15/the-tiniest-gif-ever
-            return (
-                <img src="data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs" />
-            )
-        }
-        const id = props.track.id
-        return (
-            <img
-                src={`/_api/track/${id}/artwork`}
-                onError={() => props.onError({ id })}
-            />
-        )
-    },
-)
-
-export const ConnectedTrackArtworkComponent = connect(
-    (
-        { base: top }: { base: AlbumShuffleSelector },
-        {
-            track,
-        }: {
-            track: Track
-        },
-    ) => ({
-        errored: top.artworkErroredFor.has(track.id),
-    }),
-    (d: Dispatch) =>
-        bindActionCreators(
-            {
-                onError: actions.trackArtworkMissing,
-            },
-            d,
-        ),
-    (props, dispatch, ownProps) => ({ ...props, ...dispatch, ...ownProps }),
-)(TrackArtworkComponent)
 
 const AlbumSelectorComponent = onlyUpdateForKeys([
     'selector',

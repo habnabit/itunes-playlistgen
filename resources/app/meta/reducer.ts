@@ -5,9 +5,13 @@ import * as actions from './actions'
 import { AllActions, Done, Loaded, Loading, MetaState } from './types'
 
 export default function metaReducer(
-    state = new MetaState(),
+    state: MetaState,
     action: AllActions,
 ): MetaState {
+    if (!state) {
+        return null
+    }
+
     switch (action.type) {
         case getType(baseActions.fetchArgv.success): {
             return state.update('state', (s) => {
@@ -51,6 +55,11 @@ export default function metaReducer(
             const { index } = action.payload
             return state.update('errors', (errors) => errors.remove(index))
         }
+
+        case getType(actions.trackArtworkMissing):
+            return state.update('artworkErroredFor', (s) =>
+                s.add(action.payload.id),
+            )
 
         default:
             return state
