@@ -1,6 +1,13 @@
 import * as qs from 'qs'
-import { applyMiddleware, combineReducers, createStore, DeepPartial, Reducer, Store } from 'redux'
-import { combineEpics, createEpicMiddleware, Epic } from 'redux-observable'
+import {
+    DeepPartial,
+    Reducer,
+    Store,
+    applyMiddleware,
+    combineReducers,
+    createStore,
+} from 'redux'
+import { Epic, combineEpics, createEpicMiddleware } from 'redux-observable'
 import { EMPTY, from, of } from 'rxjs'
 import { bufferCount, expand, filter, map, switchMap } from 'rxjs/operators'
 import { ActionType, isActionOf } from 'typesafe-actions'
@@ -18,25 +25,27 @@ import { TimefillSelector } from './timefill/types'
 
 type AllActions = ActionType<typeof actions>
 
-const fetchArgvEpic: Epic<AllActions, AllActions> = (action$) => (
+const fetchArgvEpic: Epic<AllActions, AllActions> = (action$) =>
     action$.pipe(
         filter(isActionOf(actions.fetchArgv.request)),
-        switchMap((action) => from(
-            fetch('/_api/argv')
-                .then((resp) => resp.json())
-                .then(
-                    (json) => actions.fetchArgv.success({json}),
-                    actions.fetchArgv.failure)
-        ))
+        switchMap((action) =>
+            from(
+                fetch('/_api/argv')
+                    .then((resp) => resp.json())
+                    .then(
+                        (json) => actions.fetchArgv.success({ json }),
+                        actions.fetchArgv.failure,
+                    ),
+            ),
+        ),
     )
-)
 
-const fetchTracksEpic: Epic<AllActions, AllActions> = (action$) => (
+const fetchTracksEpic: Epic<AllActions, AllActions> = (action$) =>
     action$.pipe(
         filter(isActionOf(actions.fetchTracks.request)),
         switchMap((action) => {
-            return of({offset: 0, tracks: [], json: undefined}).pipe(
-                expand(({offset, tracks, json}) => {
+            return of({ offset: 0, tracks: [], json: undefined }).pipe(
+                expand(({ offset, tracks, json }) => {
                     if (json) {
                         if (json.tracks.length === 0) {
                             return EMPTY
@@ -45,26 +54,25 @@ const fetchTracksEpic: Epic<AllActions, AllActions> = (action$) => (
                             tracks.push(json.tracks)
                         }
                     }
-                    const params = qs.stringify({offset})
+                    const params = qs.stringify({ offset })
                     return from(
                         fetch('/_api/tracks?' + params)
                             .then((resp) => resp.json())
-                            .then((json) => ({offset, tracks, json}))
+                            .then((json) => ({ offset, tracks, json })),
                     )
                 }),
             )
         }),
-        map(({offset, tracks, json}) => {
+        map(({ offset, tracks, json }) => {
             if (json && json.tracks.length === 0) {
-                return actions.fetchTracks.success({tracks})
+                return actions.fetchTracks.success({ tracks })
             } else {
-                return actions.fetchTracksProgress({offset})
+                return actions.fetchTracksProgress({ offset })
             }
-        })
+        }),
     )
-)
 
-const fetchPlaylistsEpic: Epic<AllActions, AllActions> = (action$) => (
+const fetchPlaylistsEpic: Epic<AllActions, AllActions> = (action$) =>
     action$.pipe(
         filter(isActionOf(actions.fetchPlaylists.request)),
         switchMap((action) => {
@@ -72,42 +80,53 @@ const fetchPlaylistsEpic: Epic<AllActions, AllActions> = (action$) => (
                 fetch('/_api/playlists', postJSON(action.payload))
                     .then((resp) => resp.json())
                     .then(
-                        (json) => actions.fetchPlaylists.success({json}),
-                        actions.fetchPlaylists.failure)
+                        (json) => actions.fetchPlaylists.success({ json }),
+                        actions.fetchPlaylists.failure,
+                    ),
             )
-        })
+        }),
     )
-)
 
-const savePlaylistEpic: Epic<AllActions, AllActions> = (action$) => (
+const savePlaylistEpic: Epic<AllActions, AllActions> = (action$) =>
     action$.pipe(
         filter(isActionOf(actions.savePlaylist.request)),
         switchMap((action) => {
             const { name, tracks } = action.payload
-            const data = {name, tracks: tracks.toSeq().map((t) => t.id).toArray()}
+            const data = {
+                name,
+                tracks: tracks
+                    .toSeq()
+                    .map((t) => t.id)
+                    .toArray(),
+            }
             return from(
                 fetch('/_api/save', postJSON(data))
                     .then((resp) => resp.json())
                     .then(
-                        (json) => actions.savePlaylist.success(),
-                        actions.savePlaylist.failure)
+                        (json) => ({} as never),
+                        actions.savePlaylist.failure,
+                    ),
             )
-        })
+        }),
     )
-)
 
-const whenLoadedEpic: Epic<AllActions, AllActions, {meta: MetaState}> = (action$, state$) => (
+const whenLoadedEpic: Epic<AllActions, AllActions, { meta: MetaState }> = (
+    action$,
+    state$,
+) =>
     state$.pipe(
         bufferCount(2, 1),
         switchMap(([prevState, curState]) => {
             const ret = []
-            if (prevState.meta.state instanceof Loading && curState.meta.state instanceof Loaded) {
+            if (
+                prevState.meta.state instanceof Loading &&
+                curState.meta.state instanceof Loaded
+            ) {
                 ret.push(actions.finishedLoading())
             }
             return of(...ret)
-        })
+        }),
     )
-)
 
 const combinedEpics = combineEpics(
     fetchArgvEpic,
@@ -117,24 +136,42 @@ const combinedEpics = combineEpics(
     whenLoadedEpic,
 )
 
-function makeStore<S>(reducer: Reducer<S>, state: DeepPartial<S>, epics: Epic): Store<{base: S, meta: MetaState}> {
+function makeStore<S>(
+    reducer: Reducer<S>,
+    state: DeepPartial<S>,
+    epics: Epic,
+): Store<{ base: S; meta: MetaState }> {
     const epicMiddleware = createEpicMiddleware()
-    const store = createStore(combineReducers({
-        base: reducer,
-        meta: metaReducer,
-    }), {
-        base: state,
-        meta: new MetaState(),
-    }, applyMiddleware(epicMiddleware))
+    const store = createStore(
+        combineReducers({
+            base: reducer,
+            meta: metaReducer,
+        }),
+        {
+            base: state,
+            meta: new MetaState(),
+        },
+        applyMiddleware(epicMiddleware),
+    )
 
     epicMiddleware.run(combinedEpics)
     epicMiddleware.run(epics)
 
-    addEventListener('keydown', (ev) => store.dispatch(actions.changeKey({key: ev.key.toLowerCase(), down: true})))
-    addEventListener('keyup', (ev) => store.dispatch(actions.changeKey({key: ev.key.toLowerCase(), down: false})))
+    addEventListener('keydown', (ev) =>
+        store.dispatch(
+            actions.changeKey({ key: ev.key.toLowerCase(), down: true }),
+        ),
+    )
+    addEventListener('keyup', (ev) =>
+        store.dispatch(
+            actions.changeKey({ key: ev.key.toLowerCase(), down: false }),
+        ),
+    )
 
     return store
 }
 
-export const albumShuffleStore = (state = new AlbumShuffleSelector()) => makeStore(albumShuffleReducer, state, albumShuffleEpics)
-export const timefillStore = (state = new TimefillSelector()) => makeStore(timefillReducer, state, timefillEpics)
+export const albumShuffleStore = (state = new AlbumShuffleSelector()) =>
+    makeStore(albumShuffleReducer, state, albumShuffleEpics)
+export const timefillStore = (state = new TimefillSelector()) =>
+    makeStore(timefillReducer, state, timefillEpics)

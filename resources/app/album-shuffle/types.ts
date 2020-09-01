@@ -4,7 +4,14 @@ import { ActionType } from 'typesafe-actions'
 
 import * as baseActions from '../actions'
 import { lensFromImplicitAccessors } from '../extlens'
-import { Album, AlbumId, collateAlbums, isoTrackId, Track, TrackId } from '../types'
+import {
+    Album,
+    AlbumId,
+    Track,
+    TrackId,
+    collateAlbums,
+    isoTrackId,
+} from '../types'
 import * as actions from './actions'
 
 export type AllActions = ActionType<typeof baseActions | typeof actions>
@@ -13,9 +20,7 @@ export class AlbumSelector extends Record({
     selected: false,
     fading: false,
     album: undefined as Album,
-}) {
-
-}
+}) {}
 
 export class AlbumSelectors extends Record({
     selectors: List<AlbumSelector>(),
@@ -24,12 +29,13 @@ export class AlbumSelectors extends Record({
     hovered: undefined as number,
 }) {
     withShuffleResponse(shuffled: List<Track>, shuffleInfo: any): this {
-        return this.merge({shuffled, shuffleInfo})
+        return this.merge({ shuffled, shuffleInfo })
     }
 
     withoutAlbum(album: AlbumId): this {
         return this.update('selectors', (selsList) =>
-            selsList.filter((sel) => sel.album.id != album))
+            selsList.filter((sel) => sel.album.id != album),
+        )
     }
 }
 
@@ -47,17 +53,19 @@ export class AlbumShuffleSelector extends Record({
     artworkErroredFor: Set<TrackId>(),
 }) {
     withTracksResponse(j: any[][]): this {
-        const orderedTracks = OrderedMap<TrackId, Track>().withMutations((m) => {
-            for (const ts of j) {
-                for (const t of ts) {
-                    const track = new Track(t)
-                    m.set(track.id, track)
+        const orderedTracks = OrderedMap<TrackId, Track>().withMutations(
+            (m) => {
+                for (const ts of j) {
+                    for (const t of ts) {
+                        const track = new Track(t)
+                        m.set(track.id, track)
+                    }
                 }
-            }
-        })
+            },
+        )
         const tracks = orderedTracks.toMap()
         const albums = collateAlbums(orderedTracks.values())
-        return this.merge({tracks, albums})
+        return this.merge({ tracks, albums })
     }
 
     withPlaylistsResponse(j: any): this {
@@ -79,19 +87,29 @@ export class AlbumShuffleSelector extends Record({
             searchResults = this.albums
                 .valueSeq()
                 .filter((album) => album.nameLower.includes(needle))
-                .map((album) => new AlbumSelector({album}))
+                .map((album) => new AlbumSelector({ album }))
                 .toList()
         }
-        return this.merge({activeSearch, searchResults})
+        return this.merge({ activeSearch, searchResults })
     }
 
-    allSelected(): Seq.Indexed<[AlbumSelector, Lens<AlbumShuffleSelector, AlbumSelector>]> {
-        return this.searchResults.valueSeq()
+    allSelected(): Seq.Indexed<
+        [AlbumSelector, Lens<AlbumShuffleSelector, AlbumSelector>]
+    > {
+        return this.searchResults
+            .valueSeq()
             .map((sel, e) => {
-                const lens1: Lens<AlbumShuffleSelector, List<AlbumSelector>> = new Lens(
+                const lens1: Lens<
+                    AlbumShuffleSelector,
+                    List<AlbumSelector>
+                > = new Lens(
                     (o) => o.get('searchResults', undefined),
-                    (v) => (o) => o.set('searchResults', v))
-                const lens2: Lens<AlbumShuffleSelector, AlbumSelector> = lens1.compose(lensFromImplicitAccessors(e))
+                    (v) => (o) => o.set('searchResults', v),
+                )
+                const lens2: Lens<
+                    AlbumShuffleSelector,
+                    AlbumSelector
+                > = lens1.compose(lensFromImplicitAccessors(e))
                 return [sel, lens2] as [AlbumSelector, null]
             })
             .filter(([sel, _lens]) => sel.selected)
@@ -103,11 +121,12 @@ export class AlbumShuffleSelector extends Record({
 
     addSelection(): this {
         const newSelectors = this.allSelected()
-            .map(([sel, _lens]) => new AlbumSelector({album: sel.album}))
+            .map(([sel, _lens]) => new AlbumSelector({ album: sel.album }))
             .toList()
         return this.update('selectors', (sels) =>
             sels.update('selectors', (selsList) =>
-                selsList.concat(newSelectors))
+                selsList.concat(newSelectors),
+            ),
         ).clearSelected()
     }
 

@@ -1,17 +1,18 @@
 import { List, Map, Record } from 'immutable'
-import { iso, Newtype } from 'newtype-ts'
+import { Newtype, iso } from 'newtype-ts'
 import { CustomError } from 'ts-custom-error'
 
 import * as actions from './actions'
-
 
 export type SubsetKeys<T, S> = {
     [P in keyof T]: T[P] extends S ? P : never
 }[keyof T]
 
-export interface TrackId extends Newtype<{ readonly TrackId: unique symbol }, string> {}
+export interface TrackId
+    extends Newtype<{ readonly TrackId: unique symbol }, string> {}
 export const isoTrackId = iso<TrackId>()
-export interface AlbumId extends Newtype<{ readonly AlbumId: unique symbol }, string> {}
+export interface AlbumId
+    extends Newtype<{ readonly AlbumId: unique symbol }, string> {}
 export const isoAlbumId = iso<AlbumId>()
 
 export type RawTrack = {
@@ -32,12 +33,24 @@ export class Track {
         this.raw = raw
     }
 
-    get id() { return isoTrackId.wrap(this.raw.ppis) }
-    get albumId() { return isoAlbumId.wrap(this.raw.albumPpis) }
-    get title() { return this.raw.title }
-    get artist() { return this.raw.artist }
-    get album() { return this.raw.album }
-    get totalTime() { return this.raw.totalTime }
+    get id() {
+        return isoTrackId.wrap(this.raw.ppis)
+    }
+    get albumId() {
+        return isoAlbumId.wrap(this.raw.albumPpis)
+    }
+    get title() {
+        return this.raw.title
+    }
+    get artist() {
+        return this.raw.artist
+    }
+    get album() {
+        return this.raw.album
+    }
+    get totalTime() {
+        return this.raw.totalTime
+    }
 
     asAlbum(): Album {
         const nameLower = (this.album + ' ' + this.artist).toLowerCase()
@@ -66,20 +79,26 @@ export class Album extends Record({
     }
 }
 
-export function collateAlbums(tracks: IterableIterator<Track>, collated: Map<AlbumId, Album> = Map()): Map<AlbumId, Album> {
+export function collateAlbums(
+    tracks: IterableIterator<Track>,
+    collated: Map<AlbumId, Album> = Map(),
+): Map<AlbumId, Album> {
     return collated.withMutations((collated) => {
         for (const t of tracks) {
             collated.update(t.albumId, undefined, (album) =>
-                (album || t.asAlbum()).withTrack(t))
+                (album || t.asAlbum()).withTrack(t),
+            )
         }
     })
 }
 
-export type KeyboardEvents = {onFocus: () => void, onBlur: () => void}
-export function keyboardEvents(dispatch: {onKeyboardAvailable: typeof actions.setKeyboardAvailability}): KeyboardEvents {
+export type KeyboardEvents = { onFocus: () => void; onBlur: () => void }
+export function keyboardEvents(dispatch: {
+    onKeyboardAvailable: typeof actions.setKeyboardAvailability
+}): KeyboardEvents {
     return {
-        onFocus: () => dispatch.onKeyboardAvailable({available: false}),
-        onBlur: () => dispatch.onKeyboardAvailable({available: true}),
+        onFocus: () => dispatch.onKeyboardAvailable({ available: false }),
+        onBlur: () => dispatch.onKeyboardAvailable({ available: true }),
     }
 }
 

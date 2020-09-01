@@ -1,44 +1,82 @@
 import { List } from 'immutable'
-import { createAsyncAction, createStandardAction } from 'typesafe-actions'
+import { createAction, createAsyncAction } from 'typesafe-actions'
 
 import { Track } from './types'
 
-export const performSearch = createStandardAction('playlistgen/performSearch')()
+export const performSearch = createAction('playlistgen/performSearch')()
 
-export const setKeyboardAvailability = createStandardAction('playlistgen/setKeyboardAvailability')<{
+export const setKeyboardAvailability = createAction(
+    'playlistgen/setKeyboardAvailability',
+)<{
     available: boolean
 }>()
 
-export const changeKey = createStandardAction('playlistgen/changeKey')<{
+export const changeKey = createAction('playlistgen/changeKey')<{
     key: string
     down: boolean
 }>()
 
-export const showError = createStandardAction('playlistgen/showError')<Error>()
+export const showError = createAction('playlistgen/showError')<Error>()
 
-export const setHash = createStandardAction('playlistgen/setHash')<void>()
+export const setHash = createAction('playlistgen/setHash')<void>()
 
-export const fetchArgv = createAsyncAction('playlistgen/fetchArgv/request', 'playlistgen/fetchArgv/success', 'playlistgen/fetchArgv/failure')<void, {
-    json: any
-}, Error>()
+export const fetchArgv = createAsyncAction(
+    'playlistgen/fetchArgv/request',
+    'playlistgen/fetchArgv/success',
+    'playlistgen/fetchArgv/failure',
+)<
+    void,
+    {
+        json: any
+    },
+    Error
+>()
 
-export const fetchTracks = createAsyncAction('playlistgen/fetchTracks/request', 'playlistgen/fetchTracks/success', 'playlistgen/fetchTracks/failure')<void, {
-    tracks: any[][]
-}, Error>()
+export const fetchTracks = createAsyncAction(
+    'playlistgen/fetchTracks/request',
+    'playlistgen/fetchTracks/success',
+    'playlistgen/fetchTracks/failure',
+)<
+    void,
+    {
+        tracks: any[][]
+    },
+    Error
+>()
 
-export const fetchTracksProgress = createStandardAction('playlistgen/fetchTracks/progress')<{
+export const fetchTracksProgress = createAction(
+    'playlistgen/fetchTracks/progress',
+)<{
     offset: number
 }>()
 
-export const fetchPlaylists = createAsyncAction('playlistgen/fetchPlaylists/request', 'playlistgen/fetchPlaylists/success', 'playlistgen/fetchPlaylists/failure')<{
-    names?: string[]
-}, {
-    json: any
-}, Error>()
+export const fetchPlaylists = createAsyncAction(
+    'playlistgen/fetchPlaylists/request',
+    'playlistgen/fetchPlaylists/success',
+    'playlistgen/fetchPlaylists/failure',
+)<
+    {
+        names?: string[]
+    },
+    {
+        json: any
+    },
+    Error
+>()
 
-export const finishedLoading = createStandardAction('playlistgen/finishedLoading')<void>()
+export const finishedLoading = createAction('playlistgen/finishedLoading')<
+    void
+>()
 
-export const savePlaylist = createAsyncAction('playlistgen/savePlaylist/request', 'playlistgen/savePlaylist/success', 'playlistgen/savePlaylist/failure')<{
-    name: string
-    tracks: List<Track>
-}, never, Error>()
+export const savePlaylist = createAsyncAction(
+    'playlistgen/savePlaylist/request',
+    'playlistgen/savePlaylist/success',
+    'playlistgen/savePlaylist/failure',
+)<
+    {
+        name: string
+        tracks: List<Track>
+    },
+    never,
+    Error
+>()

@@ -1,15 +1,23 @@
-import { fromNullable } from 'fp-ts/lib/Option'
+import { Option, fromNullable, map } from 'fp-ts/lib/Option'
 import { List, Record } from 'immutable'
 import { Lens, Optional } from 'monocle-ts'
 
-export function lensFromRecordProp<TProps, T extends Record<TProps>, P extends keyof TProps>(prop: P): Lens<T, TProps[P]> {
-    return new Lens((r) => r.get(prop, undefined), (v) => (r) => r.set(prop, v))
+export function lensFromRecordProp<
+    TProps,
+    T extends Record<TProps>,
+    P extends keyof TProps
+>(prop: P): Lens<T, TProps[P]> {
+    return new Lens(
+        (r) => r.get(prop, undefined),
+        (v) => (r) => r.set(prop, v),
+    )
 }
 
 export function lensFromListIndex<T>(index: number): Lens<List<T>, T> {
     return new Lens(
         (a: List<T>) => a.get(index),
-        (v: T) => (a: List<T>) => a.set(index, v))
+        (v: T) => (a: List<T>) => a.set(index, v),
+    )
 }
 
 export function lensFromIndex<T>(index: number): Lens<T[], T> {
@@ -19,7 +27,8 @@ export function lensFromIndex<T>(index: number): Lens<T[], T> {
             const a_ = a.slice()
             a_[index] = v
             return a_
-        })
+        },
+    )
 }
 
 interface ImplicitAccessors<K, V> {
@@ -27,8 +36,15 @@ interface ImplicitAccessors<K, V> {
     set(key: K, value: V): this
 }
 
-export function lensFromImplicitAccessors<K, V, T extends ImplicitAccessors<K, V>>(key: K): Lens<T, V> {
-    return new Lens((o) => o.get(key), (v) => (o) => o.set(key, v))
+export function lensFromImplicitAccessors<
+    K,
+    V,
+    T extends ImplicitAccessors<K, V>
+>(key: K): Lens<T, V> {
+    return new Lens(
+        (o) => o.get(key),
+        (v) => (o) => o.set(key, v),
+    )
 }
 
 interface NullableImplicitAccessors<K, V> {
@@ -36,12 +52,26 @@ interface NullableImplicitAccessors<K, V> {
     set(key: K, value: V): this
 }
 
-export function lensFromNullableImplicitAccessorsAndConstructor<K, V, T extends NullableImplicitAccessors<K, V>>(key: K, constructor: () => V): Lens<T, V> {
-    return new Lens((o) => o.get(key) || constructor(), (v: V) => (o: T) => o.set(key, v))
+export function lensFromNullableImplicitAccessorsAndConstructor<
+    K,
+    V,
+    T extends NullableImplicitAccessors<K, V>
+>(key: K, constructor: () => V): Lens<T, V> {
+    return new Lens(
+        (o) => o.get(key) || constructor(),
+        (v: V) => (o: T) => o.set(key, v),
+    )
 }
 
-export function optionalFromNullableImplicitAccessors<K, V, T extends NullableImplicitAccessors<K, V>>(key: K): Optional<T, V> {
-    return new Optional((o) => fromNullable(o.get(key)), (v: V) => (o: T) => o.set(key, v))
+export function optionalFromNullableImplicitAccessors<
+    K,
+    V,
+    T extends NullableImplicitAccessors<K, V>
+>(key: K): Optional<T, V> {
+    return new Optional(
+        (o: T) => fromNullable(o.get(key)) as Option<V>,
+        (v: V) => (o: T) => o.set(key, v),
+    )
 }
 
 export class ComponentLens<P, S, C extends React.Component<P, S>, A> {

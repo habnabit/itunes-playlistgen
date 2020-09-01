@@ -1,37 +1,55 @@
 import { List } from 'immutable'
 import { Lens } from 'monocle-ts'
-import { createAsyncAction, createStandardAction } from 'typesafe-actions'
+import { createAction, createAsyncAction } from 'typesafe-actions'
 
 import { AlbumId, SubsetKeys, Track, TrackId } from '../types'
 import { AlbumSelector, AlbumSelectors, AlbumShuffleSelector } from './types'
 
-export const toggleAlbumSelected = createStandardAction('playlistgen/album-shuffle/toggleAlbumSelected')<{
+export const toggleAlbumSelected = createAction(
+    'playlistgen/album-shuffle/toggleAlbumSelected',
+)<{
     lens: Lens<AlbumShuffleSelector, AlbumSelector>
 }>()
 
-export const removeAlbum = createStandardAction('playlistgen/album-shuffle/removeAlbum')<{
+export const removeAlbum = createAction(
+    'playlistgen/album-shuffle/removeAlbum',
+)<{
     album: AlbumId
 }>()
 
-export const addSelection = createStandardAction('playlistgen/album-shuffle/addSelection')()
+export const addSelection = createAction(
+    'playlistgen/album-shuffle/addSelection',
+)()
 
-export const changeControl = createStandardAction('playlistgen/album-shuffle/controlChange')<{
+export const changeControl = createAction(
+    'playlistgen/album-shuffle/controlChange',
+)<{
     prop: SubsetKeys<AlbumShuffleSelector, string>
     value: string
 }>()
 
-export const performSearch = createStandardAction('playlistgen/performSearch')()
+export const performSearch = createAction('playlistgen/performSearch')()
 
-export const hoverTrack = createStandardAction('playlistgen/album-shuffle/hoverTrack')<{
+export const hoverTrack = createAction('playlistgen/album-shuffle/hoverTrack')<{
     idx: number
 }>()
 
-export const trackArtworkMissing = createStandardAction('playlistgen/album-shuffle/trackArtworkMissing')<{
+export const trackArtworkMissing = createAction(
+    'playlistgen/album-shuffle/trackArtworkMissing',
+)<{
     id: TrackId
 }>()
 
-export const shuffleTracks = createAsyncAction('playlistgen/album-shuffle/shuffleTracks/request', 'playlistgen/album-shuffle/shuffleTracks/success', 'playlistgen/album-shuffle/shuffleTracks/failure')<{
-    tracks: List<Track>
-}, {
-    json: any
-}, Error>()
+export const shuffleTracks = createAsyncAction(
+    'playlistgen/album-shuffle/shuffleTracks/request',
+    'playlistgen/album-shuffle/shuffleTracks/success',
+    'playlistgen/album-shuffle/shuffleTracks/failure',
+)<
+    {
+        tracks: List<Track>
+    },
+    {
+        json: any
+    },
+    Error
+>()
