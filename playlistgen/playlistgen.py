@@ -36,6 +36,7 @@ class TrackContext(object):
     raw_criteria = attr.ib(factory=list)
     rng = attr.ib(default=attr.Factory(random.Random))
     dry_run = attr.ib(default=False)
+    discogs_token = attr.ib(default=None)
 
     @reify
     def library(self):
@@ -907,8 +908,9 @@ def delete_older(tracks, pattern, max_age):
 @click.option('-b', '--debug/--no-debug', help='install a pdb trap')
 @click.option('-n', '--dry-run/--no-dry-run',
               help="don't actually save playlists")
-def main(ctx, source_playlist, dest_playlist, start_playing, criterion, debug,
-         dry_run):
+@click.option('-t', '--discogs-token', metavar='TOKEN', envvar='DISCOGS_TOKEN',
+              help='Discogs user token.')
+def main(ctx, source_playlist, criterion, debug, **kw):
     """
     Generate iTunes playlists in smarter ways than iTunes can.
     """
@@ -919,9 +921,8 @@ def main(ctx, source_playlist, dest_playlist, start_playing, criterion, debug,
 
     rng = random.Random()
     ctx.obj = TrackContext(
-        source_playlists=source_playlist, dest_playlist=dest_playlist,
-        start_playing=start_playing, raw_criteria=criterion, rng=rng,
-        dry_run=dry_run)
+        source_playlists=source_playlist, raw_criteria=criterion, rng=rng,
+        **kw)
 
 
 @main.command()
@@ -981,8 +982,7 @@ def web(tracks, listen, argv):
 
 @main.command()
 @click.pass_obj
-@click.argument('token')
-def match(tracks, token):
+def match(tracks):
     """
     Match against discogs.
     """

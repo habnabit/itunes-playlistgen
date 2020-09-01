@@ -5,6 +5,7 @@ import attr
 import datetime
 import functools
 import iTunesLibrary
+import json
 import logging
 import marshmallow
 import numpy
@@ -23,7 +24,7 @@ from pyramid.response import Response
 from pyramid.renderers import JSON
 from pyramid.view import view_config
 
-from . import playlistgen
+from . import _discogs_match, playlistgen
 from .playlistgen import ppis
 
 log = logging.getLogger(__name__)
@@ -64,12 +65,15 @@ def serialize_itunes(obj, *a, **kw):
 
 
 def track_methods(tracks, argv):
-    tracks_by_id = {ppis(t): t for t in tracks.tracklist}
+    tracks_by_id = {ppis(t): t for t in tracks.all_songs}
 
     def configurate(config):
         config.add_request_method(lambda _: argv, name='web_argv', reify=True)
         config.add_request_method(lambda _: tracks, name='tracks', reify=True)
         config.add_request_method(lambda _: tracks_by_id, name='tracks_by_id', reify=True)
+        config.add_request_method(
+            lambda _: _discogs_match.Matcher.from_tracks(tracks),
+            name='discogs_matcher', reify=True)
 
     return configurate
 
@@ -113,6 +117,20 @@ def track_artwork(request):
     return Response(
         body=artwork.imageData().bytes(),
         content_type=content_type)
+
+
+@view_config(route_name='unconfirmed_albums', renderer='json')
+def unconfirmed_albums(request):
+    m = request.discogs_matcher
+    albums = m.group_by('album')
+    rows = list(m.unconfirmed_albums())
+    for row in rows:
+        row['album_discogs_id'] = row.pop('id')
+        if row['discogs_data'] is not None:
+            row['discogs_data'] = json.loads(row['discogs_data'])
+        group = albums[row['album_pid']]
+        row['tracks'] = group.tracks
+    return {'albums': rows}
 
 
 class TrackField(fields.Field):
@@ -386,6 +404,7 @@ def build_app(tracks, argv):
             config.add_route('web_argv', 'argv')
             config.add_route('genius_albums', 'genius-albums')
             config.add_route('track_artwork', 'track/{id}/artwork')
+            config.add_route('unconfirmed_albums', 'unconfirmed/albums')
             config.add_exception_view(api_exception_view, renderer='json')
 
         app = config.make_wsgi_app()

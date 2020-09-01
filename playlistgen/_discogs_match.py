@@ -81,6 +81,13 @@ class Matcher:
     rate_limiter = attr.ib()
     db = attr.ib()
 
+    @classmethod
+    def from_tracks(cls, tracks):
+        d = discogs_client.Client(
+            'playlistgen/0.1', user_token=tracks.discogs_token)
+        db = dataset.connect('sqlite:///discogs.db')
+        return cls(tracks=tracks, client=d, rate_limiter=RateLimiter(d), db=db)
+
     @property
     def rate_limited(self):
         return self.rate_limiter.rate_limited
@@ -252,6 +259,15 @@ class Matcher:
                     'discogs_data': self.db.types.json,
                 })
                 yield artist
+
+    def unconfirmed_albums(self):
+        return self.db.query("""
+            select *
+            from album_discogs
+            join albums using (album_pid)
+            where not album_discogs.confirmed
+            limit 250
+        """)
 
 
 def run(tracks, token):

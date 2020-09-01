@@ -16,6 +16,9 @@ import * as actions from './actions'
 import albumShuffleEpics from './album-shuffle/epics'
 import albumShuffleReducer from './album-shuffle/reducer'
 import { AlbumShuffleSelector } from './album-shuffle/types'
+import discogsEpics from './discogs-matcher/epics'
+import discogsReducer from './discogs-matcher/reducer'
+import { DiscogsSelector } from './discogs-matcher/types'
 import { postJSON } from './funcs'
 import metaReducer from './meta/reducer'
 import { InitialFetch, Loaded, Loading, MetaState } from './meta/types'
@@ -175,3 +178,4 @@ export const albumShuffleStore = makeStore(
     albumShuffleEpics,
 )
 export const timefillStore = makeStore(timefillReducer, timefillEpics)
+export const discogsStore = makeStore(discogsReducer, discogsEpics)

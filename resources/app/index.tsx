@@ -7,6 +7,8 @@ import { Provider } from 'react-redux'
 
 import { ConnectedAlbumShuffleSelectorComponent } from './album-shuffle/components'
 import { AlbumShuffleSelector } from './album-shuffle/types'
+import { ConnectedDiscogsMatcherSelectorComponent } from './discogs-matcher/components'
+import { DiscogsSelector } from './discogs-matcher/types'
 import { ConnectedTopComponent } from './meta/components'
 import * as stores from './redux'
 import { ConnectedTimefillSelectorComponent } from './timefill/components'
@@ -23,6 +25,11 @@ function makeRootElement(): JSX.Element {
             },
         })
         component = <ConnectedTimefillSelectorComponent />
+    } else if (location.search == '?discogs') {
+        store = stores.discogsStore(new DiscogsSelector(), {
+            argv: true,
+        })
+        component = <ConnectedDiscogsMatcherSelectorComponent />
     } else {
         store = stores.albumShuffleStore(new AlbumShuffleSelector(), {
             argv: true,
