@@ -16,7 +16,46 @@ import * as actions from './actions'
 
 export type AllActions = ActionType<typeof baseActions | typeof actions>
 
-export type UnconfirmedAlbum = {
+export type DiscogsMaster = {
+    artists: {
+        id: number
+        name: string
+    }[]
+    data_quality: string
+    id: number
+    images: {
+        uri150: string
+    }[]
+    title: string
+    tracklist: {
+        title: string
+        position: string
+        type_: string
+    }[]
+    uri: string
+}
+
+export class UnconfirmedAlbum extends Record({
+    albumDiscogsId: 0,
+    albumId: undefined as AlbumId,
+    artist: '',
+    title: '',
+    discogsData: {} as DiscogsMaster,
+    tracks: List<Track>(),
+}) {
+    constructor(raw: RawUnconfirmedAlbum) {
+        super({
+            albumDiscogsId: raw.album_discogs_id,
+            albumId: raw.album_pid,
+            artist: raw.artist,
+            title: raw.title,
+            discogsData: raw.discogs_data,
+            tracks: List(raw.tracks).map((raw) => new Track(raw)),
+        })
+    }
+}
+
+type RawUnconfirmedAlbum = {
     album_discogs_id: number
     album_pid: AlbumId
     artist: string
@@ -26,13 +65,21 @@ export type UnconfirmedAlbum = {
 }
 
 type UnconfirmedAlbums = {
-    albums: UnconfirmedAlbum[]
+    albums: RawUnconfirmedAlbum[]
 }
 
 export class DiscogsSelector extends Record({
     unconfirmedAlbums: List<UnconfirmedAlbum>(),
+    albumCounts: Map<AlbumId, number>(),
 }) {
     withUnconfirmedAlbums(results: UnconfirmedAlbums): this {
-        return this.set('unconfirmedAlbums', List(results.albums))
+        const unconfirmedAlbums = List(results.albums).map(
+            (raw) => new UnconfirmedAlbum(raw),
+        )
+        const albumCounts = unconfirmedAlbums
+            .groupBy((a) => a.albumId)
+            .map((c) => c.count())
+            .toMap()
+        return this.merge({ unconfirmedAlbums, albumCounts })
     }
 }

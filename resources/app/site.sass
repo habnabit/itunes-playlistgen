@@ -197,3 +197,38 @@ ul.tracklist, ol.tracklist
   &.alert-leave-active
     opacity: 0.01
     transition: opacity 0.1s ease-in
+
+.comparison
+  display: grid
+  grid-template-columns: repeat(2, 1fr)
+  grid-gap: 0.5em
+
+  border: 2px outset
+  padding: 0.5em
+  margin: 0.5em
+
+  img
+    min-width: 2.5em
+    height: 150px
+  > *
+    &.img-left img
+      float: left
+    &.img-right img
+      float: right
+
+  h3
+    text-align: center
+
+  ol
+    clear: both
+    padding-inline-start: 0
+    padding: 1em 0 0 2.5em
+    margin: 0
+
+.discogs-controls
+  input
+    width: 1.5em
+
+  button
+    padding: 0.5em 1em
+    margin: 0.5em 0 0 0.5em

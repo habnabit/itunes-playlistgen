@@ -22,6 +22,7 @@ export type RawTrack = {
     title: string
     artist: string
     album: string
+    trackNumber: number
 
     totalTime: number
 }
@@ -47,6 +48,9 @@ export class Track {
     }
     get album() {
         return this.raw.album
+    }
+    get trackNumber() {
+        return this.raw.trackNumber
     }
     get totalTime() {
         return this.raw.totalTime

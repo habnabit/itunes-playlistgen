@@ -44,6 +44,7 @@ def itunes_as_json(obj):
             'title': obj.title(),
             'artist': obj.artist().name(),
             'album': obj.album().title(),
+            'trackNumber': obj.trackNumber(),
 
             'totalTime': obj.totalTime() / 1000,
         }
@@ -123,6 +124,8 @@ def track_artwork(request):
 def unconfirmed_albums(request):
     m = request.discogs_matcher
     albums = m.group_by('album')
+    for group in albums.values():
+        group.tracks.sort(key=playlistgen.album_track_position)
     rows = list(m.unconfirmed_albums())
     for row in rows:
         row['album_discogs_id'] = row.pop('id')

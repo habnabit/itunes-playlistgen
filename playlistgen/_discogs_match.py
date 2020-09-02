@@ -38,7 +38,7 @@ class RateLimiter:
 
     @property
     def rate_limit_used(self):
-        return int(getattr(self.client._fetcher, 'rate_limit_used', '0'))
+        return int(self.client._fetcher.rate_limit_used)
 
     @property
     def rate_limit_remaining(self):
@@ -85,6 +85,7 @@ class Matcher:
     def from_tracks(cls, tracks):
         d = discogs_client.Client(
             'playlistgen/0.1', user_token=tracks.discogs_token)
+        click.echo('whoami: {!r}'.format(d.identity()))
         db = dataset.connect('sqlite:///discogs.db')
         return cls(tracks=tracks, client=d, rate_limiter=RateLimiter(d), db=db)
 
@@ -123,6 +124,35 @@ class Matcher:
             'title': album.title(),
             'artist': album.albumArtist() or album_group.find_likely_artist(),
         }, ['album_pid'])
+
+    def refetch_albums(self):
+        data_table = self.db.load_table('album_discogs')
+        to_load = list(self.db.query("""
+            select id, discogs_id, album_pid from album_discogs
+            where discogs_id is not null
+        """))
+        bar = tqdm(to_load, unit='album')
+        for album in bar:
+            with self.rate_limited():
+                self._refetch_album(data_table, album)
+            bar.set_description(f'rate limit at {self.rate_limiter.rate_limit_remaining}')
+
+    def _refetch_album(self, data_table, album):
+        master = self.client.master(album['discogs_id'])
+        try:
+            master.refresh()
+        except discogs_client.exceptions.HTTPError as e:
+            if e.status_code != 404:
+                raise
+            return
+        data_table.upsert({
+            'id': album['id'],
+            'album_pid': album['album_pid'],
+            'discogs_id': master.id,
+            'discogs_data': master.data,
+        }, keys=['id'], types={
+            'discogs_data': self.db.types.json,
+        })
 
     def refresh_albums(self):
         data_table = self.db.load_table('album_discogs')
@@ -266,19 +296,17 @@ class Matcher:
             from album_discogs
             join albums using (album_pid)
             where not album_discogs.confirmed
-            limit 250
+            limit 25
         """)
 
 
-def run(tracks, token):
-    d = discogs_client.Client('playlistgen/0.1', user_token=token)
-    click.echo('whoami: {!r}'.format(d.identity()))
-    db = dataset.connect('sqlite:///discogs.db')
-    m = Matcher(tracks=tracks, client=d, rate_limiter=RateLimiter(d), db=db)
+def run(tracks):
+    m = Matcher.from_tracks(tracks)
     m.ensure_tables()
+    m.refetch_albums()
+    return
     m.refresh_artists()
     m.refresh_albums()
-    return
     for album in tqdm(m.group_by('album').values()):
         m.upsert_album(album)
     for artist in tqdm(m.group_by('artist').values()):

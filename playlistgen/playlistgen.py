@@ -988,7 +988,7 @@ def match(tracks):
     """
 
     from . import _discogs_match
-    _discogs_match.run(tracks, token)
+    _discogs_match.run(tracks)
 
 
 @main.command()
