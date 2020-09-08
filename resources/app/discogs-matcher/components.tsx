@@ -7,7 +7,11 @@ import { onlyUpdateForKeys, pure } from 'recompose'
 import { Dispatch, bindActionCreators } from 'redux'
 
 import * as baseActions from '../actions'
-import { lensFromImplicitAccessors } from '../extlens'
+import {
+    lensFromImplicitAccessors,
+    lensFromRecordProp,
+    lensFromNullableImplicitAccessorsAndConstructor,
+} from '../extlens'
 import { ConnectedTrackArtworkComponent } from '../meta/components'
 import {
     KeyboardEvents,
@@ -18,7 +22,12 @@ import {
     isoAlbumId,
 } from '../types'
 import * as actions from './actions'
-import { DiscogsSelector, UnconfirmedAlbum, DiscogsMaster } from './types'
+import {
+    DiscogsSelector,
+    UnconfirmedAlbum,
+    DiscogsMaster,
+    AlbumReselector,
+} from './types'
 
 const DiscogsMaster = pure((props: { master: DiscogsMaster }) => {
     const m = props.master
@@ -38,26 +47,84 @@ const DiscogsMaster = pure((props: { master: DiscogsMaster }) => {
                 </a>
             </h3>
             <ol>
-                {Seq(m.tracklist).map((t, e) => (
-                    <li key={e}>{t.title}</li>
-                ))}
+                {Seq(m.tracklist)
+                    .filter((t) => t.type_ === 'track')
+                    .map((t, e) => (
+                        <li key={e}>{t.title}</li>
+                    ))}
             </ol>
         </>
     )
 })
 
+const DiscogsReselector = pure(
+    ({
+        id,
+        url,
+        lens,
+        onChangeUrl,
+    }: {
+        id: number
+        url: string
+        lens: Lens<DiscogsSelector, AlbumReselector>
+        onChangeUrl: typeof actions.changeUrl
+    }) => {
+        return (
+            <input
+                type="text"
+                placeholder="Discogs URL…"
+                value={url}
+                onChange={(ev) => {
+                    onChangeUrl({
+                        id,
+                        lens,
+                        value: ev.target.value,
+                    })
+                }}
+            />
+        )
+    },
+)
+
+const ConnectedDiscogsReselector = connect(
+    (
+        { base: top }: { base: DiscogsSelector },
+        { lens }: { lens: Lens<DiscogsSelector, AlbumReselector> },
+    ) => {
+        return {
+            url: lens.get(top).url,
+            lens,
+        }
+    },
+    (d: Dispatch) =>
+        bindActionCreators(
+            {
+                onChangeUrl: actions.changeUrl,
+            },
+            d,
+        ),
+)(DiscogsReselector)
+
 const UnconfirmedAlbumComponent = pure(
-    (props: { album: UnconfirmedAlbum; count: number }) => {
+    (props: {
+        album: UnconfirmedAlbum
+        reselector: AlbumReselector
+        count: number
+        lens: Lens<DiscogsSelector, AlbumReselector>
+        onConfirm: typeof actions.confirm.request
+    }) => {
         const alb = props.album
+        const discogsData: DiscogsMaster =
+            props.reselector.json || alb.discogsData
         const rbuttons: JSX.Element[] = []
-        function addRButton(label: string) {
+        function addRButton(value: string, label: string | JSX.Element) {
             rbuttons.push(
-                <div>
+                <div key={rbuttons.length}>
                     <label>
                         <input
                             type="radio"
-                            key={rbuttons.length}
                             name={isoAlbumId.unwrap(alb.albumId)}
+                            value={value}
                         />
                         {label}
                     </label>
@@ -65,17 +132,19 @@ const UnconfirmedAlbumComponent = pure(
             )
         }
         var comparison: JSX.Element
-        if (alb.discogsData) {
+        if (discogsData) {
             var zipped = alb.tracks
                 .zipWith(
                     (a, b) => [a.title, b.title],
-                    List(alb.discogsData.tracklist),
+                    List(discogsData.tracklist).filter(
+                        (t) => t.type_ === 'track',
+                    ),
                 )
                 .flatMap(([a, b], e): [number, string, string][] =>
                     a !== b ? [[e, a, b]] : [],
                 )
                 .map(([e, a, b]) => (
-                    <li value={e + 1}>
+                    <li value={e + 1} key={e}>
                         <span>{a}</span> vs. <span>{b}</span>
                     </li>
                 ))
@@ -87,21 +156,50 @@ const UnconfirmedAlbumComponent = pure(
                     <ol>{zipped}</ol>
                 </>
             )
-            addRButton('Mark this discogs result as found')
+            addRButton('found', 'Mark this discogs result as found')
         }
-        addRButton('Mark this album as missing')
-        addRButton('Try this album again later')
+        addRButton('missing', 'Mark this album as missing')
+        addRButton('later', 'Try this album again later')
+        addRButton(
+            'replace',
+            <>
+                Instead, use…
+                <ConnectedDiscogsReselector
+                    id={alb.albumDiscogsId}
+                    lens={props.lens}
+                />
+            </>,
+        )
         var discard: JSX.Element
         if (props.count > 1) {
             discard = (
                 <div>
                     <label>
-                        <input type="checkbox" />
+                        <input
+                            type="checkbox"
+                            name="delete_others"
+                            value="yes"
+                        />
                         ... and discard the other {props.count - 1}
                     </label>
                 </div>
             )
         }
+
+        function onSubmit(ev: React.FormEvent<HTMLFormElement>) {
+            ev.preventDefault()
+            const data = Seq(new FormData(ev.target).entries())
+                .fromEntrySeq()
+                .toObject()
+            const opKey = data['album_pid']
+            data['op'] = data[opKey]
+            delete data[opKey]
+            if (data['op'] === 'replace') {
+                data['replace_with'] = discogsData
+            }
+            props.onConfirm({ album: alb.albumId, data })
+        }
+
         return (
             <div className="comparison">
                 <div className="img-right">
@@ -120,19 +218,60 @@ const UnconfirmedAlbumComponent = pure(
                     </ol>
                 </div>
                 <div className="img-left">
-                    <DiscogsMaster master={alb.discogsData} />
+                    <DiscogsMaster master={discogsData} />
                 </div>
                 <div>{comparison}</div>
                 <div className="discogs-controls">
-                    {rbuttons} {discard}
-                    <div>
-                        <button>Modify</button>
-                    </div>
+                    <form onSubmit={onSubmit}>
+                        <input
+                            type="hidden"
+                            name="db_id"
+                            value={alb.albumDiscogsId}
+                        />
+                        <input
+                            type="hidden"
+                            name="album_pid"
+                            value={isoAlbumId.unwrap(alb.albumId)}
+                        />
+                        {rbuttons} {discard}
+                        <div>
+                            <button>Modify</button>
+                        </div>
+                    </form>
                 </div>
             </div>
         )
     },
 )
+
+const ConnectedUnconfirmedAlbumComponent = connect(
+    (
+        { base: top }: { base: DiscogsSelector },
+        { album }: { album: UnconfirmedAlbum },
+    ) => {
+        const lens1: Lens<
+            DiscogsSelector,
+            Map<number, AlbumReselector>
+        > = lensFromImplicitAccessors('albumReselection')
+        const lens2: Lens<DiscogsSelector, AlbumReselector> = lens1.compose(
+            lensFromNullableImplicitAccessorsAndConstructor(
+                album.albumDiscogsId,
+                () => new AlbumReselector(),
+            ),
+        )
+        return {
+            lens: lens2,
+            reselector: lens2.get(top),
+        }
+    },
+    (d: Dispatch) =>
+        bindActionCreators(
+            {
+                onConfirm: actions.confirm.request,
+            },
+            d,
+        ),
+)(UnconfirmedAlbumComponent)
 
 const DiscogsMatcherComponent = onlyUpdateForKeys(['unconfirmedAlbums'])(
     (props: {
@@ -141,11 +280,11 @@ const DiscogsMatcherComponent = onlyUpdateForKeys(['unconfirmedAlbums'])(
     }) => {
         return (
             <div>
-                {props.unconfirmedAlbums.map((album, e) => (
-                    <UnconfirmedAlbumComponent
+                {props.unconfirmedAlbums.map((album) => (
+                    <ConnectedUnconfirmedAlbumComponent
                         album={album}
                         count={props.albumCounts.get(album.albumId, 0)}
-                        key={e}
+                        key={album.albumDiscogsId}
                     />
                 ))}
             </div>

@@ -53,8 +53,11 @@ const TrackArtworkComponent = onlyUpdateForKeys(['track', 'errored'])(
 )
 
 export const ConnectedTrackArtworkComponent = connect(
-    (top: { meta: MetaState }, { track }: { track: Track }) => ({
-        errored: top.meta.artworkErroredFor.has(track.id),
+    (top: { meta: MetaState }, { track }: { track: Track | undefined }) => ({
+        errored:
+            track !== undefined
+                ? top.meta.artworkErroredFor.has(track.id)
+                : true,
     }),
     (d: Dispatch) =>
         bindActionCreators(

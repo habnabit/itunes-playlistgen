@@ -16,7 +16,7 @@ import waitress
 import webbrowser
 from cornice import Service
 from cornice.validators import marshmallow_validator
-from marshmallow import Schema, ValidationError, fields
+from marshmallow import Schema, ValidationError, fields, validate
 from pyramid.config import Configurator
 from pyramid.httpexceptions import HTTPException, HTTPNotFound, HTTPNotImplemented
 from pyramid.request import Request
@@ -131,9 +131,80 @@ def unconfirmed_albums(request):
         row['album_discogs_id'] = row.pop('id')
         if row['discogs_data'] is not None:
             row['discogs_data'] = json.loads(row['discogs_data'])
-        group = albums[row['album_pid']]
-        row['tracks'] = group.tracks
+        group = albums.get(row['album_pid'])
+        row['tracks'] = group.tracks if group is not None else []
     return {'albums': rows}
+
+
+confirm_service = Service(name='confirm', path='/_api/confirm')
+
+class ConfirmBodySchema(Schema):
+    db_id = fields.Integer(required=True)
+    album_pid = fields.String(required=True)
+    op = fields.String(required=True, validate=validate.OneOf([
+        'found', 'missing', 'replace', 'later',
+    ]))
+    delete_others = fields.Boolean(missing=False)
+    replace_with = fields.Raw(missing=None)
+
+
+class ConfirmSchema(Schema):
+    class Meta:
+        unknown = marshmallow.EXCLUDE
+
+    body = fields.Nested(ConfirmBodySchema)
+
+
+@confirm_service.post(schema=ConfirmSchema, validators=(marshmallow_validator,))
+def confirm(request):
+    data = request.validated['body']
+    db = request.discogs_matcher.db
+
+    if data['op'] == 'found':
+        db.query("""
+            update album_discogs
+            set confirmed = true
+            where not confirmed
+                and id = :db_id
+        """, **data)
+    elif data['op'] == 'missing':
+        db.query("""
+            update album_discogs
+            set confirmed = true,
+                discogs_id = NULL,
+                discogs_data = NULL
+            where not confirmed
+                and id = :db_id
+        """, **data)
+    elif data['op'] == 'later':
+        db.query("""
+            delete from album_discogs
+            where not confirmed
+                and id = :db_id
+        """, **data)
+    elif data['op'] == 'replace':
+        db.query("""
+            update album_discogs
+            set confirmed = true,
+                discogs_id = :discogs_id,
+                discogs_data = :discogs_data
+            where not confirmed
+                and id = :id
+        """,
+            discogs_id=data['replace_with']['id'],
+            discogs_data=json.dumps(data['replace_with']),
+            id=data['db_id'],
+        )
+
+    if data['delete_others']:
+        db.query("""
+            delete from album_discogs
+            where not confirmed
+                and id != :db_id
+                and album_pid = :album_pid
+        """, **data)
+
+    return {'done': True}
 
 
 class TrackField(fields.Field):

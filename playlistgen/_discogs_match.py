@@ -167,14 +167,25 @@ class Matcher:
                 self._refresh_album(data_table, album)
             bar.set_description(f'rate limit at {self.rate_limiter.rate_limit_remaining}')
 
+    def _refresh_album_searches(self, album):
+        if not album['title']:
+            return
+
+        yield dict(
+            type='master',
+            release_title=album['title'],
+            artist=album['artist'])
+
+        name = '{artist} {title}'.format_map(album)
+        yield dict(q=name, type='master')
+        yield dict(q=name, type='release')
+
     def _refresh_album(self, data_table, album):
-        if album['title']:
-            results = self.client.search(
-                type='master',
-                release_title=album['title'],
-                artist=album['artist'])
-        else:
-            results = []
+        results = []
+        for kw in self._refresh_album_searches(album):
+            results = self.client.search(**kw)
+            if len(results) > 0:
+                break
         base = {
             'album_pid': album['album_pid'],
         }
@@ -182,6 +193,7 @@ class Matcher:
             data_table.insert(base)
         else:
             for r in results:
+                r.refresh()
                 data_table.insert({
                     **base,
                     'discogs_id': r.id,
@@ -303,10 +315,10 @@ class Matcher:
 def run(tracks):
     m = Matcher.from_tracks(tracks)
     m.ensure_tables()
-    m.refetch_albums()
-    return
-    m.refresh_artists()
+    #m.refetch_albums()
+    #m.refresh_artists()
     m.refresh_albums()
+    return
     for album in tqdm(m.group_by('album').values()):
         m.upsert_album(album)
     for artist in tqdm(m.group_by('artist').values()):

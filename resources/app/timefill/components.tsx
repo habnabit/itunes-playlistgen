@@ -118,10 +118,10 @@ export const ConnectedChoiceComponent = connect(
         ownProps: { idxTop: number },
     ) => {
         const { ambientSelected } = top
-        const lens1: Lens<TimefillSelector, List<Choice>> = new Lens(
-            (o) => o.get('choices', undefined),
-            (v) => (o) => o.set('choices', v),
-        )
+        const lens1: Lens<
+            TimefillSelector,
+            List<Choice>
+        > = lensFromImplicitAccessors('choices')
         const lens2: Lens<TimefillSelector, Choice> = lens1.compose(
             lensFromImplicitAccessors(ownProps.idxTop),
         )

@@ -68,9 +68,15 @@ type UnconfirmedAlbums = {
     albums: RawUnconfirmedAlbum[]
 }
 
+export class AlbumReselector extends Record({
+    url: '',
+    json: undefined as any,
+}) {}
+
 export class DiscogsSelector extends Record({
     unconfirmedAlbums: List<UnconfirmedAlbum>(),
     albumCounts: Map<AlbumId, number>(),
+    albumReselection: Map<number, AlbumReselector>(),
 }) {
     withUnconfirmedAlbums(results: UnconfirmedAlbums): this {
         const unconfirmedAlbums = List(results.albums).map(
@@ -81,5 +87,11 @@ export class DiscogsSelector extends Record({
             .map((c) => c.count())
             .toMap()
         return this.merge({ unconfirmedAlbums, albumCounts })
+    }
+
+    withConfirmedAlbum(album: AlbumId): this {
+        return this.update('unconfirmedAlbums', (l) =>
+            l.filter((a) => a.albumId !== album),
+        )
     }
 }
