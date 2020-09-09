@@ -311,11 +311,15 @@ class Matcher:
     def random_unconfirmed_albums(self):
         prime = big_prime(2)
         return self.db.query("""
-            select *, albums.rowid r
+            select *,
+                (albums.rowid*albums.rowid
+                 *albums.rowid*albums.rowid*albums.rowid
+                ) % :prime modp
             from album_discogs
             join albums using (album_pid)
             where not album_discogs.confirmed
-                and (r*r*r*r*r) % :prime < :prime / 10
+                and modp < :prime / 10
+            order by modp
             limit 25
         """, prime=prime)
 
