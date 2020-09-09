@@ -31,6 +31,7 @@ import {
     DiscogsTrack,
     filterTracks,
 } from './types'
+import * as Option from 'fp-ts/lib/Option'
 
 const diffedClasses: Map<-1 | 0 | 1, string> = Map([
     [-1, 'type-a struck'],
@@ -38,16 +39,38 @@ const diffedClasses: Map<-1 | 0 | 1, string> = Map([
     [1, 'type-b'],
 ])
 
+type condensedDiff = {
+    className: string
+    d: diff.Diff
+}
+
 const StringDiff = pure((props: { a: string; b: string }) => {
     const diffed = diff(props.a, props.b)
+    const diffedCondensed = List(diffed).reduce((ret, d2) => {
+        const d1: condensedDiff = ret.last()
+        if (
+            d1 !== undefined &&
+            d1.d[0] === -d2[0] &&
+            d1.d[1].toLowerCase() === d2[1].toLowerCase()
+        ) {
+            return ret.pop().push({
+                className: 'casefolded',
+                d: d2,
+            })
+        }
+        return ret.push({
+            className: diffedClasses.get(d2[0]),
+            d: d2,
+        })
+    }, List<condensedDiff>())
     return (
         <>
             <span className="type-a">{props.a}</span> vs.{' '}
             <span className="type-b">{props.b}</span>
             <br />
-            {Seq(diffed).map(([w, s], e) => (
-                <span className={diffedClasses.get(w)} key={e}>
-                    {s}
+            {diffedCondensed.map(({ className, d }, e) => (
+                <span className={className} key={e}>
+                    {d[1]}
                 </span>
             ))}
         </>
