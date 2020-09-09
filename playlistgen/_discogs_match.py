@@ -3,6 +3,7 @@ import attr
 import click
 import dataset
 import discogs_client
+import os
 import time
 from contextlib import contextmanager
 from tqdm import tqdm
@@ -72,6 +73,11 @@ class RateLimiter:
 
 class Ambiguous(Exception):
     pass
+
+
+def big_prime(n):
+    import gmpy_cffi
+    return int(gmpy_cffi.next_prime(int.from_bytes(os.urandom(n), 'little')))
 
 
 @attr.s
@@ -302,14 +308,16 @@ class Matcher:
                 })
                 yield artist
 
-    def unconfirmed_albums(self):
+    def random_unconfirmed_albums(self):
+        prime = big_prime(2)
         return self.db.query("""
-            select *
+            select *, albums.rowid r
             from album_discogs
             join albums using (album_pid)
             where not album_discogs.confirmed
+                and (r*r*r*r*r) % :prime < :prime / 10
             limit 25
-        """)
+        """, prime=prime)
 
 
 def run(tracks):

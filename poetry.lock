@@ -145,6 +145,14 @@ version = "0.4"
 
 [[package]]
 category = "main"
+description = "GMP CFFI wrapper"
+name = "gmpy-cffi"
+optional = false
+python-versions = "*"
+version = "0.1"
+
+[[package]]
+category = "main"
 description = "Integrated process monitor for developing and reloading daemons."
 name = "hupper"
 optional = false
@@ -401,7 +409,7 @@ wcwidth = "*"
 [[package]]
 category = "dev"
 description = "Run a subprocess in a pseudo terminal"
-marker = "python_version >= \"3.4\" and sys_platform != \"win32\" or sys_platform != \"win32\""
+marker = "python_version >= \"3.4\" and sys_platform != \"win32\" or sys_platform != \"win32\" or python_version >= \"3.4\" and sys_platform != \"win32\" and (python_version >= \"3.4\" and sys_platform != \"win32\" or sys_platform != \"win32\")"
 name = "ptyprocess"
 optional = false
 python-versions = "*"
@@ -715,7 +723,7 @@ test = ["coverage (>=5.0.3)", "zope.event", "zope.testing"]
 testing = ["coverage (>=5.0.3)", "zope.event", "zope.testing"]
 
 [metadata]
-content-hash = "0375f85df57a1affc09c3ebc48a12cbeb54bd9de7891f28ac43f3935cfab714d"
+content-hash = "b4f80d82f1de989ddaa72292e3612dfc26f283ba1478e1880625bac676ee787b"
 lock-version = "1.0"
 python-versions = "^3.6"
 
@@ -799,6 +807,9 @@ decorator = [
 ]
 flameprof = [
     {file = "flameprof-0.4.tar.gz", hash = "sha256:dbc86d4190cbbba624f1e0a40f44d9db96138e27534d83c8ef42d420857875a3"},
+]
+gmpy-cffi = [
+    {file = "gmpy_cffi-0.1.tar.gz", hash = "sha256:77d540e5ea38bec624cfc861c5987084f72d43a2e6e23fca2a34afe9bcd9b42a"},
 ]
 hupper = [
     {file = "hupper-1.9.1-py2.py3-none-any.whl", hash = "sha256:5ab839f9428dd2d993092193ad0032f968eae007873916794c3856131b2df112"},

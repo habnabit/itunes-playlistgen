@@ -5,6 +5,7 @@ import { connect } from 'react-redux'
 import PulseLoader from 'react-spinners/PulseLoader'
 import { onlyUpdateForKeys, pure } from 'recompose'
 import { Dispatch, bindActionCreators } from 'redux'
+import * as diff from 'fast-diff'
 
 import * as baseActions from '../actions'
 import {
@@ -30,6 +31,28 @@ import {
     DiscogsTrack,
     filterTracks,
 } from './types'
+
+const diffedClasses: Map<-1 | 0 | 1, string> = Map([
+    [-1, 'type-a struck'],
+    [0, ''],
+    [1, 'type-b'],
+])
+
+const StringDiff = pure((props: { a: string; b: string }) => {
+    const diffed = diff(props.a, props.b)
+    return (
+        <>
+            <span className="type-a">{props.a}</span> vs.{' '}
+            <span className="type-b">{props.b}</span>
+            <br />
+            {Seq(diffed).map(([w, s], e) => (
+                <span className={diffedClasses.get(w)} key={e}>
+                    {s}
+                </span>
+            ))}
+        </>
+    )
+})
 
 const DiscogsMaster = pure((props: { master: DiscogsMaster }) => {
     const m = props.master
@@ -149,7 +172,7 @@ const UnconfirmedAlbumComponent = pure(
                                 name={`rename/${a.id}`}
                                 value={b.title}
                             />
-                            <span>{a.title}</span> vs. <span>{b.title}</span>
+                            <StringDiff a={a.title} b={b.title} />
                         </label>
                     </li>
                 ))

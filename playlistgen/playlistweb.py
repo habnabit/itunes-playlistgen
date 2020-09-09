@@ -171,7 +171,7 @@ def unconfirmed_albums(request):
     albums = m.group_by('album')
     for group in albums.values():
         group.tracks.sort(key=playlistgen.album_track_position)
-    rows = list(m.unconfirmed_albums())
+    rows = list(m.random_unconfirmed_albums())
     for row in rows:
         row['album_discogs_id'] = row.pop('id')
         if row['discogs_data'] is not None:
