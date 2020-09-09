@@ -61,6 +61,51 @@ def itunes_as_json(obj):
         return obj
 
 
+class TrackField(fields.Field):
+    def _serialize(self, value, attr, obj, **kwargs):
+        raise NotImplementedError()
+
+    def _deserialize(self, value, attr, data, **kwargs):
+        tracks = self.context['request'].tracks_by_id
+        if value not in tracks:
+            raise ValidationError('no track by this id')
+        return tracks[value]
+
+
+class PlaylistField(fields.Field):
+    def _serialize(self, value, attr, obj, **kwargs):
+        raise NotImplementedError()
+
+    def _deserialize(self, value, attr, data, **kwargs):
+        playlists = self.context['request'].tracks.playlists_by_name
+        if value not in playlists:
+            raise ValidationError('no playlist by this name')
+        return playlists[value]
+
+
+class DelimitedString(fields.Field):
+    def __init__(self, delimiter, instance_factory, **kwargs):
+        super().__init__(**kwargs)
+        self.delimiter = delimiter
+        self.instance_factory = instance_factory
+
+    def _bind_to_schema(self, field_name, schema):
+        super()._bind_to_schema(field_name, schema)
+        self.inner = self.instance_factory()
+        self.inner.parent = self
+        self.inner.name = field_name
+
+    def _serialize(self, value, attr, obj, **kwargs):
+        if value is None:
+            return None
+        items = [self.inner._serialize(each, attr, obj, **kwargs) for each in value]
+        return self.delimiter.join(items)
+
+    def _deserialize(self, value, attr, data, **kwargs):
+        splut = value.split(self.delimiter)
+        return [self.inner._deserialize(each, attr, data, **kwargs) for each in splut]
+
+
 def serialize_itunes(obj, *a, **kw):
     return simplejson.dumps(itunes_as_json(obj), *a, **kw)
 
@@ -146,6 +191,9 @@ class ConfirmBodySchema(Schema):
     ]))
     delete_others = fields.Boolean(missing=False)
     replace_with = fields.Raw(missing=None)
+    rename = fields.List(
+        fields.Tuple((TrackField(), fields.String())),
+        missing=())
 
 
 class ConfirmSchema(Schema):
@@ -159,6 +207,10 @@ class ConfirmSchema(Schema):
 def confirm(request):
     data = request.validated['body']
     db = request.discogs_matcher.db
+
+    if data['rename']:
+        playlistgen.scripts.call(
+            'rename_tracks', [[ppis(t), n] for t, n in data['rename']])
 
     if data['op'] == 'found':
         db.query("""
@@ -205,51 +257,6 @@ def confirm(request):
         """, **data)
 
     return {'done': True}
-
-
-class TrackField(fields.Field):
-    def _serialize(self, value, attr, obj, **kwargs):
-        raise NotImplementedError()
-
-    def _deserialize(self, value, attr, data, **kwargs):
-        tracks = self.context['request'].tracks_by_id
-        if value not in tracks:
-            raise ValidationError('no track by this id')
-        return tracks[value]
-
-
-class PlaylistField(fields.Field):
-    def _serialize(self, value, attr, obj, **kwargs):
-        raise NotImplementedError()
-
-    def _deserialize(self, value, attr, data, **kwargs):
-        playlists = self.context['request'].tracks.playlists_by_name
-        if value not in playlists:
-            raise ValidationError('no playlist by this name')
-        return playlists[value]
-
-
-class DelimitedString(fields.Field):
-    def __init__(self, delimiter, instance_factory, **kwargs):
-        super().__init__(**kwargs)
-        self.delimiter = delimiter
-        self.instance_factory = instance_factory
-
-    def _bind_to_schema(self, field_name, schema):
-        super()._bind_to_schema(field_name, schema)
-        self.inner = self.instance_factory()
-        self.inner.parent = self
-        self.inner.name = field_name
-
-    def _serialize(self, value, attr, obj, **kwargs):
-        if value is None:
-            return None
-        items = [self.inner._serialize(each, attr, obj, **kwargs) for each in value]
-        return self.delimiter.join(items)
-
-    def _deserialize(self, value, attr, data, **kwargs):
-        splut = value.split(self.delimiter)
-        return [self.inner._deserialize(each, attr, data, **kwargs) for each in splut]
 
 
 playlists_service = Service(name='playlists', path='/_api/playlists')

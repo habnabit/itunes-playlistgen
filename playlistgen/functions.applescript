@@ -68,3 +68,13 @@ on remove_tracks(pp, tl)
 		end repeat
 	end tell
 end remove_tracks
+
+on rename_tracks(tl)
+	tell application "iTunes"
+		repeat with pair in tl
+			set tid to the first item of pair
+			set tnam to the second item of pair
+			set the name of (the first track whose persistent ID is tid) to tnam
+		end repeat
+	end tell
+end rename_tracks

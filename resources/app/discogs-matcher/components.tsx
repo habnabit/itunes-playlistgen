@@ -27,6 +27,8 @@ import {
     UnconfirmedAlbum,
     DiscogsMaster,
     AlbumReselector,
+    DiscogsTrack,
+    filterTracks,
 } from './types'
 
 const DiscogsMaster = pure((props: { master: DiscogsMaster }) => {
@@ -47,11 +49,9 @@ const DiscogsMaster = pure((props: { master: DiscogsMaster }) => {
                 </a>
             </h3>
             <ol>
-                {Seq(m.tracklist)
-                    .filter((t) => t.type_ === 'track')
-                    .map((t, e) => (
-                        <li key={e}>{t.title}</li>
-                    ))}
+                {filterTracks(m.tracklist).map((t, e) => (
+                    <li key={e}>{t.title}</li>
+                ))}
             </ol>
         </>
     )
@@ -133,21 +133,33 @@ const UnconfirmedAlbumComponent = pure(
         }
         var comparison: JSX.Element
         if (discogsData) {
+            const bTracks = filterTracks(discogsData.tracklist).toList()
+            const nATracks = alb.tracks.size
+            const nBTracks = bTracks.size
             var zipped = alb.tracks
-                .zipWith(
-                    (a, b) => [a.title, b.title],
-                    List(discogsData.tracklist).filter(
-                        (t) => t.type_ === 'track',
-                    ),
-                )
-                .flatMap(([a, b], e): [number, string, string][] =>
-                    a !== b ? [[e, a, b]] : [],
+                .zip(bTracks)
+                .flatMap(([a, b], e): [number, Track, DiscogsTrack][] =>
+                    a.title !== b.title ? [[e, a, b]] : [],
                 )
                 .map(([e, a, b]) => (
                     <li value={e + 1} key={e}>
-                        <span>{a}</span> vs. <span>{b}</span>
+                        <label>
+                            <input
+                                type="checkbox"
+                                name={`rename/${a.id}`}
+                                value={b.title}
+                            />
+                            <span>{a.title}</span> vs. <span>{b.title}</span>
+                        </label>
                     </li>
                 ))
+            if (nATracks !== nBTracks) {
+                zipped = zipped.unshift(
+                    <li value="0" key="length">
+                        {nATracks} tracks vs. {nBTracks} tracks
+                    </li>,
+                )
+            }
             comparison = zipped.isEmpty() ? (
                 <>Same tracks</>
             ) : (
@@ -188,41 +200,52 @@ const UnconfirmedAlbumComponent = pure(
 
         function onSubmit(ev: React.FormEvent<HTMLFormElement>) {
             ev.preventDefault()
-            const data = Seq(new FormData(ev.target).entries())
-                .fromEntrySeq()
-                .toObject()
-            const opKey = data['album_pid']
-            data['op'] = data[opKey]
-            delete data[opKey]
-            if (data['op'] === 'replace') {
-                data['replace_with'] = discogsData
+            const data: any = { rename: [] }
+            for (const [k, v] of new FormData(
+                ev.target as HTMLFormElement,
+            ).entries()) {
+                const splut = k.split('/')
+                switch (splut[0]) {
+                    case 'rename':
+                        data.rename.push([splut[1], v])
+                        break
+                    case isoAlbumId.unwrap(alb.albumId):
+                        data['op'] = v
+                        if (v === 'replace') {
+                            data['replace_with'] = discogsData
+                        }
+                        break
+                    default:
+                        data[k] = v
+                        break
+                }
             }
             props.onConfirm({ album: alb.albumId, data })
         }
 
         return (
-            <div className="comparison">
-                <div className="img-right">
-                    <ConnectedTrackArtworkComponent
-                        track={alb.tracks.first()}
-                    />
-                    <h3>
-                        {alb.artist} – {alb.title}
-                    </h3>
-                    <ol>
-                        {alb.tracks.map((t, e) => (
-                            <li key={e} value={t.trackNumber}>
-                                {t.title}
-                            </li>
-                        ))}
-                    </ol>
-                </div>
-                <div className="img-left">
-                    <DiscogsMaster master={discogsData} />
-                </div>
-                <div>{comparison}</div>
-                <div className="discogs-controls">
-                    <form onSubmit={onSubmit}>
+            <form onSubmit={onSubmit}>
+                <div className="comparison">
+                    <div className="img-right">
+                        <ConnectedTrackArtworkComponent
+                            track={alb.tracks.first()}
+                        />
+                        <h3>
+                            {alb.artist} – {alb.title}
+                        </h3>
+                        <ol>
+                            {alb.tracks.map((t, e) => (
+                                <li key={e} value={t.trackNumber}>
+                                    {t.title}
+                                </li>
+                            ))}
+                        </ol>
+                    </div>
+                    <div className="img-left">
+                        <DiscogsMaster master={discogsData} />
+                    </div>
+                    <div className="discogs-controls">{comparison}</div>
+                    <div className="discogs-controls">
                         <input
                             type="hidden"
                             name="db_id"
@@ -237,9 +260,9 @@ const UnconfirmedAlbumComponent = pure(
                         <div>
                             <button>Modify</button>
                         </div>
-                    </form>
+                    </div>
                 </div>
-            </div>
+            </form>
         )
     },
 )

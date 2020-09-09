@@ -16,6 +16,12 @@ import * as actions from './actions'
 
 export type AllActions = ActionType<typeof baseActions | typeof actions>
 
+export type DiscogsTrack = {
+    title: string
+    position: string
+    type_: string
+}
+
 export type DiscogsMaster = {
     artists: {
         id: number
@@ -27,13 +33,14 @@ export type DiscogsMaster = {
         uri150: string
     }[]
     title: string
-    tracklist: {
-        title: string
-        position: string
-        type_: string
-    }[]
+    tracklist: DiscogsTrack[]
     uri: string
 }
+
+export const filterTracks = (
+    tracklist: DiscogsTrack[],
+): Seq.Indexed<DiscogsTrack> =>
+    Seq(tracklist).filter((t) => t.type_ === 'track' || t.type_ === 'index')
 
 export class UnconfirmedAlbum extends Record({
     albumDiscogsId: 0,
