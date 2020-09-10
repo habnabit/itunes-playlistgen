@@ -26,8 +26,8 @@ export default function discogsReducer(
         }
 
         case getType(actions.confirm.success): {
-            const { album } = action.payload
-            return state.withConfirmedAlbum(album)
+            const { confirmed } = action.payload.json
+            return state.withConfirmedAlbum(confirmed)
         }
 
         default:

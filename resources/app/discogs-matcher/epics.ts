@@ -105,7 +105,6 @@ const confirmEpic: Epic<AllActions, AllActions> = (action$) =>
     action$.pipe(
         filter(isActionOf(actions.confirm.request)),
         switchMap((action) => {
-            const { album } = action.payload
             return from(
                 fetch(
                     '/_api/confirm',
@@ -116,7 +115,7 @@ const confirmEpic: Epic<AllActions, AllActions> = (action$) =>
                     if (resp.status !== 200) {
                         throw new RemoteError(resp, json)
                     } else {
-                        return actions.confirm.success({ album, json })
+                        return actions.confirm.success({ json })
                     }
                 }),
                 catchError((err) =>

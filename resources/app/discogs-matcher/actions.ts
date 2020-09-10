@@ -46,12 +46,10 @@ export const confirm = createAsyncAction(
     'playlistgen/discogs-matcher/confirm/failure',
 )<
     {
-        album: AlbumId
         data: any
     },
     {
-        album: AlbumId
-        json: any
+        json: { confirmed: AlbumId }
     },
     Error
 >()

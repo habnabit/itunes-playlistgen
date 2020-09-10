@@ -189,7 +189,6 @@ class ConfirmBodySchema(Schema):
     op = fields.String(required=True, validate=validate.OneOf([
         'found', 'missing', 'replace', 'later',
     ]))
-    delete_others = fields.Boolean(missing=False)
     replace_with = fields.Raw(missing=None)
     rename = fields.List(
         fields.Tuple((TrackField(), fields.String())),
@@ -248,15 +247,14 @@ def confirm(request):
             id=data['db_id'],
         )
 
-    if data['delete_others']:
-        db.query("""
-            delete from album_discogs
-            where not confirmed
-                and id != :db_id
-                and album_pid = :album_pid
-        """, **data)
+    db.query("""
+        delete from album_discogs
+        where not confirmed
+            and id != :db_id
+            and album_pid = :album_pid
+    """, **data)
 
-    return {'done': True}
+    return {'confirmed': data['album_pid']}
 
 
 playlists_service = Service(name='playlists', path='/_api/playlists')

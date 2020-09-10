@@ -1,4 +1,4 @@
-import { List, Map, Seq } from 'immutable'
+import { List, Map, Seq, Record } from 'immutable'
 import { Lens } from 'monocle-ts'
 import * as React from 'react'
 import { connect } from 'react-redux'
@@ -77,31 +77,42 @@ const StringDiff = pure((props: { a: string; b: string }) => {
     )
 })
 
-const DiscogsMaster = pure((props: { master: DiscogsMaster }) => {
-    const m = props.master
-    if (!m) {
-        return <></>
-    }
-    var img
-    if (m.images && m.images.length > 0) {
-        img = <img src={m.images[0].uri150} />
-    }
-    return (
-        <>
-            {img}
-            <h3>
-                <a href={m.uri}>
-                    {m.artists.map((a) => a.name).join(' & ')} – {m.title}
-                </a>
-            </h3>
-            <ol>
-                {filterTracks(m.tracklist).map((t, e) => (
-                    <li key={e}>{t.title}</li>
-                ))}
-            </ol>
-        </>
-    )
-})
+const DiscogsMaster = pure(
+    (props: { master: DiscogsMaster; count: AlbumCount }) => {
+        const m = props.master
+        if (!m) {
+            return <></>
+        }
+        var img
+        if (m.images && m.images.length > 0) {
+            img = <img src={m.images[0].uri150} />
+        }
+        var count
+        if (props.count.total > 1) {
+            count = (
+                <>
+                    &nbsp;({props.count.n}/{props.count.total})
+                </>
+            )
+        }
+        return (
+            <>
+                {img}
+                <h3>
+                    <a href={m.uri}>
+                        {m.artists.map((a) => a.name).join(' & ')} – {m.title}
+                    </a>
+                    {count}
+                </h3>
+                <ol>
+                    {filterTracks(m.tracklist).map((t, e) => (
+                        <li key={e}>{t.title}</li>
+                    ))}
+                </ol>
+            </>
+        )
+    },
+)
 
 const DiscogsReselector = pure(
     ({
@@ -155,7 +166,7 @@ const UnconfirmedAlbumComponent = pure(
     (props: {
         album: UnconfirmedAlbum
         reselector: AlbumReselector
-        count: number
+        count: AlbumCount
         lens: Lens<DiscogsSelector, AlbumReselector>
         onConfirm: typeof actions.confirm.request
     }) => {
@@ -228,21 +239,6 @@ const UnconfirmedAlbumComponent = pure(
                 />
             </>,
         )
-        var discard: JSX.Element
-        if (props.count > 1) {
-            discard = (
-                <div>
-                    <label>
-                        <input
-                            type="checkbox"
-                            name="delete_others"
-                            value="yes"
-                        />
-                        ... and discard the other {props.count - 1}
-                    </label>
-                </div>
-            )
-        }
 
         function onSubmit(ev: React.FormEvent<HTMLFormElement>) {
             ev.preventDefault()
@@ -266,7 +262,7 @@ const UnconfirmedAlbumComponent = pure(
                         break
                 }
             }
-            props.onConfirm({ album: alb.albumId, data })
+            props.onConfirm({ data })
         }
 
         return (
@@ -288,7 +284,10 @@ const UnconfirmedAlbumComponent = pure(
                         </ol>
                     </div>
                     <div className="img-left">
-                        <DiscogsMaster master={discogsData} />
+                        <DiscogsMaster
+                            master={discogsData}
+                            count={props.count}
+                        />
                     </div>
                     <div className="discogs-controls">{comparison}</div>
                     <div className="discogs-controls">
@@ -302,7 +301,7 @@ const UnconfirmedAlbumComponent = pure(
                             name="album_pid"
                             value={isoAlbumId.unwrap(alb.albumId)}
                         />
-                        {rbuttons} {discard}
+                        {rbuttons}
                         <div>
                             <button>Modify</button>
                         </div>
@@ -342,20 +341,34 @@ const ConnectedUnconfirmedAlbumComponent = connect(
         ),
 )(UnconfirmedAlbumComponent)
 
+class AlbumCount extends Record({ id: undefined as AlbumId, n: 0, total: 0 }) {}
+
 const DiscogsMatcherComponent = onlyUpdateForKeys(['unconfirmedAlbums'])(
     (props: {
         unconfirmedAlbums: List<UnconfirmedAlbum>
         albumCounts: Map<AlbumId, number>
     }) => {
+        var ctx = new AlbumCount()
         return (
             <div>
-                {props.unconfirmedAlbums.map((album) => (
-                    <ConnectedUnconfirmedAlbumComponent
-                        album={album}
-                        count={props.albumCounts.get(album.albumId, 0)}
-                        key={album.albumDiscogsId}
-                    />
-                ))}
+                {props.unconfirmedAlbums.map((album) => {
+                    if (ctx.id === album.albumId) {
+                        ctx = ctx.update('n', (n) => n + 1)
+                    } else {
+                        ctx = new AlbumCount({
+                            id: album.albumId,
+                            n: 1,
+                            total: props.albumCounts.get(album.albumId, 0),
+                        })
+                    }
+                    return (
+                        <ConnectedUnconfirmedAlbumComponent
+                            album={album}
+                            count={ctx}
+                            key={album.albumDiscogsId}
+                        />
+                    )
+                })}
             </div>
         )
     },
