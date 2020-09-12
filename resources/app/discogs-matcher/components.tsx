@@ -173,15 +173,27 @@ const UnconfirmedAlbumComponent = pure(
         const alb = props.album
         const discogsData: DiscogsMaster =
             props.reselector.json || alb.discogsData
+        const shouldReplace = props.reselector.json !== undefined
         const rbuttons: JSX.Element[] = []
-        function addRButton(value: string, label: string | JSX.Element) {
+        function addRButton(
+            value: string,
+            label: string | JSX.Element,
+            opts: { replace?: boolean } = {},
+        ) {
+            const attrs: React.InputHTMLAttributes<HTMLInputElement> = { value }
+            if (opts.replace) {
+                attrs.disabled = !shouldReplace
+                attrs.checked = shouldReplace
+            } else {
+                attrs.disabled = shouldReplace
+            }
             rbuttons.push(
                 <div key={rbuttons.length}>
                     <label>
                         <input
                             type="radio"
                             name={isoAlbumId.unwrap(alb.albumId)}
-                            value={value}
+                            {...attrs}
                         />
                         {label}
                     </label>
@@ -238,6 +250,7 @@ const UnconfirmedAlbumComponent = pure(
                     lens={props.lens}
                 />
             </>,
+            { replace: true },
         )
 
         function onSubmit(ev: React.FormEvent<HTMLFormElement>) {
