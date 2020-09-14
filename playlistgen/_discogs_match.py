@@ -31,44 +31,46 @@ class Grouping:
 
 @attr.s
 class RateLimiter:
-    client = attr.ib()
+    fetcher = attr.ib()
+    bar = attr.ib(default=None)
 
     @property
     def rate_limit(self):
-        return int(self.client._fetcher.rate_limit)
+        return int(self.fetcher.rate_limit)
 
     @property
     def rate_limit_used(self):
-        return int(self.client._fetcher.rate_limit_used)
+        return int(getattr(self.fetcher, 'rate_limit_used', 0))
 
     @property
     def rate_limit_remaining(self):
-        return int(self.client._fetcher.rate_limit_remaining)
+        return int(getattr(self.fetcher, 'rate_limit_remaining', -1))
 
     def seconds_per(self, n_requests):
         return (n_requests * 60) / self.rate_limit
 
-    @contextmanager
-    def rate_limited(self):
-        before = self.rate_limit_used
-        try:
-            yield
-        except discogs_client.exceptions.HTTPError as e:
-            if e.status_code != 429:
-                raise
-            log('hit a 429; sleeping')
-            time.sleep(25)
-        else:
+    def fetch(self, client, method, url, data=None, headers=None, json=True):
+        while True:
+            before = self.rate_limit_used
+            content, status_code = self.fetcher.fetch(
+                client, method, url, data, headers, json)
+            if self.bar is not None:
+                self.bar.set_description(f'rate limit at {self.rate_limit_remaining}')
+
+            if status_code == 429:
+                log('hit a 429; sleeping')
+                time.sleep(25)
+                continue
+
             after = self.rate_limit_used
             total_used = after - before
-            #tqdm.write(f'{self.rate_limit_remaining=}')
             if self.seconds_per(self.rate_limit_remaining) < 25:
                 log('rate limit too low; sleeping')
                 time.sleep(5)
             elif total_used > 0:
                 seconds_to_wait = self.seconds_per(total_used)
-                #tqdm.write(f'{seconds_to_wait=}')
                 time.sleep(seconds_to_wait)
+            return content, status_code
 
 
 class Ambiguous(Exception):
@@ -84,26 +86,31 @@ def big_prime(n):
 class Matcher:
     tracks = attr.ib()
     client = attr.ib()
-    rate_limiter = attr.ib()
+    _rate_limiter = attr.ib()
     db = attr.ib()
 
     @classmethod
     def from_tracks(cls, tracks):
         d = discogs_client.Client(
             'playlistgen/0.1', user_token=tracks.discogs_token)
+        d._fetcher = rate_limiter = RateLimiter(d._fetcher)
         click.echo('whoami: {!r}'.format(d.identity()))
         db = dataset.connect('sqlite:///discogs.db')
-        return cls(tracks=tracks, client=d, rate_limiter=RateLimiter(d), db=db)
+        return cls(tracks=tracks, client=d, rate_limiter=rate_limiter, db=db)
 
-    @property
-    def rate_limited(self):
-        return self.rate_limiter.rate_limited
+    @contextmanager
+    def using_bar(self, bar):
+        prev, self._rate_limiter.bar = self._rate_limiter.bar, bar
+        with bar:
+            yield bar
+        self._rate_limiter.bar = prev
 
     def ensure_tables(self):
         self.db.create_table('albums', 'album_pid', self.db.types.text)
         self.db.create_table('album_discogs')
         self.db.create_table('artists', 'artist_pid', self.db.types.text)
         self.db.create_table('artist_discogs')
+        self.db.create_table('artist_album_discogs')
 
     def group_by(self, attr_name):
         ret = {}
@@ -137,11 +144,9 @@ class Matcher:
             select id, discogs_id, album_pid from album_discogs
             where discogs_id is not null
         """))
-        bar = tqdm(to_load, unit='album')
-        for album in bar:
-            with self.rate_limited():
+        with self.using_bar(tqdm(to_load, unit='album')) as bar:
+            for album in bar:
                 self._refetch_album(data_table, album)
-            bar.set_description(f'rate limit at {self.rate_limiter.rate_limit_remaining}')
 
     def _refetch_album(self, data_table, album):
         master = self.client.master(album['discogs_id'])
@@ -167,11 +172,9 @@ class Matcher:
             left join album_discogs using (album_pid)
             where album_discogs.id is null
         """))
-        bar = tqdm(to_load, unit='album')
-        for album in bar:
-            with self.rate_limited():
+        with self.using_bar(tqdm(to_load, unit='album')) as bar:
+            for album in bar:
                 self._refresh_album(data_table, album)
-            bar.set_description(f'rate limit at {self.rate_limiter.rate_limit_remaining}')
 
     def _refresh_album_searches(self, album):
         if not album['title']:
@@ -204,6 +207,37 @@ class Matcher:
                     **base,
                     'discogs_id': r.id,
                     'discogs_data': r.data,
+                }, types={
+                    'discogs_data': self.db.types.json,
+                })
+
+    def refresh_artist_albums(self):
+        data_table = self.db.load_table('artist_album_discogs')
+        to_load = list(self.db.query("""
+            select discogs_artist_id, artist_name
+            from artists_from_albums
+            group by 1, 2
+        """))
+        with tqdm(to_load, unit='artist') as bar:
+            for row in bar:
+                bar.set_description(row['artist_name'])
+                self._refresh_artist_albums(
+                    data_table, row['discogs_artist_id'])
+
+    def _refresh_artist_albums(self, data_table, id):
+        try:
+            releases = self.client.artist(id).releases
+        except discogs_client.exceptions.HTTPError as e:
+            if e.status_code != 404:
+                raise
+            return
+        with self.using_bar(tqdm(releases, leave=False, unit='album')) as bar:
+            for release in bar:
+                release.refresh()
+                if not any(a['id'] == id for a in release.data['artists']):
+                    return
+                data_table.insert({
+                    'discogs_data': release.data,
                 }, types={
                     'discogs_data': self.db.types.json,
                 })
@@ -329,8 +363,9 @@ def run(tracks):
     m.ensure_tables()
     #m.refetch_albums()
     #m.refresh_artists()
-    m.refresh_albums()
+    m.refresh_artist_albums()
     return
+    m.refresh_albums()
     for album in tqdm(m.group_by('album').values()):
         m.upsert_album(album)
     for artist in tqdm(m.group_by('artist').values()):
