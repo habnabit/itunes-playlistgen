@@ -1,4 +1,4 @@
-import { List, Map, Seq, Record } from 'immutable'
+import { List, Map, Seq, Record, Set } from 'immutable'
 import { Lens } from 'monocle-ts'
 import * as React from 'react'
 import { connect } from 'react-redux'
@@ -24,12 +24,17 @@ import {
 } from '../types'
 import * as actions from './actions'
 import {
-    DiscogsSelector,
+    DiscogsUnconfirmedSelector,
     UnconfirmedAlbum,
     DiscogsMaster,
     AlbumReselector,
     DiscogsTrack,
     filterTracks,
+    DiscogsMatchedSelector,
+    MatchedMap,
+    YearMap,
+    MatchedAlbum,
+    Artist,
 } from './types'
 import * as Option from 'fp-ts/lib/Option'
 
@@ -123,7 +128,7 @@ const DiscogsReselector = pure(
     }: {
         id: number
         url: string
-        lens: Lens<DiscogsSelector, AlbumReselector>
+        lens: Lens<DiscogsUnconfirmedSelector, AlbumReselector>
         onChangeUrl: typeof actions.changeUrl
     }) => {
         return (
@@ -145,8 +150,8 @@ const DiscogsReselector = pure(
 
 const ConnectedDiscogsReselector = connect(
     (
-        { base: top }: { base: DiscogsSelector },
-        { lens }: { lens: Lens<DiscogsSelector, AlbumReselector> },
+        { base: top }: { base: DiscogsUnconfirmedSelector },
+        { lens }: { lens: Lens<DiscogsUnconfirmedSelector, AlbumReselector> },
     ) => {
         return {
             url: lens.get(top).url,
@@ -167,7 +172,7 @@ const UnconfirmedAlbumComponent = pure(
         album: UnconfirmedAlbum
         reselector: AlbumReselector
         count: AlbumCount
-        lens: Lens<DiscogsSelector, AlbumReselector>
+        lens: Lens<DiscogsUnconfirmedSelector, AlbumReselector>
         onConfirm: typeof actions.confirm.request
     }) => {
         const alb = props.album
@@ -327,14 +332,17 @@ const UnconfirmedAlbumComponent = pure(
 
 const ConnectedUnconfirmedAlbumComponent = connect(
     (
-        { base: top }: { base: DiscogsSelector },
+        { base: top }: { base: DiscogsUnconfirmedSelector },
         { album }: { album: UnconfirmedAlbum },
     ) => {
         const lens1: Lens<
-            DiscogsSelector,
+            DiscogsUnconfirmedSelector,
             Map<number, AlbumReselector>
         > = lensFromImplicitAccessors('albumReselection')
-        const lens2: Lens<DiscogsSelector, AlbumReselector> = lens1.compose(
+        const lens2: Lens<
+            DiscogsUnconfirmedSelector,
+            AlbumReselector
+        > = lens1.compose(
             lensFromNullableImplicitAccessorsAndConstructor(
                 album.albumDiscogsId,
                 () => new AlbumReselector(),
@@ -388,7 +396,7 @@ const DiscogsMatcherComponent = onlyUpdateForKeys(['unconfirmedAlbums'])(
 )
 
 export const ConnectedDiscogsMatcherSelectorComponent = connect(
-    ({ base: top }: { base: DiscogsSelector }) => {
+    ({ base: top }: { base: DiscogsUnconfirmedSelector }) => {
         const { unconfirmedAlbums, albumCounts } = top
         return { unconfirmedAlbums, albumCounts }
     },
@@ -397,3 +405,103 @@ export const ConnectedDiscogsMatcherSelectorComponent = connect(
         return { ...props, ...dispatch, ...ownProps }
     },
 )(DiscogsMatcherComponent)
+
+const YearArtistAlbumDisplay = pure((props: { album: MatchedAlbum }) => (
+    <div className={`artist-album ${props.album.matched ? 'matched' : ''}`}>
+        <h4>{props.album.title}</h4>
+        <img src={props.album.thumb} />
+    </div>
+))
+
+const YearArtistDisplay = pure(
+    (props: { artist: Artist; albums: List<MatchedAlbum> }) => (
+        <div className="artist">
+            <h3>{props.artist.name}</h3>
+            {props.albums
+                .toSeq()
+                .sortBy((album) => album.title)
+                .map((album, e) => (
+                    <YearArtistAlbumDisplay key={e} album={album} />
+                ))}
+        </div>
+    ),
+)
+
+const YearDisplay = pure((props: { year: number; yearMap: YearMap }) => (
+    <div className="year">
+        <h2>{props.year}</h2>
+        {props.yearMap
+            .entrySeq()
+            .sortBy(([artist]) => artist.name)
+            .map(([artist, albums]) => (
+                <YearArtistDisplay key={artist.id} {...{ artist, albums }} />
+            ))}
+    </div>
+))
+
+const YearsSelect = onlyUpdateForKeys(['years', 'showYears'])(
+    (props: {
+        years: number[]
+        showYears: Set<number>
+        onChangeYears: typeof actions.changeYears
+    }) => (
+        <select
+            multiple={true}
+            value={props.showYears.map((y) => y.toString()).toArray()}
+            onChange={(ev) => {
+                const years = Seq(ev.target.selectedOptions)
+                    .map((o) => parseInt(o.value))
+                    .toSet()
+                props.onChangeYears({ years })
+            }}
+        >
+            {Seq(props.years)
+                .sort((a, b) => b - a)
+                .map((y, e) => (
+                    <option key={y} value={y}>
+                        {y}
+                    </option>
+                ))}
+        </select>
+    ),
+)
+
+const ConnectedYearsSelect = connect(
+    ({ base: top }: { base: DiscogsMatchedSelector }) => {
+        const { showYears } = top
+        return { showYears }
+    },
+    (d: Dispatch) =>
+        bindActionCreators(
+            {
+                onChangeYears: actions.changeYears,
+            },
+            d,
+        ),
+)(YearsSelect)
+
+const DiscogsMatchedComponent = pure(
+    (props: { matched: MatchedMap; showYears: Set<number> }) => (
+        <div className="all-matched">
+            <ConnectedYearsSelect years={props.matched.keySeq().toArray()} />
+            {props.showYears.toSeq().map((y) => (
+                <YearDisplay
+                    key={y}
+                    year={y}
+                    yearMap={props.matched.get(y, Map())}
+                />
+            ))}
+        </div>
+    ),
+)
+
+export const ConnectedDiscogsMatchedSelectorComponent = connect(
+    ({ base: top }: { base: DiscogsMatchedSelector }) => {
+        const { matched, showYears } = top
+        return { matched, showYears }
+    },
+    (d: Dispatch) => bindActionCreators({}, d),
+    (props, dispatch, ownProps) => {
+        return { ...props, ...dispatch, ...ownProps }
+    },
+)(DiscogsMatchedComponent)

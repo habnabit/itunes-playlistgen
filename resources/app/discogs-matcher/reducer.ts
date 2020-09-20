@@ -4,12 +4,16 @@ import { getType } from 'typesafe-actions'
 
 import * as baseActions from '../actions'
 import * as actions from './actions'
-import { AllActions, DiscogsSelector } from './types'
+import {
+    AllActions,
+    DiscogsMatchedSelector,
+    DiscogsUnconfirmedSelector,
+} from './types'
 
-export default function discogsReducer(
-    state = new DiscogsSelector(),
+export function discogsUnconfirmedReducer(
+    state = new DiscogsUnconfirmedSelector(),
     action: AllActions,
-): DiscogsSelector {
+): DiscogsUnconfirmedSelector {
     switch (action.type) {
         case getType(actions.changeUrl): {
             const { lens, value } = action.payload
@@ -28,6 +32,24 @@ export default function discogsReducer(
         case getType(actions.confirm.success): {
             const { confirmed } = action.payload.json
             return state.withConfirmedAlbum(confirmed)
+        }
+
+        default:
+            return state
+    }
+}
+
+export function discogsMatchedReducer(
+    state = new DiscogsMatchedSelector(),
+    action: AllActions,
+): DiscogsMatchedSelector {
+    switch (action.type) {
+        case getType(actions.fetchMatchedAlbums.success): {
+            return state.withMatchedAlbums(action.payload.json)
+        }
+
+        case getType(actions.changeYears): {
+            return state.set('showYears', action.payload.years)
         }
 
         default:

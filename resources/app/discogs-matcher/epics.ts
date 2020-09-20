@@ -16,12 +16,27 @@ import * as baseActions from '../actions'
 import { postJSON } from '../funcs'
 import { RemoteError, TrackId } from '../types'
 import * as actions from './actions'
-import { AllActions, DiscogsSelector } from './types'
+import {
+    AllActions,
+    DiscogsMatchedSelector,
+    DiscogsUnconfirmedSelector,
+} from './types'
 
-const initialFetchEpic: Epic<AllActions, AllActions> = (action$) =>
+const initialFetchEpic: Epic<
+    AllActions,
+    AllActions,
+    { base: DiscogsUnconfirmedSelector | DiscogsMatchedSelector }
+> = (action$, state$) =>
     action$.pipe(
         filter(isActionOf(baseActions.fetchArgv.request)),
-        switchMap((action) => of(actions.fetchUnconfirmedAlbums.request())),
+        switchMap((action) => {
+            const { base } = state$.value
+            if (base instanceof DiscogsUnconfirmedSelector) {
+                return of(actions.fetchUnconfirmedAlbums.request())
+            } else if (base instanceof DiscogsMatchedSelector) {
+                return of(actions.fetchMatchedAlbums.request())
+            }
+        }),
     )
 
 const fetchUnconfirmedAlbumsEpic: Epic<AllActions, AllActions> = (action$) =>
@@ -35,6 +50,21 @@ const fetchUnconfirmedAlbumsEpic: Epic<AllActions, AllActions> = (action$) =>
                         (json) =>
                             actions.fetchUnconfirmedAlbums.success({ json }),
                         actions.fetchUnconfirmedAlbums.failure,
+                    ),
+            ),
+        ),
+    )
+
+const fetchMatchedAlbumsEpic: Epic<AllActions, AllActions> = (action$) =>
+    action$.pipe(
+        filter(isActionOf(actions.fetchMatchedAlbums.request)),
+        switchMap((action) =>
+            from(
+                fetch('/_api/all-artist-albums')
+                    .then((resp) => resp.json())
+                    .then(
+                        (json) => actions.fetchMatchedAlbums.success({ json }),
+                        actions.fetchMatchedAlbums.failure,
                     ),
             ),
         ),
@@ -62,7 +92,7 @@ const fetchDebounceEpic: Epic<AllActions, AllActions> = (action$) =>
 const fetchFromDiscogsEpic: Epic<
     AllActions,
     AllActions,
-    { base: DiscogsSelector }
+    { base: DiscogsUnconfirmedSelector }
 > = (action$, state$) =>
     action$.pipe(
         filter(isActionOf(actions.fetchFromDiscogs.request)),
@@ -131,6 +161,7 @@ const confirmEpic: Epic<AllActions, AllActions> = (action$) =>
 export default combineEpics(
     initialFetchEpic,
     fetchUnconfirmedAlbumsEpic,
+    fetchMatchedAlbumsEpic,
     fetchDebounceEpic,
     fetchFromDiscogsEpic,
     confirmEpic,

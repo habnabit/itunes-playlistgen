@@ -181,6 +181,67 @@ def unconfirmed_albums(request):
     return {'albums': rows}
 
 
+def pick(d, *keys, **transform):
+    keys = set(keys) | transform.keys()
+
+    def aux():
+        for k in keys:
+            v = d.get(k)
+            if k in transform:
+                v = transform[k](v)
+            yield k, v
+
+    return dict(aux())
+
+
+@view_config(route_name='all_artist_albums', renderer='json')
+def all_artist_albums(request):
+    db = request.discogs_matcher.db
+    db.query("""
+        create temporary table if not exists ad_ids as
+        select rowid,
+            coalesce(
+                json_extract(ad.discogs_data, '$.master_url'),
+                json_extract(ad.discogs_data, '$.resource_url'))
+            resource_url
+        from album_discogs ad
+        where confirmed
+        and discogs_id is not null
+    """)
+    db.query("""
+        create index if not exists ad_ids_resource_idx
+        on ad_ids (resource_url)
+    """)
+    db.query("""
+        create temporary table if not exists aad_ids as
+        select rowid,
+            json_extract(aad.discogs_data, '$.resource_url') resource_url
+        from artist_album_discogs aad
+    """)
+    db.query("""
+        create index if not exists aad_ids_resource_idx
+        on aad_ids (resource_url)
+    """)
+    rows = db.query("""
+        select resource_url,
+            aad.discogs_data,
+            ad_ids.id is not null matched
+        from aad_ids
+        left join ad_ids using (resource_url)
+        join artist_album_discogs aad on aad_ids.id = aad.id
+        left join album_discogs ad on ad_ids.id = ad.id
+        group by 1
+    """)
+    return {'albums': [{
+        'discogs_data': pick(
+            json.loads(r['discogs_data']),
+            'id', 'type', 'title', 'thumb', 'uri', 'year',
+            artists=lambda dl: [pick(d, 'id', 'name') for d in dl],
+        ),
+        'matched': r['matched'],
+    } for r in rows]}
+
+
 confirm_service = Service(name='confirm', path='/_api/confirm')
 
 class ConfirmBodySchema(Schema):
@@ -484,6 +545,7 @@ def build_app(tracks, argv):
             config.add_route('genius_albums', 'genius-albums')
             config.add_route('track_artwork', 'track/{id}/artwork')
             config.add_route('unconfirmed_albums', 'unconfirmed/albums')
+            config.add_route('all_artist_albums', 'all-artist-albums')
             config.add_exception_view(api_exception_view, renderer='json')
 
         app = config.make_wsgi_app()

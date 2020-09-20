@@ -7,8 +7,14 @@ import { Provider } from 'react-redux'
 
 import { ConnectedAlbumShuffleSelectorComponent } from './album-shuffle/components'
 import { AlbumShuffleSelector } from './album-shuffle/types'
-import { ConnectedDiscogsMatcherSelectorComponent } from './discogs-matcher/components'
-import { DiscogsSelector } from './discogs-matcher/types'
+import {
+    ConnectedDiscogsMatchedSelectorComponent,
+    ConnectedDiscogsMatcherSelectorComponent,
+} from './discogs-matcher/components'
+import {
+    DiscogsMatchedSelector,
+    DiscogsUnconfirmedSelector,
+} from './discogs-matcher/types'
 import { ConnectedTopComponent } from './meta/components'
 import * as stores from './redux'
 import { ConnectedTimefillSelectorComponent } from './timefill/components'
@@ -25,11 +31,19 @@ function makeRootElement(): JSX.Element {
             },
         })
         component = <ConnectedTimefillSelectorComponent />
-    } else if (location.search == '?discogs') {
-        store = stores.discogsStore(new DiscogsSelector(), {
+    } else if (location.search == '?discogs=unconfirmed') {
+        store = stores.discogsUnconfirmedStore(
+            new DiscogsUnconfirmedSelector(),
+            {
+                argv: true,
+            },
+        )
+        component = <ConnectedDiscogsMatcherSelectorComponent />
+    } else if (location.search == '?discogs=matched') {
+        store = stores.discogsMatchedStore(new DiscogsMatchedSelector(), {
             argv: true,
         })
-        component = <ConnectedDiscogsMatcherSelectorComponent />
+        component = <ConnectedDiscogsMatchedSelectorComponent />
     } else {
         store = stores.albumShuffleStore(new AlbumShuffleSelector(), {
             argv: true,
