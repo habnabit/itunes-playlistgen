@@ -6,6 +6,7 @@ import PulseLoader from 'react-spinners/PulseLoader'
 import { onlyUpdateForKeys, pure } from 'recompose'
 import { Dispatch, bindActionCreators } from 'redux'
 import * as diff from 'fast-diff'
+import { findBestMatch } from 'string-similarity'
 
 import * as baseActions from '../actions'
 import {
@@ -49,7 +50,7 @@ type condensedDiff = {
     d: diff.Diff
 }
 
-const StringDiff = pure((props: { a: string; b: string }) => {
+const StringDiff = pure((props: { a: string; b: string; rating: number }) => {
     const diffed = diff(props.a, props.b)
     const diffedCondensed = List(diffed).reduce((ret, d2) => {
         const d1: condensedDiff = ret.last()
@@ -72,6 +73,8 @@ const StringDiff = pure((props: { a: string; b: string }) => {
         <>
             <span className="type-a">{props.a}</span> vs.{' '}
             <span className="type-b">{props.b}</span>
+            <br />
+            {(props.rating * 100).toFixed(1)}%
             <br />
             {diffedCondensed.map(({ className, d }, e) => (
                 <span className={className} key={e}>
@@ -210,26 +213,39 @@ const UnconfirmedAlbumComponent = pure(
             const bTracks = filterTracks(discogsData.tracklist).toList()
             const nATracks = alb.tracks.size
             const nBTracks = bTracks.size
+            const bStrings = bTracks
+                .toSeq()
+                .map((b) => b.title)
+                .toArray()
             var zipped = alb.tracks
-                .zip(bTracks)
-                .flatMap(([a, b], e): [number, Track, DiscogsTrack][] =>
-                    a.title !== b.title ? [[e, a, b]] : [],
-                )
-                .map(([e, a, b]) => (
-                    <li value={e + 1} key={e}>
+                .toSeq()
+                .map((a) => {
+                    const matches = findBestMatch(a.title, bStrings)
+                    const b = bTracks.get(matches.bestMatchIndex)
+                    const { rating } = matches.bestMatch
+                    return { a, b, rating }
+                })
+                .flatMap((r) => {
+                    const aTitle = `[${r.a.trackNumber}] ${r.a.title}`
+                    const bTitle = `[${r.b.position}] ${r.b.title}`
+                    return aTitle !== bTitle ? [{ aTitle, bTitle, ...r }] : []
+                })
+                .map(({ a, b, aTitle, bTitle, rating }, e) => (
+                    <li key={e}>
                         <label>
                             <input
                                 type="checkbox"
                                 name={`rename/${a.id}`}
                                 value={b.title}
                             />
-                            <StringDiff a={a.title} b={b.title} />
+                            <StringDiff a={aTitle} b={bTitle} rating={rating} />
                         </label>
                     </li>
                 ))
+                .toList()
             if (nATracks !== nBTracks) {
                 zipped = zipped.unshift(
-                    <li value="0" key="length">
+                    <li key="length">
                         {nATracks} tracks vs. {nBTracks} tracks
                     </li>,
                 )
@@ -239,7 +255,7 @@ const UnconfirmedAlbumComponent = pure(
             ) : (
                 <>
                     Some differences:
-                    <ol>{zipped}</ol>
+                    <ul>{zipped}</ul>
                 </>
             )
             addRButton('found', 'Mark this discogs result as found')
