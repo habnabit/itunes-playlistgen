@@ -1003,5 +1003,32 @@ def shell(tracks, argv):
     IPython.start_ipython(argv=argv, user_ns={'tracks': tracks})
 
 
+@main.command()
+@click.pass_obj
+@click.option('-n', '--n-q', default=11, help='quantiles')
+@click.argument('outfile', type=click.File(mode='w'))
+def volume(tracks, outfile, n_q):
+    import csv, subprocess
+    from . import _volume_analysis
+    q = numpy.linspace(0, 1, num=n_q)
+    with outfile:
+        writer = csv.writer(outfile)
+        writer.writerow([
+            'Title', 'Artist', 'ppis',
+            *('q_{:0.3f}'.format(x) for x in q)])
+        for t in tracks.tracklist:
+            if t.location() is None:
+                continue
+            try:
+                power = _volume_analysis.track_windowed_power(t)
+            except subprocess.CalledProcessError:
+                trailer = ['error']
+            else:
+                trailer = numpy.quantile(power, q)
+            writer.writerow([
+                t.title(), t.artist().name(), ppis(t),
+                *trailer])
+
+
 if __name__ == '__main__':
     main()
