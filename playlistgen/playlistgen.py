@@ -129,11 +129,31 @@ class TrackContext(object):
         if self.dry_run:
             click.echo('  .. not actually committing the playlist though')
             return
-        scripts.call(
-            'fill_tracks', splut, persistent_tracks, self.start_playing)
+        self._save_selection_loop(splut, persistent_tracks)
+        if not self.dry_run:
+            click.echo('  .. done')
+
+    def _save_selection_loop(self, splut, persistent_tracks):
+        for n in range(5):
+            try:
+                scripts.call(
+                    'fill_tracks', splut, persistent_tracks, self.start_playing)
+            except applescript.ScriptError as e:
+                # "AppleEvent timed out."
+                if e.number != -1712:
+                    raise
+                e_ = e
+            else:
+                return
+            click.echo('.. attempt {} timed out'.format(n))
+        raise SaveFailed(splut) from e_
 
     def search_with_criteria(self, **kw):
         return search_criteria(self, **kw)
+
+
+class SaveFailed(Exception):
+    pass
 
 
 def ppis(t):
