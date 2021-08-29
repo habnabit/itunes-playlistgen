@@ -13,10 +13,11 @@ value = nested / string_value / empty
 nested = "=[" criterion "]"
 splat = ("*")?
 
-key = ~"[a-zA-Z0-9_.^-]+"
+number = ~"-?[0-9][0-9_.]*"
+key = ~"[a-zA-Z0-9_.^ >%※\n-]+"
 empty = ""
 json_value = "=" ~"{.+\Z"
-string_value = "=" key
+string_value = "=" (number / key)
 
 """)
 
@@ -94,6 +95,13 @@ class CriterionVisitor(parsimonious.NodeVisitor):
     def visit_splat(self, node, children):
         return len(children) > 0
 
+    def visit_number(self, node, children):
+        text = node.text
+        if '.' in text:
+            return float(text)
+        else:
+            return int(text)
+
     def visit_key(self, node, children):
         return node.text
 
@@ -104,7 +112,7 @@ class CriterionVisitor(parsimonious.NodeVisitor):
         return Constructors(json.loads(children[-1].text).items())
 
     def visit_string_value(self, node, children):
-        return children[-1]
+        return children[-1][0]
 
     def generic_visit(self, node, children):
         return children or node

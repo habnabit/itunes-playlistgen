@@ -78,8 +78,10 @@ class Ambiguous(Exception):
 
 
 def big_prime(n):
-    import gmpy_cffi
-    return int(gmpy_cffi.next_prime(int.from_bytes(os.urandom(n), 'little')))
+    start = int.from_bytes(os.urandom((n // 8) + 1), sys.byteorder)
+    start &= (2 ** n) - 1
+    start |= 1 << (n - 1)
+    return int(gmpy_cffi.next_prime(start))
 
 
 @attr.s
@@ -233,11 +235,14 @@ class Matcher:
             return
         with self.using_bar(tqdm(releases, leave=False, unit='album')) as bar:
             for release in bar:
+                if data_table.count(resource_url=release.data['resource_url']) > 0:
+                    continue
                 release.refresh()
                 if not any(a['id'] == id for a in release.data['artists']):
                     return
                 data_table.insert({
                     'discogs_data': release.data,
+                    'resource_url': release.data['resource_url'],
                 }, types={
                     'discogs_data': self.db.types.json,
                 })

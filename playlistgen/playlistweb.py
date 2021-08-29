@@ -134,7 +134,7 @@ def index(request):
 @view_config(route_name='web_argv', renderer='json')
 def web_argv(request):
     return {
-        'dest_playlist': request.tracks.dest_playlist,
+        'dest_playlist': '',#request.tracks.dest_playlist,
         'web_argv': request.web_argv,
     }
 
@@ -510,7 +510,7 @@ class SaveAndExitSchema(Schema):
 @save_service.post(schema=SaveAndExitSchema, validators=(marshmallow_validator,))
 def save(request):
     parsed = request.validated['body']
-    request.tracks.set_default_dest(parsed['name'])
+    #request.tracks.set_default_dest(parsed['name'])
     tracklist = parsed['tracks']
     selection = playlistgen.Selection(tracklist, range(len(tracklist)))
     request.tracks.save_selection(selection)

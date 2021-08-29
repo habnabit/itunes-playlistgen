@@ -31,12 +31,30 @@ zeroth = operator.itemgetter(0)
 @attr.s
 class TrackContext(object):
     source_playlists = attr.ib()
-    dest_playlist = attr.ib()
+    _dest_playlist = attr.ib()
     start_playing = attr.ib()
     raw_criteria = attr.ib(factory=list)
     rng = attr.ib(default=attr.Factory(random.Random))
     dry_run = attr.ib(default=False)
+    remove_previous = attr.ib(default=True)
     discogs_token = attr.ib(default=None)
+
+    @reify
+    def dest_playlist(self):
+        dest = self._dest_playlist
+        if '=' not in dest:
+            dest = 'single=' + dest
+        ret = parse_criterion(dest).make_from_map(CRITERIA)
+        playlist_map = self.playlists_by_nested_name
+        to_delete = list(ret.filter_pruned(playlist_map.keys()))
+        if to_delete:
+            click.echo('Deleting {} old playlists.'.format(len(to_delete)))
+            if self.dry_run:
+                click.echo('  .. not actually deleting: {!r}'.format(to_delete))
+            else:
+                to_delete = [ppis(playlist_map[name]) for name in to_delete]
+                scripts.call('delete_playlists', to_delete)
+        return ret
 
     @reify
     def library(self):
@@ -104,6 +122,8 @@ class TrackContext(object):
         ret = set()
         for name in self.source_playlists:
             ret.update(self.playlists_by_name[name].items())
+        if self.remove_previous:
+            ret.difference_update(self.prev_selection())
         return sorted(ret, key=by_album)
 
     @reify
@@ -118,20 +138,27 @@ class TrackContext(object):
         return ret
 
     def set_default_dest(self, name):
-        if self.dest_playlist is None:
-            self.dest_playlist = name
+        if self._dest_playlist is None:
+            self._dest_playlist = name
+
+    def prev_selection(self):
+        playlist_map = self.playlists_by_nested_name
+        matching = self.dest_playlist.filter_matching(playlist_map.keys())
+        ret = set()
+        for name in matching:
+            ret.update(playlist_map[name].items())
+        return ret
 
     def save_selection(self, selection):
         persistent_tracks = list(selection.track_persistent_ids)
-        splut = self.dest_playlist.splitlines()
+        splut = self.dest_playlist.next()
         click.echo('Putting {} tracks into {!r}.'.format(
-            len(persistent_tracks), splut[-1]))
+            len(persistent_tracks), splut))
         if self.dry_run:
             click.echo('  .. not actually committing the playlist though')
             return
         self._save_selection_loop(splut, persistent_tracks)
-        if not self.dry_run:
-            click.echo('  .. done')
+        click.echo('  .. done')
 
     def _save_selection_loop(self, splut, persistent_tracks):
         for n in range(5):
@@ -202,6 +229,17 @@ class IReducerCriterion(ICriterion):
         pass
 
 
+class IPlaylistCriterion(ICriterion):
+    def filter_matching(playlists):
+        pass
+
+    def filter_pruned(playlists):
+        pass
+
+    def next():
+        pass
+
+
 score_selection_ufunc = numpy.frompyfunc(
     lambda a, b: a.score(b.track_indices), 2, 1)
 score_format_ufunc = numpy.frompyfunc(
@@ -237,9 +275,9 @@ class ReducerContext:
 @attr.s
 class CriterionTime(object):
     name = 'time'
-    time = attr.ib(converter=float)
-    scale = attr.ib(default=10, converter=float)
-    offset = attr.ib(default=1, converter=float)
+    time = attr.ib()
+    scale = attr.ib(default=10)
+    offset = attr.ib(default=1)
     at = attr.ib(default='end')
     _track_lengths = attr.ib(factory=dict)
 
@@ -272,8 +310,8 @@ class CriterionTime(object):
 @attr.s
 class CriterionTracks(object):
     name = 'ntracks'
-    count = attr.ib(converter=int)
-    power = attr.ib(default=10, converter=float)
+    count = attr.ib()
+    power = attr.ib(default=10)
 
     def prepare(self, tracks):
         pass
@@ -287,7 +325,7 @@ class CriterionTracks(object):
 class CriterionAlbums(object):
     name = 'albums'
     spread = attr.ib()
-    power = attr.ib(default=1, converter=float)
+    power = attr.ib(default=1)
     _track_albums = attr.ib(factory=dict)
 
     def prepare(self, tracks):
@@ -451,7 +489,7 @@ class CriterionArtistSelector(object):
 @attr.s
 class CriterionScoreUnrecent:
     name = 'score-unrecent'
-    unrecentness_days = attr.ib(converter=int)
+    unrecentness_days = attr.ib()
     bias_recent_adds = attr.ib(default='', converter=lambda s: s.startswith('y'))
     _scores = attr.ib(factory=list)
     _cumulative = attr.ib(default=0)
@@ -607,6 +645,67 @@ class ReducedScore:
             return self.unreduced < other
         else:
             return NotImplemented
+
+
+@implementer(IPlaylistCriterion)
+@attr.s
+class CriterionSinglePlaylist:
+    name = 'single'
+    _dest = attr.ib()
+
+    @reify
+    def dest(self):
+        return tuple(self._dest.splitlines())
+
+    def filter_matching(self, playlists):
+        return playlists & {self.dest}
+
+    def filter_pruned(self, playlists):
+        return set()
+
+    def next(self):
+        return self.dest
+
+
+@implementer(IPlaylistCriterion)
+@attr.s
+class CriterionStrftime:
+    name = 'strftime'
+    _pattern = attr.ib()
+    keep_last_days = attr.ib(default=None)
+    keep_last_count = attr.ib(default=None)
+
+    @reify
+    def _splut_pattern(self):
+        *container, pattern = self._pattern.splitlines()
+        return container, pattern
+
+    def _filter_matching(self, playlists):
+        container, pattern = self._splut_pattern
+        for name in playlists:
+            *c, n = name
+            if c != container:
+                continue
+            playlist_date = datetime.datetime.strptime(n, pattern)
+            yield playlist_date, name
+
+    def filter_matching(self, playlists):
+        return {name for _, name in self._filter_matching(playlists)}
+
+    def filter_pruned(self, playlists):
+        if self.keep_last_days is not None:
+            min_date = datetime.datetime.now() - self.keep_last_days
+            for date, name in self._filter_matching(playlists):
+                if date < min_date:
+                    yield name
+        elif self.keep_last_count is not None:
+            matching = sorted(self._filter_matching(playlists))
+            for _, name in matching[:-self.keep_last_count]:
+                yield name
+
+    def next(self):
+        container, pattern = self._splut_pattern
+        return (*container, datetime.datetime.now().strftime(pattern))
 
 
 @attr.s(frozen=True)
@@ -798,6 +897,8 @@ CRITERIA = {cls.name: cls for cls in [
     CriterionPickFrom,
     CriterionRPN,
     CriterionScoreUnrecent,
+    CriterionSinglePlaylist,
+    CriterionStrftime,
     CriterionTime,
     CriterionTrackWeights,
     CriterionTracks,
@@ -928,6 +1029,8 @@ def delete_older(tracks, pattern, max_age):
 @click.option('-b', '--debug/--no-debug', help='install a pdb trap')
 @click.option('-n', '--dry-run/--no-dry-run',
               help="don't actually save playlists")
+@click.option('--remove-previous/--no-remove-previous', default=True,
+              help="remove previously-selected tracks")
 @click.option('-t', '--discogs-token', metavar='TOKEN', envvar='DISCOGS_TOKEN',
               help='Discogs user token.')
 def main(ctx, source_playlist, criterion, debug, **kw):
@@ -965,26 +1068,16 @@ def search(tracks, show, iterations):
 
 @main.command('daily-unrecent')
 @click.pass_obj
-@click.option('--playlist-pattern', default=u'※ Daily\n%Y-%m-%d',
-              metavar='PATTERN', help='strftime-style pattern for playlists.')
-@click.option('--delete-older-than', default=None, type=int, metavar='DAYS',
-              help='How old of playlists to delete.')
-def daily_unrecent(tracks, playlist_pattern, delete_older_than):
+def daily_unrecent(tracks):
     """
     Build a playlist of non-recently played things.
     """
 
-    date = datetime.datetime.now().strftime(playlist_pattern)
-    tracks.set_default_dest(date)
-    container = playlist_pattern.splitlines()[:-1]
-    tracklist = list(set(tracks.tracklist) - set(tracks.nested_playlist(container).items()))
+    tracks.set_default_dest('strftime=※ Daily\n%Y-%m-%d')
     selection = tracks.search_with_criteria(
-        tracklist=tracklist, pull_prev=1, keep=1, n_options=1)[0]
+        tracklist=tracks.tracklist, pull_prev=1, keep=1, n_options=1)[0]
     show_selection(selection)
     tracks.save_selection(selection)
-    if delete_older_than is not None:
-        delete_older(
-            tracks, playlist_pattern, datetime.timedelta(days=delete_older_than))
 
 
 @main.command()
