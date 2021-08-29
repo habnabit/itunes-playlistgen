@@ -28,6 +28,10 @@ from . import _album_shuffle, _criteria_parser
 zeroth = operator.itemgetter(0)
 
 
+class NoDestination(Exception):
+    pass
+
+
 @attr.s
 class TrackContext(object):
     source_playlists = attr.ib()
@@ -42,7 +46,9 @@ class TrackContext(object):
     @reify
     def dest_playlist(self):
         dest = self._dest_playlist
-        if '=' not in dest:
+        if dest is None:
+            raise NoDestination()
+        elif '=' not in dest:
             dest = 'single=' + dest
         ret = parse_criterion(dest).make_from_map(CRITERIA)
         playlist_map = self.playlists_by_nested_name
@@ -122,8 +128,11 @@ class TrackContext(object):
         ret = set()
         for name in self.source_playlists:
             ret.update(self.playlists_by_name[name].items())
-        if self.remove_previous:
-            ret.difference_update(self.prev_selection())
+        try:
+            if self.remove_previous:
+                ret.difference_update(self.prev_selection())
+        except NoDestination:
+            pass
         return sorted(ret, key=by_album)
 
     @reify
@@ -1141,6 +1150,13 @@ def volume(tracks, outfile, n_q):
             writer.writerow([
                 t.title(), t.artist().name(), ppis(t),
                 *trailer])
+
+
+@main.command()
+@click.pass_obj
+def export(tracks):
+    from . import _xport
+    _xport.run(tracks)
 
 
 if __name__ == '__main__':
