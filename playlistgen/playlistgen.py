@@ -16,6 +16,7 @@ import json
 import math
 import numpy
 import operator
+import pathlib
 import pkg_resources
 import random
 import statistics
@@ -1154,9 +1155,10 @@ def volume(tracks, outfile, n_q):
 
 @main.command()
 @click.pass_obj
-def export(tracks):
+@click.argument('outfile', type=click.Path(dir_okay=False, writable=True, path_type=pathlib.Path))
+def export(tracks, outfile):
     from . import _xport
-    _xport.run(tracks)
+    _xport.run(tracks, outfile)
 
 
 if __name__ == '__main__':
