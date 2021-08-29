@@ -177,7 +177,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "exec poetry run python ${SCRIPT_INPUT_FILE_0}\n";
+			shellScript = "exec ~/.local/bin/poetry run python ${SCRIPT_INPUT_FILE_0}\n";
 		};
 		1D8BD45023F06916002DEB19 /* Export python build flags .xcconfig file */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -197,7 +197,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "exec poetry run python ${SCRIPT_INPUT_FILE_0}\n";
+			shellScript = "exec ~/.local/bin/poetry run python ${SCRIPT_INPUT_FILE_0}\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 

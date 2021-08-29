@@ -1,0 +1,4 @@
+
+PYTHON_INCLUDEPY = /usr/local/opt/python@3.9/Frameworks/Python.framework/Versions/3.9/include/python3.9
+PYTHON_LDVERSION = 3.9
+PYTHON_LIBDIR = /usr/local/opt/python@3.9/Frameworks/Python.framework/Versions/3.9/lib
