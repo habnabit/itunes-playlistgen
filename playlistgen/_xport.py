@@ -2,6 +2,7 @@ import attr
 import click
 import collections
 import contextlib
+import datetime
 import json
 import os
 import pathlib
@@ -68,6 +69,10 @@ class ExportedTrack:
             raise NoLocation('no location on', self.track.title())
         return pathlib.Path(os.fsdecode(p.fileSystemRepresentation()))
 
+    @reify
+    def length(self):
+        return datetime.timedelta(seconds=self.track.totalTime() / 1000)
+
     def has_location(self):
         try:
             self.location
@@ -81,6 +86,17 @@ class ExportedTrack:
             ['ffprobe', '-v', 'quiet', '-print_format', 'json', '-show_format', self.location],
             check=True, capture_output=True)
         return json.loads(proc.stdout)
+
+
+ONE_S = datetime.timedelta(seconds=1)
+
+def youtube_playlist_format(songs):
+    at = datetime.timedelta(0)
+    ret = []
+    for et in songs:
+        ret.append('{} {}'.format(at - (at % ONE_S), et.track.title()))
+        at += et.length
+    return '\n'.join(ret)
 
 
 def run(tracks, outfile):
@@ -122,11 +138,13 @@ def run(tracks, outfile):
         click.echo("\nCan't continue with m4p media files.")
         sys.exit(1)
 
+    click.echo(f'*** DESC ***\n{youtube_playlist_format(songs_in_order)}\n***')
+
     length_s = sum(et.track.totalTime() for e in songs_in_order) / 1000
 
     with contextlib.ExitStack() as stack:
         tmpdir = pathlib.Path(stack.enter_context(tempfile.TemporaryDirectory()))
-        concat = tmpdir / 'concat.flac'
+        concat = tmpdir / 'concat.mkv'
         os.mkfifo(concat)
         n_files = len(songs_in_order)
         filter_inputs = ''.join('[{}:a]'.format(n) for n in range(n_files))
@@ -135,7 +153,7 @@ def run(tracks, outfile):
             'ffmpeg', '-y', *input_files,
             '-hide_banner', '-loglevel', 'warning', '-progress', 'pipe:1',
             '-filter_complex', f'{filter_inputs}concat=n={n_files}:v=0:a=1[out]',
-            '-map', '[out]',
+            '-map', '[out]', '-c:a', 'flac',
             concat,
         ], stdin=subprocess.DEVNULL, stdout=subprocess.PIPE)
         p2 = subprocess.Popen([
@@ -169,7 +187,7 @@ def run(tracks, outfile):
         render = wrapped['render']
         render_size = stack.enter_context(tqdm.tqdm(desc='render size', unit='B', unit_scale=True, unit_divisor=1024))
 
-        while True:
+        while p1.returncode is None or p2.returncode is None:
             for key, mask in sel.select():
                 if key.data.read1_then_is_closed_p():
                     sel.unregister(key.fileobj)
@@ -181,6 +199,5 @@ def run(tracks, outfile):
                 if k in {'bitrate', 'stream_0_0_q', 'speed'}
             })
             render_size.update(int(render.keys['total_size'] or '0') - render_size.n)
-
-        p1.wait()
-        p2.wait()
+            p1.poll()
+            p2.poll()
