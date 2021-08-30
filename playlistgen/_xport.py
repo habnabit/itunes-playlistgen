@@ -46,8 +46,12 @@ class UghBuffer:
             k, sep, v = line.decode().partition('=')
             self.keys[k] = v
 
-        out_time = int(self.keys['out_time_us'] or '0') / 1_000_000
-        self.bar.update(out_time - self.bar.n)
+        if self.keys['progress'] == 'end':
+            self.bar.n = self.bar.total
+            self.bar.update(0)
+        else:
+            out_time = int(self.keys['out_time_us'] or '0') / 1_000_000
+            self.bar.update(out_time - self.bar.n)
 
 
 class NoLocation(Exception):
@@ -140,7 +144,7 @@ def run(tracks, outfile):
 
     click.echo(f'*** DESC ***\n{youtube_playlist_format(songs_in_order)}\n***')
 
-    length_s = sum(et.track.totalTime() for e in songs_in_order) / 1000
+    length_s = sum(et.track.totalTime() for et in songs_in_order) / 1000
 
     with contextlib.ExitStack() as stack:
         tmpdir = pathlib.Path(stack.enter_context(tempfile.TemporaryDirectory()))
