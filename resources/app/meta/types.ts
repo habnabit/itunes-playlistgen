@@ -51,6 +51,7 @@ export class MetaState extends Record({
     state: new Loading() as OverallState,
     errors: List<string>(),
     artworkErroredFor: Set<TrackId>(),
+    console: [] as string[],
 }) {
     constructor(fetch: InitialFetch) {
         super({

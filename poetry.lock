@@ -938,6 +938,17 @@ optional = false
 python-versions = ">=3.5"
 
 [[package]]
+name = "pyte"
+version = "0.8.0"
+description = "Simple VTXXX-compatible terminal emulator."
+category = "main"
+optional = false
+python-versions = "*"
+
+[package.dependencies]
+wcwidth = "*"
+
+[[package]]
 name = "python-dateutil"
 version = "2.8.1"
 description = "Extensions to the standard Python datetime module"
@@ -1201,7 +1212,7 @@ testing = ["nose", "coverage (>=5.0)"]
 name = "wcwidth"
 version = "0.1.8"
 description = "Measures number of Terminal column cells of wide-character codes"
-category = "dev"
+category = "main"
 optional = false
 python-versions = "*"
 
@@ -1265,7 +1276,7 @@ testing = ["coverage (>=5.0.3)", "zope.event", "zope.testing"]
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.6.1"
-content-hash = "2220da99a54c4db6bd6812720cc2a958e0fa5d4a376e2d747f4b9bf566bb6982"
+content-hash = "71231c3da7ab1d3afeff7c103cd02e7b704ef4b2ef683e7b176349846c31a6cc"
 
 [metadata.files]
 alembic = [
@@ -1756,6 +1767,9 @@ pyramid = [
 ]
 pyrsistent = [
     {file = "pyrsistent-0.17.3.tar.gz", hash = "sha256:2e636185d9eb976a18a8a8e96efce62f2905fea90041958d8cc2a189756ebf3e"},
+]
+pyte = [
+    {file = "pyte-0.8.0.tar.gz", hash = "sha256:7e71d03e972d6f262cbe8704ff70039855f05ee6f7ad9d7129df9c977b5a88c5"},
 ]
 python-dateutil = [
     {file = "python-dateutil-2.8.1.tar.gz", hash = "sha256:73ebfe9dbf22e832286dafa60473e4cd239f8592f699aa5adaf10050e6e1823c"},

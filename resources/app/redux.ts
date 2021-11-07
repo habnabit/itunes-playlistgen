@@ -9,7 +9,7 @@ import {
 } from 'redux'
 import { Epic, combineEpics, createEpicMiddleware } from 'redux-observable'
 import { EMPTY, from, of } from 'rxjs'
-import { bufferCount, expand, filter, map, switchMap } from 'rxjs/operators'
+import { bufferCount, catchError, expand, filter, flatMap, map, switchMap } from 'rxjs/operators'
 import { ActionType, isActionOf } from 'typesafe-actions'
 
 import * as actions from './actions'
@@ -28,6 +28,7 @@ import { InitialFetch, Loaded, Loading, MetaState } from './meta/types'
 import timefillEpics from './timefill/epics'
 import timefillReducer from './timefill/reducer'
 import { TimefillSelector } from './timefill/types'
+import { RemoteError } from './types'
 
 type AllActions = ActionType<typeof actions>
 
@@ -93,6 +94,34 @@ const fetchPlaylistsEpic: Epic<AllActions, AllActions> = (action$) =>
         }),
     )
 
+const fetchConsoleEpic: Epic<AllActions, AllActions> = (action$) =>
+    action$.pipe(
+        filter(isActionOf(actions.fetchConsole.request)),
+        switchMap((action) => {
+            const params = qs.stringify(action.payload)
+            return from(
+                fetch('/_api/screen?' + params)
+                    .then((resp) => resp.json().then((json) => ({ resp, json }))),
+            ).pipe(
+                flatMap(({ resp, json }) => {
+                    if (resp.status !== 200) {
+                        throw new RemoteError(resp, json)
+                    } else {
+                        return of(
+                            actions.fetchConsole.success({ json }),
+                            actions.fetchConsole.request({ poll_interval: 0.1, hashed: json.hashed }),
+                        )
+                    }
+                }),
+                catchError((err) =>
+                    of(
+                        actions.fetchConsole.failure(err),
+                    ),
+                ),
+            )
+        }),
+    )
+
 const savePlaylistEpic: Epic<AllActions, AllActions> = (action$) =>
     action$.pipe(
         filter(isActionOf(actions.savePlaylist.request)),
@@ -107,10 +136,19 @@ const savePlaylistEpic: Epic<AllActions, AllActions> = (action$) =>
             }
             return from(
                 fetch('/_api/save', postJSON(data))
-                    .then((resp) => resp.json())
-                    .then(
-                        (json) => ({} as never),
-                        actions.savePlaylist.failure,
+                .then((resp) => resp.json().then((json) => ({ resp, json }))),
+                ).pipe(
+                    map(({ resp, json }) => {
+                        if (resp.status !== 200) {
+                            throw new RemoteError(resp, json)
+                        } else {
+                            return actions.savePlaylist.success({ json })
+                        }
+                    }),
+                    catchError((err) =>
+                        of(
+                            actions.savePlaylist.failure(err),
+                        ),
                     ),
             )
         }),
@@ -138,6 +176,7 @@ const combinedEpics = combineEpics(
     fetchArgvEpic,
     fetchTracksEpic,
     fetchPlaylistsEpic,
+    fetchConsoleEpic,
     savePlaylistEpic,
     whenLoadedEpic,
 )

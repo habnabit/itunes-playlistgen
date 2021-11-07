@@ -4,14 +4,17 @@ import arrow
 import attr
 import datetime
 import functools
+import io
 import iTunesLibrary
 import json
 import logging
 import marshmallow
 import numpy
+import pyte
 import random
 import simplejson
 import sys
+import time
 import waitress
 import webbrowser
 from cornice import Service
@@ -136,6 +139,26 @@ def web_argv(request):
     return {
         'dest_playlist': '',#request.tracks.dest_playlist,
         'web_argv': request.web_argv,
+    }
+
+
+@view_config(route_name='screen', renderer='json')
+def screen(request):
+    display = request.screen.display
+    hashed = hash(tuple(display))
+    hashed_was = request.params.get('hashed')
+    interval = request.params.get('poll_interval')
+    if interval is not None and str(hashed) == hashed_was:
+        interval = float(interval)
+        display_was = request.screen.display
+        while display == display_was:
+            time.sleep(interval)
+            display = request.screen.display
+        hashed = hash(tuple(display))
+
+    return {
+        'screen': display,
+        'hashed': str(hashed),
     }
 
 
@@ -529,9 +552,41 @@ def api_exception_view(exc, request):
     }
 
 
+@attr.s
+class StreamFeeder(io.IOBase):
+    stream = attr.ib()
+    encoding = 'utf-8'
+    errors = 'strict'
+
+    def fileno(self):
+        raise NotImplementedError()
+
+    def seek(self, a, b=None):
+        raise NotImplementedError()
+
+    def truncate(self, a):
+        raise NotImplementedError()
+
+    def read(self, a=None):
+        raise NotImplementedError()
+
+    def write(self, x):
+        if isinstance(x, bytes):
+            raise TypeError('as demanded by click')
+        self.stream.feed(x)
+        sys.__stderr__.write(x)
+
+
 def build_app(tracks, argv):
+    screen = pyte.Screen(80, 24)
+    screen.set_mode(pyte.modes.LNM)
+    stream = pyte.Stream(screen)
+    sys.stderr = sys.stdout = StreamFeeder(stream)
+
     from . import playlistweb
     with Configurator() as config:
+        config.add_request_method(lambda _: screen, name='screen', reify=True)
+
         config.include('cornice')
         config.include(track_methods(tracks, argv))
         config.add_renderer('json', JSON(serialize_itunes))
@@ -542,6 +597,7 @@ def build_app(tracks, argv):
 
         with config.route_prefix_context('_api'):
             config.add_route('web_argv', 'argv')
+            config.add_route('screen', 'screen')
             config.add_route('genius_albums', 'genius-albums')
             config.add_route('track_artwork', 'track/{id}/artwork')
             config.add_route('unconfirmed_albums', 'unconfirmed/albums')

@@ -26,7 +26,7 @@ const fadeInOut = {
 
 const scrollFromTop = {
     initial: false,
-    exit: { height: 0, 'margin-bottom': 0, y: -100 },
+    exit: { height: 0, marginBottom: 0, y: -100 },
     layoutTransition: true,
 }
 
@@ -73,9 +73,11 @@ class TopComponent extends React.PureComponent<{
     state: OverallState
     errors: List<string>
     initialFetch: InitialFetch
+    console: string[]
     fetchArgv: typeof baseActions.fetchArgv.request
     fetchTracks: typeof baseActions.fetchTracks.request
     fetchPlaylists: typeof baseActions.fetchPlaylists.request
+    fetchConsole: typeof baseActions.fetchConsole.request
     onDismissError: typeof actions.dismissError
 }> {
     componentDidMount() {
@@ -88,6 +90,7 @@ class TopComponent extends React.PureComponent<{
         if (this.props.initialFetch.playlists !== undefined) {
             this.props.fetchPlaylists(this.props.initialFetch.playlists)
         }
+        this.props.fetchConsole({})
     }
 
     render() {
@@ -146,6 +149,7 @@ class TopComponent extends React.PureComponent<{
                         </motion.div>
                     )
                 })}
+                <div id="console" key="console">{this.props.console.join('\n')}</div>
                 {body}
             </AnimatePresence>
         )
@@ -154,12 +158,12 @@ class TopComponent extends React.PureComponent<{
 
 export const ConnectedTopComponent = connect(
     (top: { meta: MetaState }) => {
-        const { state, errors } = top.meta
+        const { state, errors, console } = top.meta
         var initialFetch = {}
         if (top.meta.state instanceof Loading) {
             initialFetch = top.meta.state.fetch
         }
-        return { state, errors, initialFetch }
+        return { state, errors, initialFetch, console }
     },
     (d: Dispatch) =>
         bindActionCreators(
@@ -167,6 +171,7 @@ export const ConnectedTopComponent = connect(
                 fetchArgv: baseActions.fetchArgv.request,
                 fetchTracks: baseActions.fetchTracks.request,
                 fetchPlaylists: baseActions.fetchPlaylists.request,
+                fetchConsole: baseActions.fetchConsole.request,
                 onDismissError: actions.dismissError,
             },
             d,

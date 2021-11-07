@@ -68,6 +68,21 @@ export const finishedLoading = createAction('playlistgen/finishedLoading')<
     void
 >()
 
+export const fetchConsole = createAsyncAction(
+    'playlistgen/fetchConsole/request',
+    'playlistgen/fetchConsole/success',
+    'playlistgen/fetchConsole/failure',
+)<
+    {
+        hashed?: string
+        poll_interval?: number
+    },
+    {
+        json: any
+    },
+    Error
+>()
+
 export const savePlaylist = createAsyncAction(
     'playlistgen/savePlaylist/request',
     'playlistgen/savePlaylist/success',
@@ -77,6 +92,8 @@ export const savePlaylist = createAsyncAction(
         name: string
         tracks: List<Track>
     },
-    never,
+    {
+        json: any
+    },
     Error
 >()

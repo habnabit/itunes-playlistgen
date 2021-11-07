@@ -44,10 +44,16 @@ export default function metaReducer(
             })
         }
 
+        case getType(baseActions.fetchConsole.success): {
+            return state.set('console', action.payload.json.screen)
+        }
+
         case getType(baseActions.showError):
         case getType(baseActions.fetchArgv.failure):
         case getType(baseActions.fetchTracks.failure):
-        case getType(baseActions.fetchPlaylists.failure): {
+        case getType(baseActions.fetchPlaylists.failure):
+        case getType(baseActions.fetchConsole.failure):
+        case getType(baseActions.savePlaylist.failure): {
             return state.update('errors', (l) => l.push(action.payload.stack))
         }
 
