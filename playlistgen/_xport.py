@@ -16,8 +16,11 @@ from pyramid.decorator import reify
 
 from .playlistgen import seconds
 
-US_QUANT = decimal.Decimal(1) / 1_000_000
-CD_MULT = (decimal.Decimal(1) / 75).quantize(US_QUANT)
+S_QUANT = decimal.Decimal('1')
+US_QUANT = S_QUANT / 1_000_000
+# sectors are 75⁻¹s but 3 is an annoying factor
+SECTORS_MULT = (decimal.Decimal(1) / 25).quantize(US_QUANT)
+SECTORS_INV_US = 1_000_000 * SECTORS_MULT
 
 
 @attr.s
@@ -90,8 +93,8 @@ class ExportedTrack:
         return decimal.Decimal(self.ffprobed['format']['duration'])
 
     @reify
-    def cd_padded_length(self):
-        return self.exact_length.quantize(CD_MULT, rounding=decimal.ROUND_UP)
+    def length_sectors(self):
+        return (self.exact_length / SECTORS_MULT).quantize(S_QUANT, rounding=decimal.ROUND_UP)
 
     def has_location(self):
         try:
@@ -114,7 +117,7 @@ class ExportedTrack:
 
 def concat_filter_for(songs):
     n_files = len(songs)
-    filters = [f'[{n}:a]apad=whole_dur={int(et.cd_padded_length * 1_000_000)}us[p{n}]' for n, et in enumerate(songs)]
+    filters = [f'[{n}:a]apad=whole_dur={int(et.length_sectors * SECTORS_INV_US)}us[p{n}]' for n, et in enumerate(songs)]
     concat_inputs = ''.join('[p{}]'.format(n) for n in range(n_files))
     filters.append(f'{concat_inputs}concat=n={n_files}:v=0:a=1[out]')
     print(filters)
@@ -176,17 +179,19 @@ class CdRenderer:
 
     def cue_text(self):
         lines = [f'FILE "{self.wav_out}" WAVE']
-        at = 0
+        at_sectors = 0
         for e, et in enumerate(self.songs, start=1):
-            seconds, subseconds = divmod(at, 1)
+            seconds, sectors = divmod(at_sectors, 25)
             minutes, seconds = divmod(seconds, 60)
+            print(f'{minutes=} {seconds=} {sectors=}')
             lines.extend([
                 f'  TRACK {e:02} AUDIO',
                 f'    TITLE "{et.track.title()}"',
                 f'    PERFORMER "{et.track.artist().name()}"',
-                f'    INDEX 01 {minutes:.0f}:{seconds:02.0f}:{subseconds * 75:02.0f}',
+                # that pesky 3 has to return
+                f'    INDEX 01 {minutes:.0f}:{seconds:02.0f}:{sectors * 3:02.0f}',
             ])
-            at += et.length_seconds
+            at_sectors += et.length_sectors
         lines.append('')
         return '\n'.join(lines)
 
