@@ -16,6 +16,7 @@ from pyramid.decorator import reify
 
 from .playlistgen import seconds
 
+ONE_S = datetime.timedelta(seconds=1)
 S_QUANT = decimal.Decimal('1')
 US_QUANT = S_QUANT / 1_000_000
 # sectors are 75⁻¹s but 3 is an annoying factor
@@ -115,24 +116,18 @@ class ExportedTrack:
         return self.ffprobe()
 
 
-def concat_filter_for(songs):
-    n_files = len(songs)
-    filters = [f'[{n}:a]apad=whole_dur={int(et.length_sectors * SECTORS_INV_US)}us[p{n}]' for n, et in enumerate(songs)]
-    concat_inputs = ''.join('[p{}]'.format(n) for n in range(n_files))
-    filters.append(f'{concat_inputs}concat=n={n_files}:v=0:a=1[out]')
-    print(filters)
-    return ','.join(filters)
+@attr.s
+class ConcatFilters:
+    filters = attr.ib(factory=list)
+    outputs = attr.ib(factory=list)
 
-
-ONE_S = datetime.timedelta(seconds=1)
-
-def youtube_playlist_format(songs):
-    at = datetime.timedelta(0)
-    ret = []
-    for et in songs:
-        ret.append('{} {}'.format(at - (at % ONE_S), et.track.title()))
-        at += et.length
-    return '\n'.join(ret)
+    def filter_arg(self):
+        concat_inputs = ''.join('[{}]'.format(out) for out in self.outputs)
+        filters = [
+            *self.filters,
+            f'{concat_inputs}concat=n={len(self.outputs)}:v=0:a=1[out]',
+        ]
+        return ','.join(filters)
 
 
 @attr.s
@@ -140,9 +135,25 @@ class SpectrogramRenderer:
     outdir = attr.ib()
     songs = attr.ib()
 
-    @property
+    @reify
     def video_out(self):
         return self.outdir / 'video.mkv'
+
+    @reify
+    def playlist_desc_out(self):
+        return self.outdir / 'youtube-playlist.txt'
+
+    def playlist_desc_text(self):        
+        at = datetime.timedelta(0)
+        ret = []
+        for et in self.songs:
+            ret.append('{} {}'.format(at - (at % ONE_S), et.track.title()))
+            at += et.length
+        return '\n'.join(ret)
+
+    def concat_filters(self):
+        return ConcatFilters(
+            outputs=[f'{n}:a' for n, _ in enumerate(self.songs)])
 
     def ffmpeg_args(self, concat):
         return [
@@ -169,21 +180,20 @@ class CdRenderer:
     outdir = attr.ib()
     songs = attr.ib()
 
-    @property
+    @reify
     def wav_out(self):
         return self.outdir / 'cd.wav'
 
-    @property
+    @reify
     def cue_out(self):
         return self.outdir / 'cd.cue'
 
     def cue_text(self):
-        lines = [f'FILE "{self.wav_out}" WAVE']
+        lines = [f'FILE "{self.wav_out.name}" WAVE']
         at_sectors = 0
         for e, et in enumerate(self.songs, start=1):
             seconds, sectors = divmod(at_sectors, 25)
             minutes, seconds = divmod(seconds, 60)
-            print(f'{minutes=} {seconds=} {sectors=}')
             lines.extend([
                 f'  TRACK {e:02} AUDIO',
                 f'    TITLE "{et.track.title()}"',
@@ -194,6 +204,15 @@ class CdRenderer:
             at_sectors += et.length_sectors
         lines.append('')
         return '\n'.join(lines)
+
+    def concat_filters(self):
+        ret = ConcatFilters()
+        for n, et in enumerate(self.songs):
+            out = f'p{n}'
+            ret.filters.append(
+                f'[{n}:a]apad=whole_dur={int(et.length_sectors * SECTORS_INV_US)}us[{out}]')
+            ret.outputs.append(out)
+        return ret
 
     def ffmpeg_args(self, concat):
         self.cue_out.write_text(self.cue_text())
@@ -241,8 +260,6 @@ def run(tracks, format, outdir: pathlib.Path):
             probed = et.ffprobe()
         except NoLocation:
             continue
-        print(et.track.totalTime())
-        import pprint; pprint.pprint(probed)
         click.echo('  {:2}. {: 7.1f} kbps'.format(et.e, float(probed['format']['bit_rate']) / 1000))
 
     if None in songs_by_extension:
@@ -251,8 +268,6 @@ def run(tracks, format, outdir: pathlib.Path):
     if '.m4p' in songs_by_extension:
         click.echo("\nCan't continue with m4p media files.")
         sys.exit(1)
-
-    click.echo(f'*** DESC ***\n{youtube_playlist_format(songs_in_order)}\n***')
 
     length_s = sum(et.track.totalTime() for et in songs_in_order) / 1000
 
@@ -265,7 +280,7 @@ def run(tracks, format, outdir: pathlib.Path):
         p1 = subprocess.Popen([
             'ffmpeg', '-y', *input_files,
             '-hide_banner', '-loglevel', 'warning', '-progress', 'pipe:1',
-            '-filter_complex', concat_filter_for(songs_in_order),
+            '-filter_complex', renderer.concat_filters().filter_arg(),
             '-map', '[out]', '-c:a', 'flac',
             concat,
         ], stdin=subprocess.DEVNULL, stdout=subprocess.PIPE)
