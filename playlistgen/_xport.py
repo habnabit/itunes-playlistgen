@@ -3,6 +3,7 @@ import click
 import collections
 import contextlib
 import datetime
+import decimal
 import json
 import os
 import pathlib
@@ -14,6 +15,9 @@ import tqdm
 from pyramid.decorator import reify
 
 from .playlistgen import seconds
+
+US_QUANT = decimal.Decimal(1) / 1_000_000
+CD_MULT = (decimal.Decimal(1) / 75).quantize(US_QUANT)
 
 
 @attr.s
@@ -74,8 +78,20 @@ class ExportedTrack:
         return pathlib.Path(os.fsdecode(p.fileSystemRepresentation()))
 
     @reify
+    def length_seconds(self):
+        return self.track.totalTime() / 1000
+
+    @reify
     def length(self):
-        return datetime.timedelta(seconds=self.track.totalTime() / 1000)
+        return datetime.timedelta(seconds=self.length_seconds)
+
+    @reify
+    def exact_length(self):
+        return decimal.Decimal(self.ffprobed['format']['duration'])
+
+    @reify
+    def cd_padded_length(self):
+        return self.exact_length.quantize(CD_MULT, rounding=decimal.ROUND_UP)
 
     def has_location(self):
         try:
@@ -91,6 +107,19 @@ class ExportedTrack:
             check=True, capture_output=True)
         return json.loads(proc.stdout)
 
+    @reify
+    def ffprobed(self):
+        return self.ffprobe()
+
+
+def concat_filter_for(songs):
+    n_files = len(songs)
+    filters = [f'[{n}:a]apad=whole_dur={int(et.cd_padded_length * 1_000_000)}us[p{n}]' for n, et in enumerate(songs)]
+    concat_inputs = ''.join('[p{}]'.format(n) for n in range(n_files))
+    filters.append(f'{concat_inputs}concat=n={n_files}:v=0:a=1[out]')
+    print(filters)
+    return ','.join(filters)
+
 
 ONE_S = datetime.timedelta(seconds=1)
 
@@ -103,8 +132,82 @@ def youtube_playlist_format(songs):
     return '\n'.join(ret)
 
 
-def run(tracks, outfile):
+@attr.s
+class SpectrogramRenderer:
+    outdir = attr.ib()
+    songs = attr.ib()
+
+    @property
+    def video_out(self):
+        return self.outdir / 'video.mkv'
+
+    def ffmpeg_args(self, concat):
+        return [
+            'ffmpeg', '-y', '-i', concat,
+            '-hide_banner', '-loglevel', 'warning', '-progress', 'pipe:1',
+            '-filter_complex',
+            ('[0:a]'
+             'showspectrum=mode=combined:color=intensity:scale=cbrt:s=720x480'
+             ',drawtext=fontcolor=white:x=10:y=10:text=beep'
+             '[out]'),
+            *'''
+
+            -map [out] -map 0:a
+            -c:v libx264 -preset fast -crf 18 -pix_fmt yuv420p
+            -c:a libfdk_aac -profile:a aac_low -b:a 384k
+
+            '''.split(),
+            self.video_out,
+        ]
+
+
+@attr.s
+class CdRenderer:
+    outdir = attr.ib()
+    songs = attr.ib()
+
+    @property
+    def wav_out(self):
+        return self.outdir / 'cd.wav'
+
+    @property
+    def cue_out(self):
+        return self.outdir / 'cd.cue'
+
+    def cue_text(self):
+        lines = [f'FILE "{self.wav_out}" WAVE']
+        at = 0
+        for e, et in enumerate(self.songs, start=1):
+            seconds, subseconds = divmod(at, 1)
+            minutes, seconds = divmod(seconds, 60)
+            lines.extend([
+                f'  TRACK {e:02} AUDIO',
+                f'    TITLE "{et.track.title()}"',
+                f'    PERFORMER "{et.track.artist().name()}"',
+                f'    INDEX 01 {minutes:.0f}:{seconds:02.0f}:{subseconds * 75:02.0f}',
+            ])
+            at += et.length_seconds
+        lines.append('')
+        return '\n'.join(lines)
+
+    def ffmpeg_args(self, concat):
+        self.cue_out.write_text(self.cue_text())
+        return [
+            'ffmpeg', '-y', '-i', concat,
+            '-hide_banner', '-loglevel', 'warning', '-progress', 'pipe:1',
+            self.wav_out,
+        ]
+
+
+renderers = {
+    'spectrogram': SpectrogramRenderer,
+    'cd': CdRenderer,
+}
+
+
+def run(tracks, format, outdir: pathlib.Path):
     [playlist] = tracks.source_playlists
+    outdir.mkdir(exist_ok=True)
     songs_in_order = []
     songs_by_extension = collections.defaultdict(list)
     for e, t in enumerate(tracks.playlists_by_name[playlist].items(), start=1):
@@ -133,6 +236,8 @@ def run(tracks, outfile):
             probed = et.ffprobe()
         except NoLocation:
             continue
+        print(et.track.totalTime())
+        import pprint; pprint.pprint(probed)
         click.echo('  {:2}. {: 7.1f} kbps'.format(et.e, float(probed['format']['bit_rate']) / 1000))
 
     if None in songs_by_extension:
@@ -150,33 +255,18 @@ def run(tracks, outfile):
         tmpdir = pathlib.Path(stack.enter_context(tempfile.TemporaryDirectory()))
         concat = tmpdir / 'concat.mkv'
         os.mkfifo(concat)
-        n_files = len(songs_in_order)
-        filter_inputs = ''.join('[{}:a]'.format(n) for n in range(n_files))
+        renderer = renderers[format](outdir, songs_in_order)
         input_files = [x for et in songs_in_order for x in ['-i', et.location]]
         p1 = subprocess.Popen([
             'ffmpeg', '-y', *input_files,
             '-hide_banner', '-loglevel', 'warning', '-progress', 'pipe:1',
-            '-filter_complex', f'{filter_inputs}concat=n={n_files}:v=0:a=1[out]',
+            '-filter_complex', concat_filter_for(songs_in_order),
             '-map', '[out]', '-c:a', 'flac',
             concat,
         ], stdin=subprocess.DEVNULL, stdout=subprocess.PIPE)
-        p2 = subprocess.Popen([
-            'ffmpeg', '-y', '-i', concat,
-            '-hide_banner', '-loglevel', 'warning', '-progress', 'pipe:1',
-            '-filter_complex',
-            ('[0:a]'
-             'showspectrum=mode=combined:color=intensity:scale=cbrt:s=720x480'
-             ',drawtext=fontcolor=white:x=10:y=10:text=beep'
-             '[out]'),
-            *'''
-
-            -map [out] -map 0:a
-            -c:v libx264 -preset fast -crf 18 -pix_fmt yuv420p
-            -c:a libfdk_aac -profile:a aac_low -b:a 384k
-
-            '''.split(),
-            outfile,
-        ], stdin=subprocess.DEVNULL, stdout=subprocess.PIPE)
+        p2 = subprocess.Popen(
+            renderer.ffmpeg_args(concat), 
+            stdin=subprocess.DEVNULL, stdout=subprocess.PIPE)
 
         sel = selectors.DefaultSelector()
         wrapped = {}

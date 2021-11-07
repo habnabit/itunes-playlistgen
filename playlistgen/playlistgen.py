@@ -1155,10 +1155,11 @@ def volume(tracks, outfile, n_q):
 
 @main.command()
 @click.pass_obj
-@click.argument('outfile', type=click.Path(dir_okay=False, writable=True, path_type=pathlib.Path))
-def export(tracks, outfile):
+@click.option('-f', '--format', type=click.Choice('spectrogram cd'.split()))
+@click.argument('outdir', type=click.Path(file_okay=False, dir_okay=True, writable=True))
+def export(tracks, format, outdir):
     from . import _xport
-    _xport.run(tracks, outfile)
+    _xport.run(tracks, format, pathlib.Path(outdir))
 
 
 if __name__ == '__main__':
