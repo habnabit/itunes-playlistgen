@@ -3,9 +3,9 @@ import { List, Record } from 'immutable'
 import { Lens, Optional } from 'monocle-ts'
 
 export function lensFromRecordProp<
-    TProps,
+    TProps extends object,
     T extends Record<TProps>,
-    P extends keyof TProps
+    P extends keyof TProps,
 >(prop: P): Lens<T, TProps[P]> {
     return new Lens(
         (r) => r.get(prop, undefined),
@@ -39,7 +39,7 @@ interface ImplicitAccessors<K, V> {
 export function lensFromImplicitAccessors<
     K,
     V,
-    T extends ImplicitAccessors<K, V>
+    T extends ImplicitAccessors<K, V>,
 >(key: K): Lens<T, V> {
     return new Lens(
         (o) => o.get(key),
@@ -55,7 +55,7 @@ interface NullableImplicitAccessors<K, V> {
 export function lensFromNullableImplicitAccessorsAndConstructor<
     K,
     V,
-    T extends NullableImplicitAccessors<K, V>
+    T extends NullableImplicitAccessors<K, V>,
 >(key: K, constructor: () => V): Lens<T, V> {
     return new Lens(
         (o) => o.get(key) || constructor(),
@@ -66,7 +66,7 @@ export function lensFromNullableImplicitAccessorsAndConstructor<
 export function optionalFromNullableImplicitAccessors<
     K,
     V,
-    T extends NullableImplicitAccessors<K, V>
+    T extends NullableImplicitAccessors<K, V>,
 >(key: K): Optional<T, V> {
     return new Optional(
         (o: T) => fromNullable(o.get(key)) as Option<V>,

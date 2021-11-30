@@ -9,7 +9,15 @@ import {
 } from 'redux'
 import { Epic, combineEpics, createEpicMiddleware } from 'redux-observable'
 import { EMPTY, from, of } from 'rxjs'
-import { bufferCount, catchError, expand, filter, flatMap, map, switchMap } from 'rxjs/operators'
+import {
+    bufferCount,
+    catchError,
+    expand,
+    filter,
+    flatMap,
+    map,
+    switchMap,
+} from 'rxjs/operators'
 import { ActionType, isActionOf } from 'typesafe-actions'
 
 import * as actions from './actions'
@@ -100,8 +108,9 @@ const fetchConsoleEpic: Epic<AllActions, AllActions> = (action$) =>
         switchMap((action) => {
             const params = qs.stringify(action.payload)
             return from(
-                fetch('/_api/screen?' + params)
-                    .then((resp) => resp.json().then((json) => ({ resp, json }))),
+                fetch('/_api/screen?' + params).then((resp) =>
+                    resp.json().then((json) => ({ resp, json })),
+                ),
             ).pipe(
                 flatMap(({ resp, json }) => {
                     if (resp.status !== 200) {
@@ -109,15 +118,14 @@ const fetchConsoleEpic: Epic<AllActions, AllActions> = (action$) =>
                     } else {
                         return of(
                             actions.fetchConsole.success({ json }),
-                            actions.fetchConsole.request({ poll_interval: 0.1, hashed: json.hashed }),
+                            actions.fetchConsole.request({
+                                poll_interval: 0.1,
+                                hashed: json.hashed,
+                            }),
                         )
                     }
                 }),
-                catchError((err) =>
-                    of(
-                        actions.fetchConsole.failure(err),
-                    ),
-                ),
+                catchError((err) => of(actions.fetchConsole.failure(err))),
             )
         }),
     )
@@ -135,21 +143,18 @@ const savePlaylistEpic: Epic<AllActions, AllActions> = (action$) =>
                     .toArray(),
             }
             return from(
-                fetch('/_api/save', postJSON(data))
-                .then((resp) => resp.json().then((json) => ({ resp, json }))),
-                ).pipe(
-                    map(({ resp, json }) => {
-                        if (resp.status !== 200) {
-                            throw new RemoteError(resp, json)
-                        } else {
-                            return actions.savePlaylist.success({ json })
-                        }
-                    }),
-                    catchError((err) =>
-                        of(
-                            actions.savePlaylist.failure(err),
-                        ),
-                    ),
+                fetch('/_api/save', postJSON(data)).then((resp) =>
+                    resp.json().then((json) => ({ resp, json })),
+                ),
+            ).pipe(
+                map(({ resp, json }) => {
+                    if (resp.status !== 200) {
+                        throw new RemoteError(resp, json)
+                    } else {
+                        return actions.savePlaylist.success({ json })
+                    }
+                }),
+                catchError((err) => of(actions.savePlaylist.failure(err))),
             )
         }),
     )
@@ -181,39 +186,41 @@ const combinedEpics = combineEpics(
     whenLoadedEpic,
 )
 
-const makeStore = <S>(reducer: Reducer<S>, epics: Epic) => (
-    state: DeepPartial<S>,
-    fetch: InitialFetch,
-): Store<{ base: S; meta: MetaState }> => {
-    const epicMiddleware = createEpicMiddleware()
-    const store = createStore(
-        combineReducers({
-            base: reducer,
-            meta: metaReducer,
-        }),
-        {
-            base: state,
-            meta: new MetaState(fetch),
-        },
-        applyMiddleware(epicMiddleware),
-    )
+const makeStore =
+    <S>(reducer: Reducer<S>, epics: Epic) =>
+    (
+        state: DeepPartial<S>,
+        fetch: InitialFetch,
+    ): Store<{ base: S; meta: MetaState }> => {
+        const epicMiddleware = createEpicMiddleware()
+        const store = createStore(
+            combineReducers({
+                base: reducer,
+                meta: metaReducer,
+            }),
+            {
+                base: state,
+                meta: new MetaState(fetch),
+            },
+            applyMiddleware(epicMiddleware),
+        )
 
-    epicMiddleware.run(combinedEpics)
-    epicMiddleware.run(epics)
+        epicMiddleware.run(combinedEpics)
+        epicMiddleware.run(epics)
 
-    addEventListener('keydown', (ev) =>
-        store.dispatch(
-            actions.changeKey({ key: ev.key.toLowerCase(), down: true }),
-        ),
-    )
-    addEventListener('keyup', (ev) =>
-        store.dispatch(
-            actions.changeKey({ key: ev.key.toLowerCase(), down: false }),
-        ),
-    )
+        addEventListener('keydown', (ev) =>
+            store.dispatch(
+                actions.changeKey({ key: ev.key.toLowerCase(), down: true }),
+            ),
+        )
+        addEventListener('keyup', (ev) =>
+            store.dispatch(
+                actions.changeKey({ key: ev.key.toLowerCase(), down: false }),
+            ),
+        )
 
-    return store
-}
+        return store
+    }
 
 export const albumShuffleStore = makeStore(
     albumShuffleReducer,

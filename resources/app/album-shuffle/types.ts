@@ -81,7 +81,7 @@ export class AlbumShuffleSelector extends Record({
 
     performSearch(): this {
         const activeSearch = this.searchQuery
-        let searchResults = List()
+        let searchResults = List<AlbumSelector>()
         if (activeSearch.length >= 2) {
             const needle = activeSearch.toLowerCase()
             searchResults = this.albums
@@ -106,10 +106,8 @@ export class AlbumShuffleSelector extends Record({
                     (o) => o.get('searchResults', undefined),
                     (v) => (o) => o.set('searchResults', v),
                 )
-                const lens2: Lens<
-                    AlbumShuffleSelector,
-                    AlbumSelector
-                > = lens1.compose(lensFromImplicitAccessors(e))
+                const lens2: Lens<AlbumShuffleSelector, AlbumSelector> =
+                    lens1.compose(lensFromImplicitAccessors(e))
                 return [sel, lens2] as [AlbumSelector, null]
             })
             .filter(([sel, _lens]) => sel.selected)

@@ -56,18 +56,14 @@ function objectToMap<K extends string, V>(obj: { [key in K]: V }): Map<K, V> {
     return Map(Object.entries(obj) as [K, V][])
 }
 
-export const selectionPlaylists: Map<
-    ChoiceTrackSelection,
-    string
-> = objectToMap({
-    bless: '❧blessed',
-    curse: '❧cursed',
-})
+export const selectionPlaylists: Map<ChoiceTrackSelection, string> =
+    objectToMap({
+        bless: '❧blessed',
+        curse: '❧cursed',
+    })
 
-const reverseSelectionPlaylists: Map<
-    string,
-    ChoiceTrackSelection
-> = selectionPlaylists.mapEntries(([k, v]) => [v, k])
+const reverseSelectionPlaylists: Map<string, ChoiceTrackSelection> =
+    selectionPlaylists.mapEntries(([k, v]) => [v, k])
 
 function reverseSelection(
     seq: Seq.Indexed<Map<TrackId, ChoiceTrackSelection>>,
@@ -92,10 +88,11 @@ const playlistModificationRemovalSources: Map<
     curse: ['bless', '_cleared'],
 })
 
-const playlistSelectionsToClear: Set<ChoiceTrackSelection> = playlistModificationRemovalSources
-    .valueSeq()
-    .flatMap((x) => x)
-    .toSet()
+const playlistSelectionsToClear: Set<ChoiceTrackSelection> =
+    playlistModificationRemovalSources
+        .valueSeq()
+        .flatMap((x) => x)
+        .toSet()
 
 export class TimefillSelector extends Record({
     tracks: Map<TrackId, Track>(),
@@ -252,13 +249,16 @@ export class TimefillSelector extends Record({
         return playlistModificationRemovalSources
             .entrySeq()
             .map(([sel, toRemove]) => {
-                const remove = Seq.Indexed(toRemove)
-                    .flatMap((v) => reversed.get(v, Set()))
+                const add: TrackId[] = reversed
+                    .get(sel, Set<TrackId>())
+                    .toArray()
+                const remove: TrackId[] = Seq.Indexed(toRemove)
+                    .flatMap((v) => reversed.get(v, Set<TrackId>()))
                     .toSet()
                     .toArray()
                 return {
                     name: selectionPlaylists.get(sel),
-                    add: reversed.get(sel, Set()).toArray(),
+                    add,
                     remove,
                 }
             })
