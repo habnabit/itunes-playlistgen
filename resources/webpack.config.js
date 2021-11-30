@@ -1,3 +1,4 @@
+const ESLintWebpackPlugin = require('eslint-webpack-plugin')
 const MiniCssExtractPlugin = require('mini-css-extract-plugin')
 const path = require('path')
 
@@ -10,6 +11,12 @@ module.exports = {
     },
     resolve: {
         extensions: ['.ts', '.tsx', '.js', '.json'],
+        fallback: {
+            buffer: require.resolve('buffer/'),
+            crypto: require.resolve('crypto-browserify'),
+            stream: require.resolve('stream-browserify'),
+            vm: require.resolve('vm-browserify'),
+        },
     },
     devtool: 'inline-source-map',
     module: {
@@ -35,11 +42,15 @@ module.exports = {
             {
                 test: /\.tsx?$/,
                 exclude: /node_modules/,
-                use: ['ts-loader', 'eslint-loader'],
+                use: 'ts-loader',
             },
         ],
     },
     plugins: [
+        new ESLintWebpackPlugin({
+            extensions: ['ts', 'tsx'],
+            exclude: ['/node_modules/'],
+        }),
         new MiniCssExtractPlugin({
             filename: 'site.css',
         }),
