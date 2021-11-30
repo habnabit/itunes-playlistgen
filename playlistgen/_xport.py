@@ -81,6 +81,7 @@ class ExportedTrack:
             raise NoLocation('no location on', self.track.title())
         return pathlib.Path(os.fsdecode(p.fileSystemRepresentation()))
 
+    # unify these lengths but keep the distinction between "calls ffmpeg" and not?
     @reify
     def length_seconds(self):
         return self.track.totalTime() / 1000
@@ -153,7 +154,8 @@ class SpectrogramRenderer:
 
     def concat_filters(self):
         return ConcatFilters(
-            outputs=[f'{n}:a' for n, _ in enumerate(self.songs)])
+            filters=['anullsrc=d=5000ms[quiet]'],
+            outputs=['quiet', *[f'{n}:a' for n, _ in enumerate(self.songs)]])
 
     def ffmpeg_args(self, concat):
         return [
