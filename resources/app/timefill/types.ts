@@ -6,6 +6,7 @@ import * as baseActions from '../actions'
 import {
     Album,
     AlbumId,
+    RawTrack,
     Track,
     TrackId,
     collateAlbums,
@@ -152,7 +153,7 @@ export class TimefillSelector extends Record({
         })
     }
 
-    withTracksResponse(j: any[][]): this {
+    withTracksResponse(j: RawTrack[][]): this {
         const orderedTracks = OrderedMap<TrackId, Track>().withMutations(
             (m) => {
                 for (const ts of j) {

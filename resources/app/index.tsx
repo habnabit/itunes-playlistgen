@@ -3,6 +3,7 @@ import './site.sass'
 import * as promiseFinally from 'promise.prototype.finally'
 import * as React from 'react'
 import * as ReactDOM from 'react-dom'
+import { QueryClient, QueryClientProvider } from 'react-query'
 import { Provider } from 'react-redux'
 
 import { ConnectedAlbumShuffleSelectorComponent } from './album-shuffle/components'
@@ -21,22 +22,27 @@ import { ConnectedTimefillSelectorComponent } from './timefill/components'
 import { TimefillSelector, selectionPlaylists } from './timefill/types'
 
 function makeRootElement(): JSX.Element {
-    var store, component
+    var store,
+        component,
+        initialFetch = {}
     if (location.search == '?timefill') {
-        store = stores.timefillStore(new TimefillSelector(), {
-            argv: true,
-            tracks: true,
-            playlists: {
-                names: selectionPlaylists.valueSeq().toArray(),
-            },
-        })
+        store = stores.timefillStore(
+            new TimefillSelector(),
+            (initialFetch = {
+                argv: true,
+                tracks: true,
+                playlists: {
+                    names: selectionPlaylists.valueSeq().toArray(),
+                },
+            }),
+        )
         component = <ConnectedTimefillSelectorComponent />
     } else if (location.search == '?discogs=unconfirmed') {
         store = stores.discogsUnconfirmedStore(
             new DiscogsUnconfirmedSelector(),
-            {
+            (initialFetch = {
                 argv: true,
-            },
+            }),
         )
         component = <ConnectedDiscogsMatcherSelectorComponent />
     } else if (location.search == '?discogs=matched') {
@@ -45,21 +51,30 @@ function makeRootElement(): JSX.Element {
         })
         component = <ConnectedDiscogsMatchedSelectorComponent />
     } else {
-        store = stores.albumShuffleStore(new AlbumShuffleSelector(), {
-            argv: true,
-            tracks: true,
-            playlists: {
-                names: ['<sleepytunes'],
-            },
-        })
+        store = stores.albumShuffleStore(
+            new AlbumShuffleSelector(),
+            (initialFetch = {
+                argv: true,
+                tracks: true,
+                playlists: {
+                    names: ['<sleepytunes'],
+                },
+            }),
+        )
         component = <ConnectedAlbumShuffleSelectorComponent />
     }
     return (
-        <Provider store={store}>
-            <ConnectedTopComponent>{component}</ConnectedTopComponent>
-        </Provider>
+        <QueryClientProvider client={queryClient}>
+            <Provider store={store}>
+                <ConnectedTopComponent initialFetch={initialFetch}>
+                    {component}
+                </ConnectedTopComponent>
+            </Provider>
+        </QueryClientProvider>
     )
 }
+
+const queryClient = new QueryClient()
 
 promiseFinally.shim()
 ReactDOM.render(makeRootElement(), document.getElementById('react-root'))

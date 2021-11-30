@@ -1,16 +1,22 @@
 import { List, Map } from 'immutable'
 import { Lens } from 'monocle-ts'
 import * as React from 'react'
-import { connect } from 'react-redux'
+import { connect, useDispatch, useSelector } from 'react-redux'
 import PulseLoader from 'react-spinners/PulseLoader'
 import { onlyUpdateForKeys, pure } from 'recompose'
 import { Dispatch, bindActionCreators } from 'redux'
 
 import * as baseActions from '../actions'
 import { lensFromImplicitAccessors } from '../extlens'
+import { InitialFetchedContext } from '../meta/components'
 import { KeyboardEvents, Track, TrackId, keyboardEvents } from '../types'
 import * as actions from './actions'
-import { Choice, ChoiceTrackSelection, TimefillSelector } from './types'
+import {
+    AllActions,
+    Choice,
+    ChoiceTrackSelection,
+    TimefillSelector,
+} from './types'
 
 const DurationComponent = pure((props: { duration: number }) => {
     const minutes = Math.floor(props.duration / 60)
@@ -195,10 +201,8 @@ const CriteriaComponent = onlyUpdateForKeys(['criteria'])(
                     Add criterion
                 </button>
                 {props.criteria.map((criterion, e) => {
-                    const lens: Lens<
-                        TimefillSelector,
-                        string
-                    > = props.criteriaLens.compose(lensFromImplicitAccessors(e))
+                    const lens: Lens<TimefillSelector, string> =
+                        props.criteriaLens.compose(lensFromImplicitAccessors(e))
                     return (
                         <React.Fragment key={e}>
                             <input
@@ -488,56 +492,66 @@ const TimefillSelectorComponent = onlyUpdateForKeys([
     },
 )
 
-export const ConnectedTimefillSelectorComponent = connect(
-    ({ base: top }: { base: TimefillSelector }) => {
-        const { name, criteria, choices } = top
-        const _selectionMap = top
-            .reversedSelection()
-            .map((tracks) => tracks.toList().map((t) => top.tracks.get(t)))
-            .toObject()
-        const selectionMap = _selectionMap as {
-            [K in ChoiceTrackSelection]: List<Track>
+export const ConnectedTimefillSelectorComponent: React.FC<{}> = () => {
+    const { tracks, argv, playlists } = React.useContext(InitialFetchedContext)
+    const top = useSelector(({ base }: { base: TimefillSelector }) => base)
+    const { name, criteria, choices } = top
+    const _selectionMap = top
+        .reversedSelection()
+        .map((tracks) => tracks.toList().map((t) => top.tracks.get(t)))
+        .toObject()
+    const selectionMap = _selectionMap as {
+        [K in ChoiceTrackSelection]: List<Track>
+    }
+    const lens: Lens<TimefillSelector, string> = new Lens(
+        (o) => o.get('name', undefined),
+        (v) => (o) => o.set('name', v),
+    )
+    const dispatch = bindActionCreators(
+        {
+            onChangeControl: actions.changeControl,
+            onKeyboardAvailable: baseActions.setKeyboardAvailability,
+            onSetHash: baseActions.setHash,
+            onLoading: actions.clearAllForLoading,
+            onSelect: actions.runTimefill.request,
+            gotArgv: baseActions.fetchArgv.success,
+            gotTracks: baseActions.fetchTracks.success,
+            gotPlaylists: baseActions.fetchPlaylists.success,
+            finishedLoading: baseActions.finishedLoading,
+        },
+        useDispatch<Dispatch<AllActions>>(),
+    )
+    React.useEffect(() => {
+        if (argv) {
+            dispatch.gotArgv({ json: argv })
         }
-        return {
-            name,
-            criteria,
-            choices,
-            selectionMap,
-            totalSelection: top.reversedTotalSelection(),
-            allCriteria: top.allCriteria(),
-            selectState: top.currentSelection(),
+    }, [argv])
+    React.useEffect(() => {
+        if (tracks) {
+            dispatch.gotTracks({ tracks: [tracks.toArray()] })
         }
-    },
-    (d: Dispatch) =>
-        bindActionCreators(
-            {
-                onChangeControl: actions.changeControl,
-                onKeyboardAvailable: baseActions.setKeyboardAvailability,
-                onSetHash: baseActions.setHash,
-                onLoading: actions.clearAllForLoading,
-                onSelect: actions.runTimefill.request,
-            },
-            d,
-        ),
-    (props, dispatch, ownProps) => {
-        const lens: Lens<TimefillSelector, string> = new Lens(
-            (o) => o.get('name', undefined),
-            (v) => (o) => o.set('name', v),
-        )
-        const extraProps = {
-            onSelect: () => {
-                dispatch.onLoading()
-                dispatch.onSelect({
-                    criteria: props.allCriteria,
-                    selections: props.totalSelection,
-                    narrow: false,
-                })
-                dispatch.onSetHash()
-            },
-            onChangeName: (value: string) =>
-                dispatch.onChangeControl({ lens, value }),
-            keyb: keyboardEvents(dispatch),
-        }
-        return { ...props, ...dispatch, ...ownProps, ...extraProps }
-    },
-)(TimefillSelectorComponent)
+    }, [tracks])
+    const props2 = {
+        top,
+        name,
+        criteria,
+        choices,
+        selectionMap,
+        totalSelection: top.reversedTotalSelection(),
+        allCriteria: top.allCriteria(),
+        selectState: top.currentSelection(),
+        onSelect: () => {
+            dispatch.onLoading()
+            dispatch.onSelect({
+                criteria: top.allCriteria(),
+                selections: top.reversedTotalSelection(),
+                narrow: false,
+            })
+            dispatch.onSetHash()
+        },
+        onChangeName: (value: string) =>
+            dispatch.onChangeControl({ lens, value }),
+        keyb: keyboardEvents(dispatch),
+    }
+    return <TimefillSelectorComponent {...props2} />
+}

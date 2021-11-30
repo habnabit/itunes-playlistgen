@@ -177,14 +177,7 @@ const whenLoadedEpic: Epic<AllActions, AllActions, { meta: MetaState }> = (
         }),
     )
 
-const combinedEpics = combineEpics(
-    fetchArgvEpic,
-    fetchTracksEpic,
-    fetchPlaylistsEpic,
-    fetchConsoleEpic,
-    savePlaylistEpic,
-    whenLoadedEpic,
-)
+const combinedEpics = combineEpics(savePlaylistEpic)
 
 const makeStore =
     <S>(reducer: Reducer<S, AllActions>, epics: Epic) =>

@@ -1,13 +1,18 @@
+import axios from 'axios'
+import { boolean } from 'fp-ts'
 import { AnimatePresence, motion } from 'framer-motion'
 import { List } from 'immutable'
+import * as qs from 'qs'
 import * as React from 'react'
-import { connect } from 'react-redux'
+import { useQuery } from 'react-query'
+import { connect as reduxConnect } from 'react-redux'
 import PulseLoader from 'react-spinners/PulseLoader'
 import { onlyUpdateForKeys } from 'recompose'
 import { Dispatch, bindActionCreators } from 'redux'
 
 import * as baseActions from '../actions'
-import { Track } from '../types'
+import { axiosPostJson, postJSON } from '../funcs'
+import { RawTrack, Track, TrackId } from '../types'
 import * as actions from './actions'
 import {
     Done,
@@ -52,7 +57,7 @@ const TrackArtworkComponent = onlyUpdateForKeys(['track', 'errored'])(
     },
 )
 
-export const ConnectedTrackArtworkComponent = connect(
+export const ConnectedTrackArtworkComponent = reduxConnect(
     (top: { meta: MetaState }, { track }: { track: Track | undefined }) => ({
         errored:
             track !== undefined
@@ -69,111 +74,151 @@ export const ConnectedTrackArtworkComponent = connect(
     (props, dispatch, ownProps) => ({ ...props, ...dispatch, ...ownProps }),
 )(TrackArtworkComponent)
 
-class TopComponent extends React.PureComponent<{
-    state: OverallState
-    errors: List<string>
-    initialFetch: InitialFetch
-    console: string[]
-    fetchArgv: typeof baseActions.fetchArgv.request
-    fetchTracks: typeof baseActions.fetchTracks.request
-    fetchPlaylists: typeof baseActions.fetchPlaylists.request
-    fetchConsole: typeof baseActions.fetchConsole.request
-    onDismissError: typeof actions.dismissError
-}> {
-    componentDidMount() {
-        if (this.props.initialFetch.argv !== undefined) {
-            this.props.fetchArgv()
-        }
-        if (this.props.initialFetch.tracks !== undefined) {
-            this.props.fetchTracks()
-        }
-        if (this.props.initialFetch.playlists !== undefined) {
-            this.props.fetchPlaylists(this.props.initialFetch.playlists)
-        }
-        this.props.fetchConsole({})
-    }
+export const InitialFetchedContext = React.createContext(
+    {} as {
+        tracks?: List<RawTrack>
+        argv?: { dest_playlist?: string; web_argv?: string[] }
+        playlists?: [string, TrackId[]][]
+    },
+)
 
-    render() {
-        const state = this.props.state
-        var body
-        if (state instanceof Loading) {
-            body = (
-                <motion.div
-                    key="loading"
-                    className="loading"
-                    {...scrollFromTop}
-                >
-                    Loaded:{' '}
-                    {state
-                        .description()
-                        .toSeq()
-                        .flatMap(([desc, loaded], e) => {
-                            const ret: (JSX.Element | string)[] = []
-                            if (e !== 0) {
-                                ret.push('; ')
-                            }
-                            ret.push(desc)
-                            if (!loaded) {
-                                ret.push(
-                                    <PulseLoader
-                                        color="darkslateblue"
-                                        size="0.3em"
-                                    />,
-                                )
-                            }
-                            return ret
-                        })
-                        .map((el, e) => (
-                            <React.Fragment key={e}>{el}</React.Fragment>
-                        ))}
-                </motion.div>
-            )
-        } else if (state instanceof Loaded) {
-            body = <motion.div {...fadeInOut}>{this.props.children}</motion.div>
-        } else if (state instanceof Done) {
-            body = <div>Done.</div>
-        }
-        return (
-            <AnimatePresence>
-                {this.props.errors.map((err, e) => {
-                    return (
-                        <motion.div key={e} className="error" {...fadeInOut}>
-                            <button
-                                onClick={() =>
-                                    this.props.onDismissError({ index: e })
-                                }
-                            >
-                                X
-                            </button>
-                            {err}
-                        </motion.div>
-                    )
-                })}
-                <div id="console" key="console">{this.props.console.join('\n')}</div>
-                {body}
-            </AnimatePresence>
-        )
-    }
+type TopProps = {
+    initialFetch: InitialFetch
 }
 
-export const ConnectedTopComponent = connect(
-    (top: { meta: MetaState }) => {
-        const { state, errors, console } = top.meta
-        var initialFetch = {}
-        if (top.meta.state instanceof Loading) {
-            initialFetch = top.meta.state.fetch
-        }
-        return { state, errors, initialFetch, console }
-    },
-    (d: Dispatch) =>
-        bindActionCreators(
-            {
-                fetchArgv: baseActions.fetchArgv.request,
-                fetchTracks: baseActions.fetchTracks.request,
-                fetchPlaylists: baseActions.fetchPlaylists.request,
-                fetchConsole: baseActions.fetchConsole.request,
-                onDismissError: actions.dismissError,
+const TopComponent: React.FC<TopProps> = (props) => {
+    const { children, initialFetch } = props
+
+    const [tracks, setTracks] = React.useState(List<RawTrack>())
+    const [tracksPending, setTracksPending] = React.useState(true)
+
+    const tracksQuery = useQuery(
+        ['tracks@', tracks.size],
+        () =>
+            axios.get<{ tracks: RawTrack[] }>('/_api/tracks', {
+                params: {
+                    offset: tracks.size,
+                    count: 250,
+                },
+            }),
+        {
+            enabled: initialFetch.tracks !== undefined,
+            onSuccess: ({ data }) => {
+                if (data.tracks.length > 0) {
+                    setTracks(tracks.push(...data.tracks))
+                } else {
+                    setTracksPending(false)
+                }
             },
-            d,
-        ),
-)(TopComponent)
+        },
+    )
+
+    const argv = useQuery('argv', () => axios.get('/_api/argv'), {
+        enabled: initialFetch.argv !== undefined,
+    })
+
+    const playlists = useQuery(
+        'playlists',
+        () =>
+            axios.get('/_api/playlists', axiosPostJson(initialFetch.playlists)),
+        {
+            enabled: initialFetch.playlists !== undefined,
+        },
+    )
+
+    function* loadingDescription(): Generator<{
+        description: string
+        pending: boolean
+    }> {
+        if (initialFetch.tracks !== undefined) {
+            yield {
+                description: tracksPending
+                    ? `${tracks.size} tracks`
+                    : 'all tracks',
+                pending: tracksQuery.status === 'loading' || tracksPending,
+            }
+        }
+        if (initialFetch.argv !== undefined) {
+            yield {
+                description: 'argv',
+                pending: argv.status === 'loading',
+            }
+        }
+        if (initialFetch.playlists !== undefined) {
+            yield {
+                description: 'playlists',
+                pending: playlists.status === 'loading',
+            }
+        }
+    }
+
+    var body
+    if (!tracksPending && argv.isSuccess && playlists.isSuccess) {
+        body = (
+            <motion.div {...fadeInOut}>
+                <InitialFetchedContext.Provider
+                    value={{
+                        tracks,
+                        argv: argv.data?.data,
+                        playlists: playlists.data?.data,
+                    }}
+                >
+                    {children}
+                </InitialFetchedContext.Provider>
+            </motion.div>
+        )
+    } else {
+        body = (
+            <motion.div key="loading" className="loading" {...scrollFromTop}>
+                Loaded:{' '}
+                {List(loadingDescription())
+                    .toSeq()
+                    .flatMap(({ description, pending }, e) => {
+                        const ret: (JSX.Element | string)[] = []
+                        if (e !== 0) {
+                            ret.push('; ')
+                        }
+                        ret.push(description)
+                        if (pending) {
+                            ret.push(
+                                <PulseLoader
+                                    color="darkslateblue"
+                                    size="0.3em"
+                                />,
+                            )
+                        }
+                        return ret
+                    })
+                    .map((el, e) => (
+                        <React.Fragment key={e}>{el}</React.Fragment>
+                    ))}
+            </motion.div>
+        )
+    }
+
+    const [errors, setErrors] = React.useState([])
+    const consoleQuery = useQuery('console', () =>
+        axios.get<{ screen: string[] }>('/_api/screen'),
+    )
+
+    return (
+        <AnimatePresence>
+            {errors.map((err, e) => {
+                return (
+                    <motion.div key={e} className="error" {...fadeInOut}>
+                        <button onClick={() => console.log('dismiss', { e })}>
+                            X
+                        </button>
+                        {err}
+                    </motion.div>
+                )
+            })}
+            <div id="console" key="console">
+                {(consoleQuery.data?.data?.screen ?? []).join('\n')}
+            </div>
+            {body}
+        </AnimatePresence>
+    )
+}
+
+export const ConnectedTopComponent = TopComponent
