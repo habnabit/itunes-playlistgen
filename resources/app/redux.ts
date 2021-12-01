@@ -1,6 +1,6 @@
 import * as qs from 'qs'
 import {
-    DeepPartial,
+    PreloadedState,
     Reducer,
     Store,
     applyMiddleware,
@@ -187,19 +187,19 @@ const combinedEpics = combineEpics(
 )
 
 const makeStore =
-    <S>(reducer: Reducer<S>, epics: Epic) =>
-    (
-        state: DeepPartial<S>,
-        fetch: InitialFetch,
-    ): Store<{ base: S; meta: MetaState }> => {
+    <S>(reducer: Reducer<S, AllActions>, epics: Epic) =>
+    (state: S, fetch: InitialFetch): Store<{ base: S; meta: MetaState }> => {
         const epicMiddleware = createEpicMiddleware()
+        const reducers = combineReducers({
+            base: reducer,
+            meta: metaReducer,
+        })
         const store = createStore(
-            combineReducers({
-                base: reducer,
-                meta: metaReducer,
-            }),
+            reducers,
             {
-                base: state,
+                base: state as S extends string | number | boolean | symbol
+                    ? S
+                    : PreloadedState<S>,
                 meta: new MetaState(fetch),
             },
             applyMiddleware(epicMiddleware),
