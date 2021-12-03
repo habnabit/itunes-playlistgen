@@ -198,54 +198,6 @@ const CriteriaComponent: React.FC<{}> = () => {
     )
 }
 
-// const WeightsComponent = ((props: {
-//     albums: OrderedMap<AlbumKey, Album>
-//     weights: List<[AlbumKey, string]>
-//     onAddWeight: typeof actions.addWeight
-//     onChangeWeight: typeof actions.changeWeight
-//     keyb: KeyboardEvents,
-// }) => {
-//     return <section>
-//         <button onClick={() => props.onAddWeight({})}>Add weight</button>
-//         {props.weights.map(([selected, weight], i) => {
-//             const events = {
-//                 onChange: (event: React.ChangeEvent) => props.onChangeWeight({event, index: i}),
-//                 ...props.keyb}
-//             var selIndex = 0
-//             const albumOptions = props.albums.keySeq().map((album, j) => {
-//                 if (album.equals(selected)) {
-//                     selIndex = j
-//                 }
-//                 return <option key={j} value={j.toString()}>{album.prettyName()}</option>
-//             }).toList()
-//             return <fieldset key={i}>
-//                 <select value={selIndex.toString()} {...events}>{albumOptions}</select>
-//                 <input type="number" placeholder="Weight…" value={weight} {...events} />
-//             </fieldset>
-//         })}
-//     </section>
-// })
-
-// const ConnectedWeightsComponent = connect(
-//     (top: TimefillSelector) => {
-//         const { albums, weights } = top
-//         return { albums, weights }
-//     },
-//     (d: Dispatch) => bindActionCreators({
-//         onAddWeight: actions.addWeight,
-//         onChangeWeight: actions.changeWeight,
-//         onChangeControl: actions.changeControlTimefill,
-//         onKeyboardAvailable: actions.setKeyboardAvailability,
-//     }, d),
-//     (props, dispatch, ownProps) => {
-//         return {...props, ...dispatch, ...ownProps, keyb: keyboardEvents(dispatch)}
-//     },
-//     {
-//         areStatesEqual: (x, y) => x.weights === y.weights && x.albums === y.albums,
-//         areStatePropsEqual: (x, y) => x.weights === y.weights && x.albums === y.albums,
-//     },
-// )(WeightsComponent)
-
 const selectionDescriptions: { [K in ChoiceTrackSelection]: string } = {
     include: 'Included',
     exclude: 'Excluded',
