@@ -58,6 +58,7 @@ export const InitialFetchedContext = React.createContext({
     playlists?: [string, TrackId[]][]
     showError: (e: Error) => void
 })
+InitialFetchedContext.displayName = 'InitialFetchedContext'
 
 type TopProps = {
     initialFetch: InitialFetch

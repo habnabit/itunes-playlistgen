@@ -52,210 +52,151 @@ const ChoiceTrackComponent: React.FC<{
         )
     }, [props.track, props.selected, props.ambient])
 
-const ChoiceComponent: React.FC<{
-    choice: Choice
-    ambientSelected: Map<TrackId, ChoiceTrackSelection>
-    onToggle: (tid: TrackId) => () => void
-    onReroll: () => void
-    onShuffle: () => void
-    onSave: () => void
-}> = (props) =>
-    React.useMemo(() => {
-        const { choice } = props
-        if (choice.loading) {
-            return (
-                <div className="choice loading">
-                    <PulseLoader color="darkslateblue" size="0.5em" />
-                </div>
-            )
-        }
-
-        const totalDuration = choice.tracks.reduce(
-            (totalDuration, track) => totalDuration + track.totalTime,
-            0,
-        )
-        return (
-            <div className="choice">
-                <div className="actions">
-                    <button onClick={() => props.onReroll()}>Reroll</button>
-                    <button onClick={() => props.onShuffle()}>Shuffle</button>
-                    <button onClick={() => props.onSave()}>Save</button>
-                </div>
-                <ol className="fuller tracklist selectable fade">
-                    {props.choice.tracks.map((track, e) => {
-                        const onToggle = props.onToggle(track.id)
-                        var selected = choice.selected.get(track.id)
-                        var ambient = false
-                        if (
-                            selected === undefined &&
-                            (selected = props.ambientSelected.get(track.id)) !==
-                                undefined
-                        ) {
-                            ambient = true
-                        }
-                        return (
-                            <ChoiceTrackComponent
-                                key={e}
-                                {...{ track, selected, ambient, onToggle }}
-                            />
-                        )
-                    })}
-                </ol>
-                <ul className="fuller tracklist total">
-                    <li>
-                        <DurationComponent duration={totalDuration} /> total
-                    </li>
-                    <li className="score">{choice.score}</li>
-                </ul>
-            </div>
-        )
-    }, [props.choice, props.ambientSelected])
-
-export const ConnectedChoiceComponent = connect(
-    (
-        { base: top }: { base: TimefillSelector },
-        ownProps: { idxTop: number },
-    ) => {
-        const { ambientSelected } = top
-        const lens1: Lens<
-            TimefillSelector,
-            List<Choice>
-        > = lensFromImplicitAccessors('choices')
-        const lens2: Lens<TimefillSelector, Choice> = lens1.compose(
-            lensFromImplicitAccessors(ownProps.idxTop),
-        )
-        return {
-            choice: top.choices.get(ownProps.idxTop),
-            lens: lens2,
-            top,
-            ambientSelected,
-        }
-    },
-    (d: Dispatch) =>
-        bindActionCreators(
-            {
-                onToggle: actions.toggleChoiceTrack,
-                onReroll: actions.runTimefill.request,
-                onLoading: actions.setLoading,
-                onShuffle: actions.shuffleChoice,
-                onSave: baseActions.savePlaylist.request,
-            },
-            d,
-        ),
-    (stateProps, dispatchProps, ownProps) => {
-        const { choice, lens, top } = stateProps
-        return {
-            onToggle: (track: TrackId) => () =>
-                dispatchProps.onToggle({ lens, track }),
-            onReroll: () => {
-                const selections = top.reversedTotalSelection()
-                dispatchProps.onLoading({ lens, loading: true })
-                dispatchProps.onReroll({
-                    criteria: top.allCriteria(),
-                    selections,
-                    narrow: true,
-                    replace: lens,
-                })
-            },
-            onShuffle: () => {
-                dispatchProps.onShuffle({ lens })
-            },
-            onSave: () => {
-                dispatchProps.onSave({ name: top.name, tracks: choice.tracks })
-            },
-            ...stateProps,
-            ...ownProps,
-        }
-    },
-    {
-        areStatesEqual: (x, y) =>
-            x.base.choices === y.base.choices &&
-            x.base.ambientSelected == y.base.ambientSelected,
-        areStatePropsEqual: (x, y) =>
-            x.choice === y.choice && x.ambientSelected == y.ambientSelected,
-    },
-)(ChoiceComponent)
-
-const CriteriaComponent: React.FC<{
-    criteria: List<string>
-    criteriaLens: Lens<TimefillSelector, List<string>>
-    onAddCriterion: typeof actions.addCriterion
-    onRemoveCriterion: typeof actions.removeCriterion
-    onChangeControl: typeof actions.changeControl
-    keyb: KeyboardEvents
-}> = (props) =>
-    React.useMemo(
-        () => (
-            <section className="criteria">
-                <button
-                    className="add-criterion"
-                    onClick={() => props.onAddCriterion({})}
-                >
-                    Add criterion
-                </button>
-                {props.criteria.map((criterion, e) => {
-                    const lens: Lens<TimefillSelector, string> =
-                        props.criteriaLens.compose(lensFromImplicitAccessors(e))
-                    return (
-                        <React.Fragment key={e}>
-                            <input
-                                type="text"
-                                placeholder="Criterion…"
-                                value={criterion}
-                                onChange={(ev) => {
-                                    props.onChangeControl({
-                                        lens,
-                                        value: ev.target.value,
-                                    })
-                                }}
-                                {...props.keyb}
-                            />
-                            <button
-                                className="remove-criterion"
-                                onClick={() =>
-                                    props.onRemoveCriterion({ index: e })
-                                }
-                            >
-                                ❌
-                            </button>
-                        </React.Fragment>
-                    )
-                })}
-            </section>
-        ),
-        [props.criteria],
+const ChoiceComponent: React.FC<{ idxTop: number }> = (props) => {
+    const top = useSelector(({ base }: { base: TimefillSelector }) => base)
+    const { ambientSelected } = top
+    const choice = top.choices.get(props.idxTop)
+    const dispatch = bindActionCreators(
+        {
+            onToggle: actions.toggleChoiceTrack,
+            onReroll: actions.runTimefill.request,
+            onLoading: actions.setLoading,
+            onShuffle: actions.shuffleChoice,
+            onSave: baseActions.savePlaylist.request,
+        },
+        useDispatch(),
     )
 
-const ConnectedCriteriaComponent = connect(
-    ({ base: top }: { base: TimefillSelector }) => ({ criteria: top.criteria }),
-    (d: Dispatch) =>
-        bindActionCreators(
-            {
-                onAddCriterion: actions.addCriterion,
-                onRemoveCriterion: actions.removeCriterion,
-                onChangeControl: actions.changeControl,
-                onKeyboardAvailable: baseActions.setKeyboardAvailability,
-            },
-            d,
-        ),
-    (props, dispatch, ownProps) => {
-        const criteriaLens: Lens<TimefillSelector, List<string>> = new Lens(
-            (o) => o.get('criteria', undefined),
-            (v) => (o) => o.set('criteria', v),
+    const lens1_: Lens<
+        TimefillSelector,
+        List<Choice>
+    > = lensFromImplicitAccessors('choices')
+    const lens: Lens<TimefillSelector, Choice> = lens1_.compose(
+        lensFromImplicitAccessors(props.idxTop),
+    )
+
+    const bound = {
+        onToggle: (track: TrackId) => () => dispatch.onToggle({ lens, track }),
+        onReroll: () => {
+            const selections = top.reversedTotalSelection()
+            dispatch.onLoading({ lens, loading: true })
+            dispatch.onReroll({
+                criteria: top.allCriteria(),
+                selections,
+                narrow: true,
+                replace: lens,
+            })
+        },
+        onShuffle: () => {
+            dispatch.onShuffle({ lens })
+        },
+        onSave: () => {
+            dispatch.onSave({ name: top.name, tracks: choice.tracks })
+        },
+    }
+    if (choice.loading) {
+        return (
+            <div className="choice loading">
+                <PulseLoader color="darkslateblue" size="0.5em" />
+            </div>
         )
-        return {
-            keyb: keyboardEvents(dispatch),
-            criteriaLens,
-            ...props,
-            ...dispatch,
-            ...ownProps,
-        }
-    },
-    {
-        areStatesEqual: (x, y) => x.base.criteria === y.base.criteria,
-        areStatePropsEqual: (x, y) => x.criteria === y.criteria,
-    },
-)(CriteriaComponent)
+    }
+
+    const totalDuration = choice.tracks.reduce(
+        (totalDuration, track) => totalDuration + track.totalTime,
+        0,
+    )
+    return (
+        <div className="choice">
+            <div className="actions">
+                <button onClick={() => bound.onReroll()}>Reroll</button>
+                <button onClick={() => bound.onShuffle()}>Shuffle</button>
+                <button onClick={() => bound.onSave()}>Save</button>
+            </div>
+            <ol className="fuller tracklist selectable fade">
+                {choice.tracks.map((track, e) => {
+                    const onToggle = bound.onToggle(track.id)
+                    var selected = choice.selected.get(track.id)
+                    var ambient = false
+                    if (
+                        selected === undefined &&
+                        (selected = ambientSelected.get(track.id)) !== undefined
+                    ) {
+                        ambient = true
+                    }
+                    return (
+                        <ChoiceTrackComponent
+                            key={e}
+                            {...{ track, selected, ambient, onToggle }}
+                        />
+                    )
+                })}
+            </ol>
+            <ul className="fuller tracklist total">
+                <li>
+                    <DurationComponent duration={totalDuration} /> total
+                </li>
+                <li className="score">{choice.score}</li>
+            </ul>
+        </div>
+    )
+}
+
+const CriteriaComponent: React.FC<{}> = () => {
+    const top = useSelector(({ base }: { base: TimefillSelector }) => base)
+    const criteria = top.allCriteria()
+    const criteriaLens: Lens<TimefillSelector, List<string>> = new Lens(
+        (o) => o.get('criteria', undefined),
+        (v) => (o) => o.set('criteria', v),
+    )
+    const dispatch = bindActionCreators(
+        {
+            onAddCriterion: actions.addCriterion,
+            onRemoveCriterion: actions.removeCriterion,
+            onChangeControl: actions.changeControl,
+            onKeyboardAvailable: baseActions.setKeyboardAvailability,
+        },
+        useDispatch(),
+    )
+    return (
+        <section className="criteria">
+            <button
+                className="add-criterion"
+                onClick={() => dispatch.onAddCriterion({})}
+            >
+                Add criterion
+            </button>
+            {criteria.map((criterion, e) => {
+                const lens: Lens<TimefillSelector, string> =
+                    criteriaLens.compose(lensFromImplicitAccessors(e))
+                return (
+                    <React.Fragment key={e}>
+                        <input
+                            type="text"
+                            placeholder="Criterion…"
+                            value={criterion}
+                            onChange={(ev) => {
+                                dispatch.onChangeControl({
+                                    lens,
+                                    value: ev.target.value,
+                                })
+                            }}
+                            {...keyboardEvents(dispatch)}
+                        />
+                        <button
+                            className="remove-criterion"
+                            onClick={() =>
+                                dispatch.onRemoveCriterion({ index: e })
+                            }
+                        >
+                            ❌
+                        </button>
+                    </React.Fragment>
+                )
+            })}
+        </section>
+    )
+}
 
 // const WeightsComponent = ((props: {
 //     albums: OrderedMap<AlbumKey, Album>
@@ -315,57 +256,42 @@ const selectionDescriptions: { [K in ChoiceTrackSelection]: string } = {
 
 const SelectionsComponent: React.FC<{
     selected: ChoiceTrackSelection
-    tracks: List<Track>
-    onToggle: (tid: TrackId) => () => void
-}> = (props) =>
-    React.useMemo(() => {
-        var tracks = null
-        if (props.tracks) {
-            tracks = (
-                <>
-                    <h3>{selectionDescriptions[props.selected]}:</h3>
-                    <ul className="fuller tracklist selectable">
-                        {props.tracks.map((track, e) => {
-                            const onToggle = props.onToggle(track.id)
-                            return (
-                                <ChoiceTrackComponent
-                                    key={e}
-                                    selected={props.selected}
-                                    {...{ track, onToggle }}
-                                />
-                            )
-                        })}
-                    </ul>
-                </>
-            )
-        }
-        return <div className="selection">{tracks}</div>
-    }, [props.tracks])
-
-export const ConnectedSelectionsComponent = connect(
-    (
-        top: {},
-        ownProps: {
-            selected: ChoiceTrackSelection
-            selectionMap: { [K in ChoiceTrackSelection]: List<Track> }
+    selectionMap: { [K in ChoiceTrackSelection]: List<Track> }
+}> = (props) => {
+    var ownTracks = props.selectionMap[props.selected]
+    var dispatch = bindActionCreators(
+        {
+            onToggle: actions.clearChoiceTrack,
         },
-    ) => ({ tracks: ownProps.selectionMap[ownProps.selected] }),
-    (d: Dispatch) =>
-        bindActionCreators(
-            {
-                onToggle: actions.clearChoiceTrack,
-            },
-            d,
-        ),
-    (stateProps, dispatchProps, ownProps) => {
-        return {
-            onToggle: (track: TrackId) => () =>
-                dispatchProps.onToggle({ track }),
-            ...stateProps,
-            ...ownProps,
-        }
-    },
-)(SelectionsComponent)
+        useDispatch(),
+    )
+    var tracks = null
+    if (ownTracks) {
+        tracks = (
+            <>
+                <h3>{selectionDescriptions[props.selected]}:</h3>
+                <ul className="fuller tracklist selectable">
+                    {ownTracks.map((track, e) => {
+                        const onToggle = (
+                            (track: TrackId) => () =>
+                                dispatch.onToggle({ track })
+                        )(track.id)
+                        return (
+                            <ChoiceTrackComponent
+                                key={e}
+                                selected={props.selected}
+                                {...{ track, onToggle }}
+                            />
+                        )
+                    })}
+                </ul>
+            </>
+        )
+    }
+    return <div className="selection">{tracks}</div>
+}
+
+export const ConnectedSelectionsComponent = SelectionsComponent
 
 const PersistSelectionsComponent: React.FC<{
     savingPlaylists: boolean
@@ -442,7 +368,7 @@ const TimefillSelectorComponent: React.FC<{
         }
         return (
             <div className={classes.join(' ')}>
-                <ConnectedCriteriaComponent />
+                <CriteriaComponent />
                 <section className="controls">
                     <textarea
                         placeholder="Playlist name…"
@@ -467,14 +393,14 @@ const TimefillSelectorComponent: React.FC<{
                         {...{ selectionMap }}
                     />
                     {props.choices.map((pl, e) => (
-                        <ConnectedChoiceComponent key={e} idxTop={e} />
+                        <ChoiceComponent key={e} idxTop={e} />
                     ))}
                 </section>
             </div>
         )
     }, [props.name, props.choices, props.selectState, props.selectionMap])
 
-export const ConnectedTimefillSelectorComponent: React.FC<{}> = () => {
+const _ConnectedTimefillSelectorComponent: React.FC<{}> = () => {
     const { tracks, argv, playlists } = React.useContext(InitialFetchedContext)
     const top = useSelector(({ base }: { base: TimefillSelector }) => base)
     const { name, criteria, choices } = top
@@ -541,3 +467,6 @@ export const ConnectedTimefillSelectorComponent: React.FC<{}> = () => {
     }
     return <TimefillSelectorComponent {...props2} />
 }
+
+export const ConnectedTimefillSelectorComponent =
+    _ConnectedTimefillSelectorComponent
