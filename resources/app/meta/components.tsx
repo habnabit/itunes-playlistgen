@@ -1,27 +1,15 @@
 import axios from 'axios'
-import { boolean } from 'fp-ts'
 import { AnimatePresence, motion } from 'framer-motion'
 import { List } from 'immutable'
-import * as qs from 'qs'
 import * as React from 'react'
 import { useInfiniteQuery, useQuery } from 'react-query'
-import { connect as reduxConnect } from 'react-redux'
+import { useDispatch } from 'react-redux'
 import PulseLoader from 'react-spinners/PulseLoader'
-import { onlyUpdateForKeys } from 'recompose'
-import { Dispatch, bindActionCreators } from 'redux'
+import { bindActionCreators } from 'redux'
 
-import * as baseActions from '../actions'
-import { axiosPostJson, postJSON } from '../funcs'
 import { RawTrack, Track, TrackId } from '../types'
 import * as actions from './actions'
-import {
-    Done,
-    InitialFetch,
-    Loaded,
-    Loading,
-    MetaState,
-    OverallState,
-} from './types'
+import { InitialFetch } from './types'
 
 const fadeInOut = {
     initial: { opacity: 0 },
@@ -35,44 +23,30 @@ const scrollFromTop = {
     layoutTransition: true,
 }
 
-const TrackArtworkComponent = onlyUpdateForKeys(['track', 'errored'])(
-    (props: {
-        track: Track
-        errored: boolean
-        onError: typeof actions.trackArtworkMissing
-    }) => {
-        if (props.errored) {
-            // lovingly taken from http://probablyprogramming.com/2009/03/15/the-tiniest-gif-ever
-            return (
-                <img src="data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs" />
-            )
-        }
-        const id = props.track.id
+export const ConnectedTrackArtworkComponent: React.FC<{
+    track: Track
+    errored: boolean
+}> = (props) => {
+    const dispatch = bindActionCreators(
+        {
+            onError: actions.trackArtworkMissing,
+        },
+        useDispatch(),
+    )
+    if (props.errored) {
+        // lovingly taken from http://probablyprogramming.com/2009/03/15/the-tiniest-gif-ever
         return (
-            <img
-                src={`/_api/track/${id}/artwork`}
-                onError={() => props.onError({ id })}
-            />
+            <img src="data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs" />
         )
-    },
-)
-
-export const ConnectedTrackArtworkComponent = reduxConnect(
-    (top: { meta: MetaState }, { track }: { track: Track | undefined }) => ({
-        errored:
-            track !== undefined
-                ? top.meta.artworkErroredFor.has(track.id)
-                : true,
-    }),
-    (d: Dispatch) =>
-        bindActionCreators(
-            {
-                onError: actions.trackArtworkMissing,
-            },
-            d,
-        ),
-    (props, dispatch, ownProps) => ({ ...props, ...dispatch, ...ownProps }),
-)(TrackArtworkComponent)
+    }
+    const id = props.track.id
+    return (
+        <img
+            src={`/_api/track/${id}/artwork`}
+            onError={() => dispatch.onError({ id })}
+        />
+    )
+}
 
 export const InitialFetchedContext = React.createContext({
     showError: (e) => {
