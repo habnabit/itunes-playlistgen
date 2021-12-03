@@ -3,7 +3,6 @@ import { Lens } from 'monocle-ts'
 import * as React from 'react'
 import { connect, useDispatch, useSelector } from 'react-redux'
 import PulseLoader from 'react-spinners/PulseLoader'
-import { onlyUpdateForKeys, pure } from 'recompose'
 import { Dispatch, bindActionCreators } from 'redux'
 
 import * as baseActions from '../actions'
@@ -18,7 +17,7 @@ import {
     TimefillSelector,
 } from './types'
 
-const DurationComponent = pure((props: { duration: number }) => {
+const DurationComponent: React.FC<{ duration: number }> = (props) => {
     const minutes = Math.floor(props.duration / 60)
     const seconds = Math.floor(props.duration % 60).toLocaleString('en', {
         minimumIntegerDigits: 2,
@@ -28,19 +27,15 @@ const DurationComponent = pure((props: { duration: number }) => {
             ⟨{minutes}:{seconds}⟩
         </>
     )
-})
+}
 
-const ChoiceTrackComponent = onlyUpdateForKeys([
-    'track',
-    'selected',
-    'ambient',
-])(
-    (props: {
-        track: Track
-        selected: ChoiceTrackSelection
-        ambient?: boolean
-        onToggle: () => void
-    }) => {
+const ChoiceTrackComponent: React.FC<{
+    track: Track
+    selected: ChoiceTrackSelection
+    ambient?: boolean
+    onToggle: () => void
+}> = (props) =>
+    React.useMemo(() => {
         const classes = []
         if (props.selected !== undefined && props.selected !== '_cleared') {
             classes.push(props.selected)
@@ -55,18 +50,17 @@ const ChoiceTrackComponent = onlyUpdateForKeys([
                 {props.track.title} ({props.track.album}; {props.track.artist})
             </li>
         )
-    },
-)
+    }, [props.track, props.selected, props.ambient])
 
-const ChoiceComponent = onlyUpdateForKeys(['choice', 'ambientSelected'])(
-    (props: {
-        choice: Choice
-        ambientSelected: Map<TrackId, ChoiceTrackSelection>
-        onToggle: (tid: TrackId) => () => void
-        onReroll: () => void
-        onShuffle: () => void
-        onSave: () => void
-    }) => {
+const ChoiceComponent: React.FC<{
+    choice: Choice
+    ambientSelected: Map<TrackId, ChoiceTrackSelection>
+    onToggle: (tid: TrackId) => () => void
+    onReroll: () => void
+    onShuffle: () => void
+    onSave: () => void
+}> = (props) =>
+    React.useMemo(() => {
         const { choice } = props
         if (choice.loading) {
             return (
@@ -115,8 +109,7 @@ const ChoiceComponent = onlyUpdateForKeys(['choice', 'ambientSelected'])(
                 </ul>
             </div>
         )
-    },
-)
+    }, [props.choice, props.ambientSelected])
 
 export const ConnectedChoiceComponent = connect(
     (
@@ -183,16 +176,16 @@ export const ConnectedChoiceComponent = connect(
     },
 )(ChoiceComponent)
 
-const CriteriaComponent = onlyUpdateForKeys(['criteria'])(
-    (props: {
-        criteria: List<string>
-        criteriaLens: Lens<TimefillSelector, List<string>>
-        onAddCriterion: typeof actions.addCriterion
-        onRemoveCriterion: typeof actions.removeCriterion
-        onChangeControl: typeof actions.changeControl
-        keyb: KeyboardEvents
-    }) => {
-        return (
+const CriteriaComponent: React.FC<{
+    criteria: List<string>
+    criteriaLens: Lens<TimefillSelector, List<string>>
+    onAddCriterion: typeof actions.addCriterion
+    onRemoveCriterion: typeof actions.removeCriterion
+    onChangeControl: typeof actions.changeControl
+    keyb: KeyboardEvents
+}> = (props) =>
+    React.useMemo(
+        () => (
             <section className="criteria">
                 <button
                     className="add-criterion"
@@ -229,9 +222,9 @@ const CriteriaComponent = onlyUpdateForKeys(['criteria'])(
                     )
                 })}
             </section>
-        )
-    },
-)
+        ),
+        [props.criteria],
+    )
 
 const ConnectedCriteriaComponent = connect(
     ({ base: top }: { base: TimefillSelector }) => ({ criteria: top.criteria }),
@@ -320,12 +313,12 @@ const selectionDescriptions: { [K in ChoiceTrackSelection]: string } = {
     _cleared: 'To clear',
 }
 
-const SelectionsComponent = onlyUpdateForKeys(['tracks'])(
-    (props: {
-        selected: ChoiceTrackSelection
-        tracks: List<Track>
-        onToggle: (tid: TrackId) => () => void
-    }) => {
+const SelectionsComponent: React.FC<{
+    selected: ChoiceTrackSelection
+    tracks: List<Track>
+    onToggle: (tid: TrackId) => () => void
+}> = (props) =>
+    React.useMemo(() => {
         var tracks = null
         if (props.tracks) {
             tracks = (
@@ -347,8 +340,7 @@ const SelectionsComponent = onlyUpdateForKeys(['tracks'])(
             )
         }
         return <div className="selection">{tracks}</div>
-    },
-)
+    }, [props.tracks])
 
 export const ConnectedSelectionsComponent = connect(
     (
@@ -375,15 +367,12 @@ export const ConnectedSelectionsComponent = connect(
     },
 )(SelectionsComponent)
 
-const PersistSelectionsComponent = onlyUpdateForKeys([
-    'savingPlaylists',
-    'saveAllowed',
-])(
-    (props: {
-        savingPlaylists: boolean
-        saveAllowed: boolean
-        onSave: () => void
-    }) => {
+const PersistSelectionsComponent: React.FC<{
+    savingPlaylists: boolean
+    saveAllowed: boolean
+    onSave: () => void
+}> = (props) =>
+    React.useMemo(() => {
         var button = null
         if (props.savingPlaylists) {
             button = <PulseLoader color="darkslateblue" size="0.5em" />
@@ -391,8 +380,7 @@ const PersistSelectionsComponent = onlyUpdateForKeys([
             button = <button onClick={props.onSave}>Save selections</button>
         }
         return <div className="selection save-button">{button}</div>
-    },
-)
+    }, [props.savingPlaylists, props.saveAllowed])
 
 export const ConnectedPersistSelectionsComponent = connect(
     (
@@ -437,21 +425,16 @@ export const ConnectedPersistSelectionsComponent = connect(
     },
 )(PersistSelectionsComponent)
 
-const TimefillSelectorComponent = onlyUpdateForKeys([
-    'name',
-    'choices',
-    'selectState',
-    'selectionMap',
-])(
-    (props: {
-        name: string
-        choices: List<Choice>
-        selectState: ChoiceTrackSelection
-        keyb: KeyboardEvents
-        selectionMap: { [K in ChoiceTrackSelection]: List<Track> }
-        onChangeName: (name: string) => void
-        onSelect: () => void
-    }) => {
+const TimefillSelectorComponent: React.FC<{
+    name: string
+    choices: List<Choice>
+    selectState: ChoiceTrackSelection
+    keyb: KeyboardEvents
+    selectionMap: { [K in ChoiceTrackSelection]: List<Track> }
+    onChangeName: (name: string) => void
+    onSelect: () => void
+}> = (props) =>
+    React.useMemo(() => {
         const { selectionMap } = props
         const classes: string[] = []
         if (props.selectState !== undefined) {
@@ -489,8 +472,7 @@ const TimefillSelectorComponent = onlyUpdateForKeys([
                 </section>
             </div>
         )
-    },
-)
+    }, [props.name, props.choices, props.selectState, props.selectionMap])
 
 export const ConnectedTimefillSelectorComponent: React.FC<{}> = () => {
     const { tracks, argv, playlists } = React.useContext(InitialFetchedContext)
@@ -517,7 +499,6 @@ export const ConnectedTimefillSelectorComponent: React.FC<{}> = () => {
             gotArgv: baseActions.fetchArgv.success,
             gotTracks: baseActions.fetchTracks.success,
             gotPlaylists: baseActions.fetchPlaylists.success,
-            finishedLoading: baseActions.finishedLoading,
         },
         useDispatch<Dispatch<AllActions>>(),
     )
@@ -531,6 +512,11 @@ export const ConnectedTimefillSelectorComponent: React.FC<{}> = () => {
             dispatch.gotTracks({ tracks: [tracks.toArray()] })
         }
     }, [tracks])
+    React.useEffect(() => {
+        if (playlists) {
+            dispatch.gotPlaylists({ json: playlists })
+        }
+    }, [playlists])
     const props2 = {
         top,
         name,

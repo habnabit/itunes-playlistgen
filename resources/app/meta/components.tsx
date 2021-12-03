@@ -4,7 +4,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { List } from 'immutable'
 import * as qs from 'qs'
 import * as React from 'react'
-import { useQuery } from 'react-query'
+import { useInfiniteQuery, useQuery } from 'react-query'
 import { connect as reduxConnect } from 'react-redux'
 import PulseLoader from 'react-spinners/PulseLoader'
 import { onlyUpdateForKeys } from 'recompose'
@@ -74,13 +74,16 @@ export const ConnectedTrackArtworkComponent = reduxConnect(
     (props, dispatch, ownProps) => ({ ...props, ...dispatch, ...ownProps }),
 )(TrackArtworkComponent)
 
-export const InitialFetchedContext = React.createContext(
-    {} as {
-        tracks?: List<RawTrack>
-        argv?: { dest_playlist?: string; web_argv?: string[] }
-        playlists?: [string, TrackId[]][]
+export const InitialFetchedContext = React.createContext({
+    showError: (e) => {
+        console.error(e)
     },
-)
+} as {
+    tracks?: List<RawTrack>
+    argv?: { dest_playlist?: string; web_argv?: string[] }
+    playlists?: [string, TrackId[]][]
+    showError: (e: Error) => void
+})
 
 type TopProps = {
     initialFetch: InitialFetch
@@ -89,39 +92,45 @@ type TopProps = {
 const TopComponent: React.FC<TopProps> = (props) => {
     const { children, initialFetch } = props
 
-    const [tracks, setTracks] = React.useState(List<RawTrack>())
-    const [tracksPending, setTracksPending] = React.useState(true)
-
-    const tracksQuery = useQuery(
-        ['tracks@', tracks.size],
-        () =>
+    const tracksQuery = useInfiniteQuery(
+        ['tracks@'],
+        ({ pageParam = 0 }) =>
             axios.get<{ tracks: RawTrack[] }>('/_api/tracks', {
                 params: {
-                    offset: tracks.size,
-                    count: 250,
+                    offset: pageParam,
                 },
             }),
         {
+            refetchOnWindowFocus: false,
+            refetchOnReconnect: false,
             enabled: initialFetch.tracks !== undefined,
-            onSuccess: ({ data }) => {
-                if (data.tracks.length > 0) {
-                    setTracks(tracks.push(...data.tracks))
-                } else {
-                    setTracksPending(false)
+            getNextPageParam: (lastPage, pages) =>
+                lastPage.data.tracks.length > 0
+                    ? List(pages).reduce(
+                          (sum, { data }) => sum + data.tracks.length,
+                          0,
+                      )
+                    : undefined,
+            onSuccess: ({ pages }) => {
+                if (tracksQuery.hasNextPage || pages.length < 2) {
+                    tracksQuery.fetchNextPage()
                 }
             },
         },
     )
 
     const argv = useQuery('argv', () => axios.get('/_api/argv'), {
+        refetchOnWindowFocus: false,
+        refetchOnReconnect: false,
         enabled: initialFetch.argv !== undefined,
     })
 
     const playlists = useQuery(
         'playlists',
-        () =>
-            axios.get('/_api/playlists', axiosPostJson(initialFetch.playlists)),
+        () => axios.post('/_api/playlists', initialFetch.playlists),
         {
+            refetchOnWindowFocus: false,
+            refetchOnReconnect: false,
             enabled: initialFetch.playlists !== undefined,
         },
     )
@@ -131,11 +140,13 @@ const TopComponent: React.FC<TopProps> = (props) => {
         pending: boolean
     }> {
         if (initialFetch.tracks !== undefined) {
+            const pending =
+                tracksQuery.status === 'loading' || tracksQuery.hasNextPage
             yield {
-                description: tracksPending
-                    ? `${tracks.size} tracks`
+                description: pending
+                    ? `${(tracksQuery.data?.pages ?? []).length} pages`
                     : 'all tracks',
-                pending: tracksQuery.status === 'loading' || tracksPending,
+                pending,
             }
         }
         if (initialFetch.argv !== undefined) {
@@ -152,15 +163,20 @@ const TopComponent: React.FC<TopProps> = (props) => {
         }
     }
 
+    const [errors, setErrors] = React.useState(List<Error>())
+
     var body
-    if (!tracksPending && argv.isSuccess && playlists.isSuccess) {
+    if (!tracksQuery.hasNextPage && argv.isSuccess && playlists.isSuccess) {
         body = (
             <motion.div {...fadeInOut}>
                 <InitialFetchedContext.Provider
                     value={{
-                        tracks,
+                        tracks: List(tracksQuery.data?.pages).flatMap(
+                            ({ data }) => data.tracks,
+                        ),
                         argv: argv.data?.data,
                         playlists: playlists.data?.data,
+                        showError: (e) => setErrors(errors.push(e)),
                     }}
                 >
                     {children}
@@ -196,9 +212,19 @@ const TopComponent: React.FC<TopProps> = (props) => {
         )
     }
 
-    const [errors, setErrors] = React.useState([])
-    const consoleQuery = useQuery('console', () =>
-        axios.get<{ screen: string[] }>('/_api/screen'),
+    const [screenHashed, setScreenHashed] = React.useState(undefined)
+    const consoleQuery = useQuery(
+        'console',
+        () =>
+            axios.get<{ screen: string[]; hashed: string }>('/_api/screen', {
+                params: { poll_interval: 0.1, hashed: screenHashed },
+            }),
+        {
+            refetchInterval: 250,
+            onSuccess: ({ data }) => {
+                setScreenHashed(data.hashed)
+            },
+        },
     )
 
     return (
