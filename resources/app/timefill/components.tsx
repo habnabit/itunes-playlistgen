@@ -303,55 +303,6 @@ export const ConnectedPersistSelectionsComponent = connect(
     },
 )(PersistSelectionsComponent)
 
-const TimefillSelectorComponent: React.FC<{
-    name: string
-    choices: List<Choice>
-    selectState: ChoiceTrackSelection
-    keyb: KeyboardEvents
-    selectionMap: { [K in ChoiceTrackSelection]: List<Track> }
-    onChangeName: (name: string) => void
-    onSelect: () => void
-}> = (props) =>
-    React.useMemo(() => {
-        const { selectionMap } = props
-        const classes: string[] = []
-        if (props.selectState !== undefined) {
-            classes.push(`set-${props.selectState}`)
-        }
-        return (
-            <div className={classes.join(' ')}>
-                <CriteriaComponent />
-                <section className="controls">
-                    <textarea
-                        placeholder="Playlist name…"
-                        onChange={(ev) => props.onChangeName(ev.target.value)}
-                        value={props.name}
-                        {...props.keyb}
-                    />
-                    <button onClick={props.onSelect}>Select new</button>
-                </section>
-                <section className="choices">
-                    {Object.entries(selectionDescriptions).map(
-                        ([_selected, _], key) => {
-                            const selected = _selected as ChoiceTrackSelection
-                            return (
-                                <ConnectedSelectionsComponent
-                                    {...{ key, selected, selectionMap }}
-                                />
-                            )
-                        },
-                    )}
-                    <ConnectedPersistSelectionsComponent
-                        {...{ selectionMap }}
-                    />
-                    {props.choices.map((pl, e) => (
-                        <ChoiceComponent key={e} idxTop={e} />
-                    ))}
-                </section>
-            </div>
-        )
-    }, [props.name, props.choices, props.selectState, props.selectionMap])
-
 const _ConnectedTimefillSelectorComponent: React.FC<{}> = () => {
     const { tracks, argv, playlists } = React.useContext(InitialFetchedContext)
     const top = useSelector(({ base }: { base: TimefillSelector }) => base)
@@ -395,29 +346,59 @@ const _ConnectedTimefillSelectorComponent: React.FC<{}> = () => {
             dispatch.gotPlaylists({ json: playlists })
         }
     }, [playlists])
-    const props2 = {
-        top,
-        name,
-        criteria,
-        choices,
-        selectionMap,
-        totalSelection: top.reversedTotalSelection(),
-        allCriteria: top.allCriteria(),
-        selectState: top.currentSelection(),
-        onSelect: () => {
-            dispatch.onLoading()
-            dispatch.onSelect({
-                criteria: top.allCriteria(),
-                selections: top.reversedTotalSelection(),
-                narrow: false,
-            })
-            dispatch.onSetHash()
-        },
-        onChangeName: (value: string) =>
-            dispatch.onChangeControl({ lens, value }),
-        keyb: keyboardEvents(dispatch),
+
+    const classes: string[] = []
+    const selectState = top.currentSelection()
+    if (selectState !== undefined) {
+        classes.push(`set-${selectState}`)
     }
-    return <TimefillSelectorComponent {...props2} />
+    return (
+        <div className={classes.join(' ')}>
+            <CriteriaComponent />
+            <section className="controls">
+                <textarea
+                    placeholder="Playlist name…"
+                    onChange={(ev) =>
+                        dispatch.onChangeControl({
+                            lens,
+                            value: ev.target.value,
+                        })
+                    }
+                    value={name}
+                    {...keyboardEvents(dispatch)}
+                />
+                <button
+                    onClick={() => {
+                        dispatch.onLoading()
+                        dispatch.onSelect({
+                            criteria: top.allCriteria(),
+                            selections: top.reversedTotalSelection(),
+                            narrow: false,
+                        })
+                        dispatch.onSetHash()
+                    }}
+                >
+                    Select new
+                </button>
+            </section>
+            <section className="choices">
+                {Object.entries(selectionDescriptions).map(
+                    ([_selected, _], key) => {
+                        const selected = _selected as ChoiceTrackSelection
+                        return (
+                            <ConnectedSelectionsComponent
+                                {...{ key, selected, selectionMap }}
+                            />
+                        )
+                    },
+                )}
+                <ConnectedPersistSelectionsComponent {...{ selectionMap }} />
+                {choices.map((pl, e) => (
+                    <ChoiceComponent key={e} idxTop={e} />
+                ))}
+            </section>
+        </div>
+    )
 }
 
 export const ConnectedTimefillSelectorComponent =
