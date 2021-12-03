@@ -1,14 +1,14 @@
 import { List, Map } from 'immutable'
 import { Lens } from 'monocle-ts'
 import * as React from 'react'
-import { connect, useDispatch, useSelector } from 'react-redux'
+import { useDispatch, useSelector } from 'react-redux'
 import PulseLoader from 'react-spinners/PulseLoader'
 import { Dispatch, bindActionCreators } from 'redux'
 
 import * as baseActions from '../actions'
 import { lensFromImplicitAccessors } from '../extlens'
 import { InitialFetchedContext } from '../meta/components'
-import { KeyboardEvents, Track, TrackId, keyboardEvents } from '../types'
+import { Track, TrackId, keyboardEvents } from '../types'
 import * as actions from './actions'
 import {
     AllActions,
@@ -246,64 +246,42 @@ const SelectionsComponent: React.FC<{
 export const ConnectedSelectionsComponent = SelectionsComponent
 
 const PersistSelectionsComponent: React.FC<{
-    savingPlaylists: boolean
-    saveAllowed: boolean
-    onSave: () => void
-}> = (props) =>
-    React.useMemo(() => {
-        var button = null
-        if (props.savingPlaylists) {
-            button = <PulseLoader color="darkslateblue" size="0.5em" />
-        } else if (props.saveAllowed) {
-            button = <button onClick={props.onSave}>Save selections</button>
-        }
-        return <div className="selection save-button">{button}</div>
-    }, [props.savingPlaylists, props.saveAllowed])
-
-export const ConnectedPersistSelectionsComponent = connect(
-    (
-        { base }: { base: TimefillSelector },
+    selectionMap: { [K in ChoiceTrackSelection]: List<Track> }
+}> = (props) => {
+    const top = useSelector(({ base }: { base: TimefillSelector }) => base)
+    const dispatch = bindActionCreators(
         {
-            selectionMap,
-        }: {
-            selectionMap: { [K in ChoiceTrackSelection]: List<Track> }
+            onSave: actions.modifyPlaylists.request,
         },
-    ) => {
-        const isPopulated = (key: ChoiceTrackSelection) => {
-            const m = selectionMap[key]
-            return m !== undefined && !m.isEmpty()
-        }
-        const saveAllowed =
-            isPopulated('bless') ||
-            isPopulated('curse') ||
-            isPopulated('_cleared')
-        return {
-            savingPlaylists: base.savingPlaylists,
-            base,
-            saveAllowed,
-        }
-    },
-    (d: Dispatch) =>
-        bindActionCreators(
-            {
-                onSave: actions.modifyPlaylists.request,
-            },
-            d,
-        ),
-    (props, dispatch, ownProps) => {
-        const extraProps = {
-            onSave: () => {
-                const modifications = props.base
-                    .playlistModifications()
-                    .toArray()
-                dispatch.onSave({ modifications })
-            },
-        }
-        return { ...props, ...extraProps }
-    },
-)(PersistSelectionsComponent)
+        useDispatch(),
+    )
+    const isPopulated = (key: ChoiceTrackSelection) => {
+        const m = props.selectionMap[key]
+        return m !== undefined && !m.isEmpty()
+    }
+    const saveAllowed =
+        isPopulated('bless') || isPopulated('curse') || isPopulated('_cleared')
+    var button = null
+    if (top.savingPlaylists) {
+        button = <PulseLoader color="darkslateblue" size="0.5em" />
+    } else if (saveAllowed) {
+        button = (
+            <button
+                onClick={() => {
+                    const modifications = top.playlistModifications().toArray()
+                    dispatch.onSave({ modifications })
+                }}
+            >
+                Save selections
+            </button>
+        )
+    }
+    return <div className="selection save-button">{button}</div>
+}
 
-const _ConnectedTimefillSelectorComponent: React.FC<{}> = () => {
+export const ConnectedPersistSelectionsComponent = PersistSelectionsComponent
+
+const TimefillSelectorComponent: React.FC<{}> = () => {
     const { tracks, argv, playlists } = React.useContext(InitialFetchedContext)
     const top = useSelector(({ base }: { base: TimefillSelector }) => base)
     const { name, criteria, choices } = top
@@ -401,5 +379,4 @@ const _ConnectedTimefillSelectorComponent: React.FC<{}> = () => {
     )
 }
 
-export const ConnectedTimefillSelectorComponent =
-    _ConnectedTimefillSelectorComponent
+export const ConnectedTimefillSelectorComponent = TimefillSelectorComponent
