@@ -16,16 +16,14 @@ function makeRootElement(): JSX.Element {
         component,
         initialFetch = {}
     if (location.search == '?timefill') {
-        store = stores.timefillStore(
-            new TimefillSelector(),
-            (initialFetch = {
-                argv: true,
-                tracks: true,
-                playlists: {
-                    names: selectionPlaylists.valueSeq().toArray(),
-                },
-            }),
-        )
+        store = stores.timefillStore(new TimefillSelector())
+        initialFetch = {
+            argv: true,
+            tracks: true,
+            playlists: {
+                names: selectionPlaylists.valueSeq().toArray(),
+            },
+        }
         component = <ConnectedTimefillSelectorComponent />
     }
     return (

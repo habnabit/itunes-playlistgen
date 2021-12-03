@@ -3,18 +3,15 @@ import {
     Reducer,
     Store,
     applyMiddleware,
-    combineReducers,
     createStore,
 } from 'redux'
 import { Epic, combineEpics, createEpicMiddleware } from 'redux-observable'
 import { from, of } from 'rxjs'
-import { bufferCount, catchError, filter, map, switchMap } from 'rxjs/operators'
+import { catchError, filter, map, switchMap } from 'rxjs/operators'
 import { ActionType, isActionOf } from 'typesafe-actions'
 
 import * as actions from './actions'
 import { postJSON } from './funcs'
-import metaReducer from './meta/reducer'
-import { InitialFetch, Loaded, Loading, MetaState } from './meta/types'
 import timefillEpics from './timefill/epics'
 import timefillReducer from './timefill/reducer'
 import { RemoteError } from './types'
@@ -53,21 +50,12 @@ const savePlaylistEpic: Epic<AllActions, AllActions> = (action$) =>
 const combinedEpics = combineEpics(savePlaylistEpic)
 
 const makeStore =
-    <S>(reducer: Reducer<S, AllActions>, epics: Epic) =>
-    (state: S, fetch: InitialFetch): Store<{ base: S; meta: MetaState }> => {
+    <S>(reducer: Reducer<S>, epics: Epic) =>
+    (state: PreloadedState<S>): Store<S> => {
         const epicMiddleware = createEpicMiddleware()
-        const reducers = combineReducers({
-            base: reducer,
-            meta: metaReducer,
-        })
         const store = createStore(
-            reducers,
-            {
-                base: state as S extends string | number | boolean | symbol
-                    ? S
-                    : PreloadedState<S>,
-                meta: new MetaState(fetch),
-            },
+            reducer,
+            state,
             applyMiddleware(epicMiddleware),
         )
 

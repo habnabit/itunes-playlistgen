@@ -8,7 +8,6 @@ import PulseLoader from 'react-spinners/PulseLoader'
 import { bindActionCreators } from 'redux'
 
 import { RawTrack, Track, TrackId } from '../types'
-import * as actions from './actions'
 import { InitialFetch } from './types'
 
 const fadeInOut = {
@@ -27,12 +26,7 @@ export const ConnectedTrackArtworkComponent: React.FC<{
     track: Track
     errored: boolean
 }> = (props) => {
-    const dispatch = bindActionCreators(
-        {
-            onError: actions.trackArtworkMissing,
-        },
-        useDispatch(),
-    )
+    const { trackArtworkMissing } = React.useContext(TopPlatformContext)
     if (props.errored) {
         // lovingly taken from http://probablyprogramming.com/2009/03/15/the-tiniest-gif-ever
         return (
@@ -43,22 +37,34 @@ export const ConnectedTrackArtworkComponent: React.FC<{
     return (
         <img
             src={`/_api/track/${id}/artwork`}
-            onError={() => dispatch.onError({ id })}
+            onError={() => trackArtworkMissing(id)}
         />
     )
 }
 
-export const InitialFetchedContext = React.createContext({
+export const InitialFetchedContext = React.createContext(
+    {} as {
+        tracks?: List<RawTrack>
+        argv?: { dest_playlist?: string; web_argv?: string[] }
+        playlists?: [string, TrackId[]][]
+    },
+)
+InitialFetchedContext.displayName = 'InitialFetchedContext'
+
+export const defaultPlatform: {
+    trackArtworkMissing: (id: TrackId) => void
+    showError: (e: Error) => void
+} = {
+    trackArtworkMissing: (t) => {
+        console.log('track artwork missing', t)
+    },
     showError: (e) => {
         console.error(e)
     },
-} as {
-    tracks?: List<RawTrack>
-    argv?: { dest_playlist?: string; web_argv?: string[] }
-    playlists?: [string, TrackId[]][]
-    showError: (e: Error) => void
-})
-InitialFetchedContext.displayName = 'InitialFetchedContext'
+}
+
+export const TopPlatformContext = React.createContext(defaultPlatform)
+TopPlatformContext.displayName = 'TopPlatformContext'
 
 type TopProps = {
     initialFetch: InitialFetch
@@ -144,18 +150,24 @@ const TopComponent: React.FC<TopProps> = (props) => {
     if (!tracksQuery.hasNextPage && argv.isSuccess && playlists.isSuccess) {
         body = (
             <motion.div {...fadeInOut}>
-                <InitialFetchedContext.Provider
+                <TopPlatformContext.Provider
                     value={{
-                        tracks: List(tracksQuery.data?.pages).flatMap(
-                            ({ data }) => data.tracks,
-                        ),
-                        argv: argv.data?.data,
-                        playlists: playlists.data?.data,
+                        ...defaultPlatform,
                         showError: (e) => setErrors(errors.push(e)),
                     }}
                 >
-                    {children}
-                </InitialFetchedContext.Provider>
+                    <InitialFetchedContext.Provider
+                        value={{
+                            tracks: List(tracksQuery.data?.pages).flatMap(
+                                ({ data }) => data.tracks,
+                            ),
+                            argv: argv.data?.data,
+                            playlists: playlists.data?.data,
+                        }}
+                    >
+                        {children}
+                    </InitialFetchedContext.Provider>
+                </TopPlatformContext.Provider>
             </motion.div>
         )
     } else {

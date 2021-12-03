@@ -53,7 +53,7 @@ const ChoiceTrackComponent: React.FC<{
     }, [props.track, props.selected, props.ambient])
 
 const ChoiceComponent: React.FC<{ idxTop: number }> = (props) => {
-    const top = useSelector(({ base }: { base: TimefillSelector }) => base)
+    const top = useSelector((top: TimefillSelector) => top)
     const { ambientSelected } = top
     const choice = top.choices.get(props.idxTop)
     const dispatch = bindActionCreators(
@@ -143,7 +143,7 @@ const ChoiceComponent: React.FC<{ idxTop: number }> = (props) => {
 }
 
 const CriteriaComponent: React.FC<{}> = () => {
-    const top = useSelector(({ base }: { base: TimefillSelector }) => base)
+    const top = useSelector((top: TimefillSelector) => top)
     const criteria = top.allCriteria()
     const criteriaLens: Lens<TimefillSelector, List<string>> = new Lens(
         (o) => o.get('criteria', undefined),
@@ -248,7 +248,7 @@ export const ConnectedSelectionsComponent = SelectionsComponent
 const PersistSelectionsComponent: React.FC<{
     selectionMap: { [K in ChoiceTrackSelection]: List<Track> }
 }> = (props) => {
-    const top = useSelector(({ base }: { base: TimefillSelector }) => base)
+    const top = useSelector((top: TimefillSelector) => top)
     const dispatch = bindActionCreators(
         {
             onSave: actions.modifyPlaylists.request,
@@ -283,8 +283,8 @@ export const ConnectedPersistSelectionsComponent = PersistSelectionsComponent
 
 const TimefillSelectorComponent: React.FC<{}> = () => {
     const { tracks, argv, playlists } = React.useContext(InitialFetchedContext)
-    const top = useSelector(({ base }: { base: TimefillSelector }) => base)
-    const { name, criteria, choices } = top
+    const top = useSelector((top: TimefillSelector) => top)
+    const { name, choices } = top
     const _selectionMap = top
         .reversedSelection()
         .map((tracks) => tracks.toList().map((t) => top.tracks.get(t)))
