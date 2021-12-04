@@ -7,7 +7,7 @@ import { Dispatch, bindActionCreators } from 'redux'
 
 import * as baseActions from '../actions'
 import { lensFromImplicitAccessors } from '../extlens'
-import { InitialFetchedContext } from '../meta/components'
+import { InitialFetchedContext } from '../meta'
 import { Track, TrackId, keyboardEvents } from '../types'
 import * as actions from './actions'
 import {

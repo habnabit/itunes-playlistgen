@@ -3,12 +3,17 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { List } from 'immutable'
 import * as React from 'react'
 import { useInfiniteQuery, useQuery } from 'react-query'
-import { useDispatch } from 'react-redux'
 import PulseLoader from 'react-spinners/PulseLoader'
-import { bindActionCreators } from 'redux'
 
-import { RawTrack, Track, TrackId } from '../types'
-import { InitialFetch } from './types'
+import { RawTrack, Track, TrackId } from './types'
+
+export type InitialFetch = {
+    argv?: {}
+    tracks?: {}
+    playlists?: {
+        names?: string[]
+    }
+}
 
 const fadeInOut = {
     initial: { opacity: 0 },

@@ -6,7 +6,7 @@ import * as ReactDOM from 'react-dom'
 import { QueryClient, QueryClientProvider } from 'react-query'
 import { Provider } from 'react-redux'
 
-import { ConnectedTopComponent } from './meta/components'
+import { ConnectedTopComponent } from './meta'
 import * as stores from './redux'
 import { ConnectedTimefillSelectorComponent } from './timefill/components'
 import { TimefillSelector, selectionPlaylists } from './timefill/types'
