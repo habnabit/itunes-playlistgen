@@ -21,7 +21,7 @@ function makeRootElement(): JSX.Element {
             argv: true,
             tracks: true,
             playlists: {
-                names: selectionPlaylists.valueSeq().toArray(),
+                names: ['Tagged'],
             },
         }
         component = <ConnectedTimefillSelectorComponent />

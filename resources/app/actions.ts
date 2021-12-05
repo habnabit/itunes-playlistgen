@@ -1,7 +1,7 @@
 import { List } from 'immutable'
 import { createAction, createAsyncAction } from 'typesafe-actions'
 
-import { Track } from './types'
+import { Track, TrackId } from './types'
 
 export const performSearch = createAction('playlistgen/performSearch')()
 
@@ -59,14 +59,14 @@ export const fetchPlaylists = createAsyncAction(
         names?: string[]
     },
     {
-        json: any
+        json: { playlists: [string[], TrackId[]][] }
     },
     Error
 >()
 
-export const finishedLoading = createAction('playlistgen/finishedLoading')<
-    void
->()
+export const finishedLoading = createAction(
+    'playlistgen/finishedLoading',
+)<void>()
 
 export const fetchConsole = createAsyncAction(
     'playlistgen/fetchConsole/request',

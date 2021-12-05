@@ -1,4 +1,4 @@
-import { List, Map } from 'immutable'
+import { List, Map, Set } from 'immutable'
 import { Lens } from 'monocle-ts'
 import * as React from 'react'
 import { useDispatch, useSelector } from 'react-redux'
@@ -14,7 +14,9 @@ import {
     AllActions,
     Choice,
     ChoiceTrackSelection,
+    Tag,
     TimefillSelector,
+    isoTag,
 } from './types'
 
 const DurationComponent: React.FC<{ duration: number }> = (props) => {
@@ -29,8 +31,19 @@ const DurationComponent: React.FC<{ duration: number }> = (props) => {
     )
 }
 
+const TagsComponent: React.FC<{ tags: Set<Tag> }> = ({ tags }) => (
+    <ul className="tags">
+        {tags.map((t) => (
+            <li key={isoTag.unwrap(t)} className={isoTag.cssClass(t)}>
+                {t}
+            </li>
+        ))}
+    </ul>
+)
+
 const ChoiceTrackComponent: React.FC<{
     track: Track
+    tags?: Set<Tag>
     selected: ChoiceTrackSelection
     ambient?: boolean
     onToggle: () => void
@@ -38,7 +51,7 @@ const ChoiceTrackComponent: React.FC<{
     React.useMemo(() => {
         const classes = []
         if (props.selected !== undefined && props.selected !== '_cleared') {
-            classes.push(props.selected)
+            classes.push(`sel--${props.selected}`)
         }
         if (props.ambient) {
             classes.push('ambient')
@@ -48,6 +61,7 @@ const ChoiceTrackComponent: React.FC<{
                 <DurationComponent duration={props.track.totalTime} />
                 &nbsp;
                 {props.track.title} ({props.track.album}; {props.track.artist})
+                {props.tags && <TagsComponent tags={props.tags} />}
             </li>
         )
     }, [props.track, props.selected, props.ambient])
@@ -127,6 +141,7 @@ const ChoiceComponent: React.FC<{ idxTop: number }> = (props) => {
                     return (
                         <ChoiceTrackComponent
                             key={e}
+                            tags={top.tags.get(track.id, undefined)}
                             {...{ track, selected, ambient, onToggle }}
                         />
                     )
@@ -321,14 +336,14 @@ const TimefillSelectorComponent: React.FC<{}> = () => {
     }, [tracks])
     React.useEffect(() => {
         if (playlists) {
-            dispatch.gotPlaylists({ json: playlists })
+            dispatch.gotPlaylists({ json: { playlists } })
         }
     }, [playlists])
 
     const classes: string[] = []
     const selectState = top.currentSelection()
     if (selectState !== undefined) {
-        classes.push(`set-${selectState}`)
+        classes.push(`set--${selectState}`)
     }
     return (
         <div className={classes.join(' ')}>

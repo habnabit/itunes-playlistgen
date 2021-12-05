@@ -366,24 +366,36 @@ def _default_playlists(tracks):
 
 
 def _playlists_response(playlists, tracks):
+    all_names = set()
+    ret = []
+    to_add = set(playlists)
+    while to_add:
+        names_to_add = {tracks.nested_name_for(pl) for pl in to_add}
+        all_names.update(names_to_add)
+        to_add = set()
+        for name in names_to_add:
+            ret.append(
+                (name, [ppis(t) for t in tracks.nested_playlist(name).items()]))
+            try:
+                children = tracks.playlist_children(name)
+            except KeyError:
+                continue
+            to_add.update(children.values())
+        to_add.difference_update(all_names)
+
     return {
-        'playlists': [
-            (pl.name(), [ppis(t) for t in pl.items()])
-            for pl in playlists
-        ],
+        'playlists': ret,
     }
 
 
 @playlists_service.get()
 def get_playlists(request):
-    return _playlists_response(_default_playlists(request.tracks), request.tracks)
+    return _playlists_response([], request.tracks)
 
 
 @playlists_service.post(schema=PlaylistsSchema, validators=(marshmallow_validator,))
 def get_specific_playlists(request):
     playlists = request.validated['body']['names']
-    if len(playlists) == 0:
-        playlists = _default_playlists(request.tracks)
     return _playlists_response(playlists, request.tracks)
 
 

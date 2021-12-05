@@ -1,6 +1,6 @@
 import axios from 'axios'
 import { AnimatePresence, motion } from 'framer-motion'
-import { List } from 'immutable'
+import { List, Set } from 'immutable'
 import * as React from 'react'
 import { useInfiniteQuery, useQuery } from 'react-query'
 import PulseLoader from 'react-spinners/PulseLoader'
@@ -28,11 +28,11 @@ const scrollFromTop = {
 }
 
 export const ConnectedTrackArtworkComponent: React.FC<{
-    track: Track
-    errored: boolean
+    track: Track | undefined
 }> = (props) => {
-    const { trackArtworkMissing } = React.useContext(TopPlatformContext)
-    if (props.errored) {
+    const { isTrackArtworkMissing, trackArtworkMissing } =
+        React.useContext(TopPlatformContext)
+    if (!props.track || isTrackArtworkMissing(props.track.id)) {
         // lovingly taken from http://probablyprogramming.com/2009/03/15/the-tiniest-gif-ever
         return (
             <img src="data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs" />
@@ -47,19 +47,23 @@ export const ConnectedTrackArtworkComponent: React.FC<{
     )
 }
 
+export type Argv = { dest_playlist?: string; web_argv?: string[] }
+export type Playlists = [string[], TrackId[]][]
 export const InitialFetchedContext = React.createContext(
     {} as {
         tracks?: List<RawTrack>
-        argv?: { dest_playlist?: string; web_argv?: string[] }
-        playlists?: [string, TrackId[]][]
+        argv?: Argv
+        playlists?: Playlists
     },
 )
 InitialFetchedContext.displayName = 'InitialFetchedContext'
 
 export const defaultPlatform: {
+    isTrackArtworkMissing: (id: TrackId) => boolean
     trackArtworkMissing: (id: TrackId) => void
     showError: (e: Error) => void
 } = {
+    isTrackArtworkMissing: () => true,
     trackArtworkMissing: (t) => {
         console.log('track artwork missing', t)
     },
@@ -105,7 +109,7 @@ const TopComponent: React.FC<TopProps> = (props) => {
         },
     )
 
-    const argv = useQuery('argv', () => axios.get('/_api/argv'), {
+    const argv = useQuery('argv', () => axios.get<Argv>('/_api/argv'), {
         refetchOnWindowFocus: false,
         refetchOnReconnect: false,
         enabled: initialFetch.argv !== undefined,
@@ -113,7 +117,11 @@ const TopComponent: React.FC<TopProps> = (props) => {
 
     const playlists = useQuery(
         'playlists',
-        () => axios.post('/_api/playlists', initialFetch.playlists),
+        () =>
+            axios.post<{ playlists: Playlists }>(
+                '/_api/playlists',
+                initialFetch.playlists,
+            ),
         {
             refetchOnWindowFocus: false,
             refetchOnReconnect: false,
@@ -150,6 +158,7 @@ const TopComponent: React.FC<TopProps> = (props) => {
     }
 
     const [errors, setErrors] = React.useState(List<Error>())
+    const [missingArtwork, setMissingArtwork] = React.useState(Set<TrackId>())
 
     var body
     if (!tracksQuery.hasNextPage && argv.isSuccess && playlists.isSuccess) {
@@ -157,7 +166,10 @@ const TopComponent: React.FC<TopProps> = (props) => {
             <motion.div {...fadeInOut}>
                 <TopPlatformContext.Provider
                     value={{
-                        ...defaultPlatform,
+                        isTrackArtworkMissing: (t) => missingArtwork.has(t),
+                        trackArtworkMissing: (t) => {
+                            setMissingArtwork(missingArtwork.add(t))
+                        },
                         showError: (e) => setErrors(errors.push(e)),
                     }}
                 >
@@ -167,7 +179,7 @@ const TopComponent: React.FC<TopProps> = (props) => {
                                 ({ data }) => data.tracks,
                             ),
                             argv: argv.data?.data,
-                            playlists: playlists.data?.data,
+                            playlists: playlists.data?.data.playlists,
                         }}
                     >
                         {children}

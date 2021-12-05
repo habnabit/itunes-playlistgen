@@ -1,5 +1,6 @@
 import { List, Map, OrderedMap, Record, Seq, Set } from 'immutable'
 import { Lens } from 'monocle-ts'
+import { Newtype, iso } from 'newtype-ts'
 import { ActionType } from 'typesafe-actions'
 
 import * as baseActions from '../actions'
@@ -28,6 +29,17 @@ export type PlaylistModification = {
     add: TrackId[]
     remove: TrackId[]
 }
+export interface Tag extends Newtype<{ readonly Tag: unique symbol }, string> {}
+const _isoTag = iso<Tag>()
+export const isoTag = {
+    ..._isoTag,
+    wrap: (s: string): Tag => _isoTag.wrap(s.replace(TAG_PATTERN, '')),
+    prefixed: (t: Tag): string => `${TAG_PREFIX}${_isoTag.unwrap(t)}`,
+    cssClass: (t: Tag): string =>
+        `tag--${_isoTag.unwrap(t).replace(/\s+/g, '-')}`,
+}
+const TAG_PREFIX = '❧'
+const TAG_PATTERN = new RegExp(`${TAG_PREFIX}`, 'g')
 
 export class Choice extends Record({
     tracks: List<Track>(),
@@ -97,6 +109,7 @@ const playlistSelectionsToClear: Set<ChoiceTrackSelection> =
 
 export class TimefillSelector extends Record({
     tracks: Map<TrackId, Track>(),
+    tags: Map<TrackId, Set<Tag>>(),
     name: '',
     criteria: List<string>(),
     albums: OrderedMap<AlbumId, Album>(),
@@ -171,21 +184,31 @@ export class TimefillSelector extends Record({
         return this.merge({ tracks, albums })
     }
 
-    withPlaylistsResponse(j: any): this {
-        const selected = Map<TrackId, ChoiceTrackSelection>().withMutations(
-            (m) => {
-                for (const [playlist, tracks] of j.playlists) {
-                    const selection = reverseSelectionPlaylists.get(playlist)
-                    if (selection === undefined) {
-                        continue
-                    }
-                    for (const track of tracks) {
-                        m.set(track, selection)
+    withPlaylistsResponse(j: { playlists: [string[], TrackId[]][] }): this {
+        var tags = this.tags
+        const ambientSelected = Map<
+            TrackId,
+            ChoiceTrackSelection
+        >().withMutations((ambientSelected) => {
+            for (const [segments, tracks] of j.playlists) {
+                if (
+                    segments.length < 2 ||
+                    segments[segments.length - 2] !== 'Tagged'
+                )
+                    continue
+                const tag = segments[segments.length - 1]
+                const selection = reverseSelectionPlaylists.get(tag)
+                for (const track of tracks) {
+                    tags = tags.update(track, Set(), (s) =>
+                        s.add(isoTag.wrap(tag)),
+                    )
+                    if (selection !== undefined) {
+                        ambientSelected.set(track, selection)
                     }
                 }
-            },
-        )
-        return this.set('ambientSelected', selected)
+            }
+        })
+        return this.merge({ ambientSelected, tags })
     }
 
     withReconciledAmbientSelections(): this {
