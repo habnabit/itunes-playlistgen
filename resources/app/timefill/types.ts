@@ -1,6 +1,9 @@
+import * as d3 from 'd3-scale-chromatic'
 import { List, Map, OrderedMap, Record, Seq, Set } from 'immutable'
+import { enumerate, izipMany } from 'itertools'
 import { Lens } from 'monocle-ts'
 import { Newtype, iso } from 'newtype-ts'
+import * as SkeletonRendezvousHasher from 'skeleton-rendezvous'
 import { ActionType } from 'typesafe-actions'
 
 import * as baseActions from '../actions'
@@ -157,6 +160,69 @@ export class TimefillSelector extends Record({
                 this.choices.toSeq().map((choice) => choice.selected),
             ),
         )
+    }
+
+    seenTags(): Set<Tag> {
+        return Set.union(this.tags.valueSeq())
+    }
+
+    matchTagsToColors(colors = d3.schemeCategory10): Map<Tag, string> {
+        const tags = this.seenTags()
+        const hasher = new SkeletonRendezvousHasher({
+            hashAlgorithm: 'sha512',
+            sites: [...colors],
+        })
+        const colorStream = tags.toArray().map((tag) => {
+            function* stream() {
+                outer: for (var agreements = 1; ; ++agreements) {
+                    const votes = Map<string, number>().asMutable()
+                    for (var seq = 0; ; ++seq) {
+                        const color: string = hasher.findSite(
+                            `tag--${isoTag.unwrap(tag)}--${seq}`,
+                        )
+                        const colorVote = votes.get(color, 0) + 1
+                        votes.set(color, colorVote)
+                        if (colorVote >= agreements) {
+                            yield {
+                                tag,
+                                color,
+                                votes: votes.asImmutable(),
+                            }
+                            continue outer
+                        }
+                        votes.update(color, 0, (n) => n + 1)
+                    }
+                }
+            }
+            return stream()
+        })
+        var bailout = 0
+        for (const potential of izipMany(...colorStream)) {
+            const chosenColors = List(potential)
+                .map(({ color }) => color)
+                .toSet()
+            if (chosenColors.size != potential.length) {
+                console.log('too soon', { chosenColors, potential })
+                if (++bailout > 5) {
+                    throw new Error('this sucks')
+                }
+                continue
+            }
+            return Map<Tag, string>().withMutations((m) => {
+                for (const { tag, color } of potential) {
+                    m.set(tag, color)
+                }
+            })
+        }
+    }
+
+    cssFromTagColors(colors?: string[]): string {
+        const tagColors = this.matchTagsToColors(colors)
+        const pieces = []
+        for (const [tag, color] of tagColors.toSeq()) {
+            pieces.push(`.${isoTag.cssClass(tag)} { background: ${color} }`)
+        }
+        return pieces.join('\n')
     }
 
     withArgv(j: { dest_playlist?: string; web_argv: string[] }): this {

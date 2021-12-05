@@ -347,6 +347,9 @@ const TimefillSelectorComponent: React.FC<{}> = () => {
     }
     return (
         <div className={classes.join(' ')}>
+            <style>
+                {React.useMemo(() => top.cssFromTagColors(), [top.tags])}
+            </style>
             <CriteriaComponent />
             <section className="controls">
                 <textarea
