@@ -105,8 +105,15 @@ ul.tracklist, ol.tracklist
     white-space: nowrap
 
     ul.tags
-      font-size: 0.95em
       float: right
+      text-align: right
+      text-indent: 0
+      display: flex
+      gap: 0.5em
+      > li
+        list-style: none
+        padding: 0.2em 0.35em
+        border-radius: 0.25em
     overflow: auto
     clear: both
 
@@ -126,10 +133,6 @@ ul.tracklist, ol.tracklist
     cursor: pointer
     transition: background 0.25s ease-out
 
-@mixin colorize-tag($tag, $color)
-  .tracklist ul.tags li.tag--#{$tag}
-    background: $color
-
 @mixin colorize-selection($name, $color)
   .tracklist.selectable > li.sel--#{$name}
     background: adjust-color($color, $alpha: -0.25)
@@ -144,14 +147,19 @@ ul.tracklist, ol.tracklist
     &.set--#{$name}:hover
       background: $color
 
-@mixin colorize-tag-selection($name, $tag, $color)
-  @include colorize-tag($tag, $color)
-  @include colorize-selection($name, $color)
-
-@include colorize-tag-selection('bless', 'blessed', hsl(215, 100%, 70%))
+@include colorize-selection('bless', hsl(215, 100%, 70%))
 @include colorize-selection('include', hsl(95, 100%, 70%))
-@include colorize-tag-selection('curse', 'cursed', hsl(0, 0%, 40%))
+@include colorize-selection('curse', hsl(0, 0%, 40%))
 @include colorize-selection('exclude', hsl(45, 100%, 70%))
+
+dl.tag-exp
+  width: 50vw
+  dt
+    padding: 0.5em
+  dd
+    padding: 0.25em
+    >span
+      padding: 0.5em 0.5em 0.25em
 
 .choices
   clear: both

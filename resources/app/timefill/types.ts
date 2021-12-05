@@ -166,7 +166,10 @@ export class TimefillSelector extends Record({
         return Set.union(this.tags.valueSeq())
     }
 
-    matchTagsToColors(colors = d3.schemeCategory10): Map<Tag, string> {
+    matchTagsToColors(colors = d3.schemeSet3): {
+        tagColors: Map<Tag, string>
+        voteHistory: { tag: Tag; color: string; voteSeq: List<string> }[]
+    } {
         const tags = this.seenTags()
         const hasher = new SkeletonRendezvousHasher({
             hashAlgorithm: 'sha512',
@@ -176,21 +179,23 @@ export class TimefillSelector extends Record({
             function* stream() {
                 outer: for (var agreements = 1; ; ++agreements) {
                     const votes = Map<string, number>().asMutable()
+                    const voteSeq = List<string>().asMutable()
                     for (var seq = 0; ; ++seq) {
                         const color: string = hasher.findSite(
                             `tag--${isoTag.unwrap(tag)}--${seq}`,
                         )
+                        voteSeq.push(color)
                         const colorVote = votes.get(color, 0) + 1
                         votes.set(color, colorVote)
                         if (colorVote >= agreements) {
                             yield {
                                 tag,
                                 color,
+                                voteSeq: voteSeq.asImmutable(),
                                 votes: votes.asImmutable(),
                             }
                             continue outer
                         }
-                        votes.update(color, 0, (n) => n + 1)
                     }
                 }
             }
@@ -208,21 +213,15 @@ export class TimefillSelector extends Record({
                 }
                 continue
             }
-            return Map<Tag, string>().withMutations((m) => {
-                for (const { tag, color } of potential) {
-                    m.set(tag, color)
-                }
-            })
+            return {
+                voteHistory: potential,
+                tagColors: Map<Tag, string>().withMutations((m) => {
+                    for (const { tag, color } of potential) {
+                        m.set(tag, color)
+                    }
+                }),
+            }
         }
-    }
-
-    cssFromTagColors(colors?: string[]): string {
-        const tagColors = this.matchTagsToColors(colors)
-        const pieces = []
-        for (const [tag, color] of tagColors.toSeq()) {
-            pieces.push(`.${isoTag.cssClass(tag)} { background: ${color} }`)
-        }
-        return pieces.join('\n')
     }
 
     withArgv(j: { dest_playlist?: string; web_argv: string[] }): this {

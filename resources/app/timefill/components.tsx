@@ -296,6 +296,38 @@ const PersistSelectionsComponent: React.FC<{
 
 export const ConnectedPersistSelectionsComponent = PersistSelectionsComponent
 
+const StyleTagsComponent: React.FC<{
+    top: TimefillSelector
+    colors?: string[]
+}> = ({ top, colors }) => {
+    const { tagColors, voteHistory } = top.matchTagsToColors(colors)
+    const pieces = []
+    for (const [tag, color] of tagColors.toSeq()) {
+        pieces.push(`.${isoTag.cssClass(tag)} { background: ${color} }`)
+    }
+    return (
+        <>
+            <dl className="tag-exp">
+                {voteHistory.map(({ tag, color, voteSeq }, e) => (
+                    <React.Fragment key={e}>
+                        <dt style={{ background: color }}>
+                            {isoTag.prefixed(tag)}
+                        </dt>
+                        <dd>
+                            {voteSeq.map((vote, ve) => (
+                                <span key={ve} style={{ background: vote }}>
+                                    {ve}
+                                </span>
+                            ))}
+                        </dd>
+                    </React.Fragment>
+                ))}
+            </dl>
+            <style>{pieces.join('\n')}</style>
+        </>
+    )
+}
+
 const TimefillSelectorComponent: React.FC<{}> = () => {
     const { tracks, argv, playlists } = React.useContext(InitialFetchedContext)
     const top = useSelector((top: TimefillSelector) => top)
@@ -347,9 +379,12 @@ const TimefillSelectorComponent: React.FC<{}> = () => {
     }
     return (
         <div className={classes.join(' ')}>
-            <style>
-                {React.useMemo(() => top.cssFromTagColors(), [top.tags])}
-            </style>
+            {React.useMemo(
+                () => (
+                    <StyleTagsComponent top={top} />
+                ),
+                [top.tags],
+            )}
             <CriteriaComponent />
             <section className="controls">
                 <textarea
