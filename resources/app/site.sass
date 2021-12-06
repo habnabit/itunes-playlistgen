@@ -103,18 +103,6 @@ ul.tracklist, ol.tracklist
     list-style: none
     padding: 0.1em 0.75em
     white-space: nowrap
-
-    ul.tags
-      float: right
-      text-align: right
-      text-indent: 0
-      display: flex
-      gap: 0.5em
-      > li
-        list-style: none
-        padding: 0.2em 0.35em
-        border-radius: 0.25em
-    overflow: auto
     clear: both
 
   &.fuller > li
@@ -132,6 +120,19 @@ ul.tracklist, ol.tracklist
   &.selectable > li
     cursor: pointer
     transition: background 0.25s ease-out
+
+ul.tags
+  float: right
+  text-align: right
+  text-indent: 0
+  display: flex
+  gap: 0.5em
+  padding-inline-start: 0
+  > li
+    list-style: none
+    padding: 0.2em 0.35em
+    border-radius: 0.25em
+    margin: 0.2em 0
 
 @mixin colorize-selection($name, $color)
   .tracklist.selectable > li.sel--#{$name}

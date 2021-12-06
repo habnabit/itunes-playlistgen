@@ -168,7 +168,12 @@ export class TimefillSelector extends Record({
 
     matchTagsToColors(colors = d3.schemeSet3): {
         tagColors: Map<Tag, string>
-        voteHistory: { tag: Tag; color: string; voteSeq: List<string> }[]
+        voteHistory: {
+            tag: Tag
+            color: string
+            votes: Map<string, number>
+            voteSeq: List<string>
+        }[]
     } {
         const tags = this.seenTags()
         const hasher = new SkeletonRendezvousHasher({

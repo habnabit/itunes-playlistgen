@@ -308,15 +308,19 @@ const StyleTagsComponent: React.FC<{
     return (
         <>
             <dl className="tag-exp">
-                {voteHistory.map(({ tag, color, voteSeq }, e) => (
+                {voteHistory.map(({ tag, color, votes }, e) => (
                     <React.Fragment key={e}>
                         <dt style={{ background: color }}>
                             {isoTag.prefixed(tag)}
                         </dt>
                         <dd>
-                            {voteSeq.map((vote, ve) => (
+                            {votes.entrySeq().map(([vote, nVotes], ve) => (
                                 <span key={ve} style={{ background: vote }}>
-                                    {ve}
+                                    {color === vote ? (
+                                        <strong>{nVotes}</strong>
+                                    ) : (
+                                        <em>{nVotes}</em>
+                                    )}
                                 </span>
                             ))}
                         </dd>
