@@ -167,67 +167,83 @@ export class TimefillSelector extends Record({
         return Set.union(this.tags.valueSeq())
     }
 
+    tagHistogram(): Map<Tag, number> {
+        return Map<Tag, number>().withMutations((ret) => {
+            for (const tid of this.tracks.keySeq()) {
+                for (const tag of this.tags.get(tid, NO_TAGS_SET)) {
+                    ret.set(tag, ret.get(tag, 0) + 1)
+                }
+            }
+        })
+    }
+
     matchTagsToColors(colors = d3.schemeSet3): {
         tagColors: Map<Tag, string>
-        voteHistory: {
+        roundHistory: {
             tag: Tag
             color: string
-            votes: Map<string, number>
-            voteSeq: List<string>
+            roundSeq: List<string>
+            timesSeen: number
+            nRounds: number
         }[]
     } {
-        const tags = this.seenTags().add(NO_TAGS)
+        const histogram = this.tagHistogram()
+        const allTags = histogram.keySeq().toSet().add(NO_TAGS)
         const hasher = new SkeletonRendezvousHasher({
             hashAlgorithm: 'sha512',
             sites: [...colors],
         })
-        const colorStream = tags.toArray().map((tag) => {
-            function* stream() {
-                outer: for (var agreements = 1; ; ++agreements) {
-                    const votes = Map<string, number>().asMutable()
-                    const voteSeq = List<string>().asMutable()
+        const colorStreams = allTags
+            .toList()
+            .map((tag) => {
+                function* stream() {
+                    var roundSeq = List<string>()
                     for (var seq = 0; ; ++seq) {
                         const color: string = hasher.findSite(
                             `tag--${isoTag.unwrap(tag)}--${seq}`,
                         )
-                        voteSeq.push(color)
-                        const colorVote = votes.get(color, 0) + 1
-                        votes.set(color, colorVote)
-                        if (colorVote >= agreements) {
-                            yield {
-                                tag,
-                                color,
-                                voteSeq: voteSeq.asImmutable(),
-                                votes: votes.asImmutable(),
-                            }
-                            continue outer
-                        }
+                        roundSeq = roundSeq.push(color)
+                        yield { color, roundSeq }
                     }
                 }
+                return {
+                    tag,
+                    stream: stream(),
+                    timesSeen: histogram.get(tag),
+                }
+            })
+            .sortBy(({ timesSeen }) => -timesSeen)
+        const roundHistory: {
+            tag: Tag
+            color: string
+            roundSeq: List<string>
+            timesSeen: number
+            nRounds: number
+        }[] = []
+        const seenColors = Set<string>().asMutable()
+        const tagColors = Map<Tag, string>().withMutations((tagColors) => {
+            for (const { tag, stream, timesSeen } of colorStreams) {
+                var nRounds = 0
+                for (const { color, roundSeq } of stream) {
+                    console.assert(seenColors.size < colors.length)
+                    if (++nRounds > 25) {
+                        console.log('long time going', tag)
+                    }
+                    if (seenColors.has(color)) continue
+                    seenColors.add(color)
+                    tagColors.set(tag, color)
+                    roundHistory.push({
+                        tag,
+                        color,
+                        roundSeq,
+                        timesSeen,
+                        nRounds,
+                    })
+                    break
+                }
             }
-            return stream()
         })
-        var bailout = 0
-        for (const potential of izipMany(...colorStream)) {
-            const chosenColors = List(potential)
-                .map(({ color }) => color)
-                .toSet()
-            if (chosenColors.size != potential.length) {
-                console.log('too soon', { chosenColors, potential })
-                if (++bailout > 5) {
-                    throw new Error('this sucks')
-                }
-                continue
-            }
-            return {
-                voteHistory: potential,
-                tagColors: Map<Tag, string>().withMutations((m) => {
-                    for (const { tag, color } of potential) {
-                        m.set(tag, color)
-                    }
-                }),
-            }
-        }
+        return { roundHistory, tagColors }
     }
 
     withArgv(j: Argv): this {

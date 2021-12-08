@@ -306,7 +306,7 @@ const StyleTagsComponent: React.FC<{
     top: TimefillSelector
     colors?: string[]
 }> = ({ top, colors }) => {
-    const { tagColors, voteHistory } = top.matchTagsToColors(colors)
+    const { tagColors, roundHistory } = top.matchTagsToColors(colors)
     const pieces = []
     for (const [tag, color] of tagColors.toSeq()) {
         pieces.push(`.${isoTag.cssClass(tag)} { background: ${color} }`)
@@ -314,24 +314,28 @@ const StyleTagsComponent: React.FC<{
     return (
         <>
             <dl className="tag-exp">
-                {voteHistory.map(({ tag, color, votes }, e) => (
-                    <React.Fragment key={e}>
-                        <dt style={{ background: color }}>
-                            {isoTag.prefixed(tag)}
-                        </dt>
-                        <dd>
-                            {votes.entrySeq().map(([vote, nVotes], ve) => (
-                                <span key={ve} style={{ background: vote }}>
-                                    {color === vote ? (
-                                        <strong>{nVotes}</strong>
-                                    ) : (
-                                        <em>{nVotes}</em>
-                                    )}
-                                </span>
-                            ))}
-                        </dd>
-                    </React.Fragment>
-                ))}
+                {roundHistory.map(
+                    ({ tag, color, roundSeq, timesSeen, nRounds }, e) => (
+                        <React.Fragment key={e}>
+                            <dt style={{ background: color }}>
+                                {isoTag.prefixed(tag)}{' '}
+                                <em>
+                                    ({timesSeen} tracks {nRounds} rounds)
+                                </em>
+                            </dt>
+                            <dd>
+                                {roundSeq.map((round, ve) => (
+                                    <span
+                                        key={ve}
+                                        style={{ background: round }}
+                                    >
+                                        {ve}
+                                    </span>
+                                ))}
+                            </dd>
+                        </React.Fragment>
+                    ),
+                )}
             </dl>
             <style>{pieces.join('\n')}</style>
         </>
@@ -380,7 +384,7 @@ const TimefillSelectorComponent: React.FC<{}> = () => {
                 () => (
                     <StyleTagsComponent top={top} />
                 ),
-                [top.tags],
+                [top.tags, top.tracks],
             )}
             <CriteriaComponent />
             <section className="controls">

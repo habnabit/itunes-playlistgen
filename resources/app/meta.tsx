@@ -135,7 +135,6 @@ const TopComponent: React.FC<TopProps> = (props) => {
             axios.get<{ tracks: RawTrack[] }>('/_api/tracks', {
                 params: {
                     offset: pageParam,
-                    count: 25,
                 },
             }),
         {
@@ -252,7 +251,12 @@ const TopComponent: React.FC<TopProps> = (props) => {
     const [missingArtwork, setMissingArtwork] = React.useState(Set<TrackId>())
 
     var body
-    if (!tracksQuery.hasNextPage && argv.isSuccess && playlists.isSuccess) {
+    if (
+        tracksQuery.isSuccess &&
+        !tracksQuery.hasNextPage &&
+        argv.isSuccess &&
+        playlists.isSuccess
+    ) {
         body = (
             <motion.div {...fadeInOut}>
                 <TopPlatformContext.Provider
