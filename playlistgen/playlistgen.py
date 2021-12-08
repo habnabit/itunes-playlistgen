@@ -60,8 +60,10 @@ class TrackContext(object):
                 click.echo('  .. not actually deleting: {!r}'.format(to_delete))
             else:
                 to_delete = [ppis(playlist_map[name]) for name in to_delete]
-                click.echo('got back from delete: {!r}'.format(
-                    scripts.call('delete_playlists', to_delete)))
+                import pprint
+                click.echo('got back from delete:\n{}'.format(
+                    pprint.pformat(
+                        scripts.call('delete_playlists', to_delete))))
         return ret
 
     @reify
