@@ -6,7 +6,7 @@ import { Newtype, iso } from 'newtype-ts'
 import * as SkeletonRendezvousHasher from 'skeleton-rendezvous'
 import { ActionType } from 'typesafe-actions'
 
-import * as baseActions from '../actions'
+import { Argv, Playlists, Tracks } from '../meta'
 import {
     Album,
     AlbumId,
@@ -18,7 +18,7 @@ import {
 } from '../types'
 import * as actions from './actions'
 
-export type AllActions = ActionType<typeof baseActions | typeof actions>
+export type AllActions = ActionType<typeof actions>
 
 export type ChoiceTrackSelection =
     | 'bless'
@@ -32,6 +32,10 @@ export type PlaylistModification = {
     add: TrackId[]
     remove: TrackId[]
 }
+
+const TAG_PREFIX = '❧'
+const TAG_PATTERN = new RegExp(`${TAG_PREFIX}`, 'g')
+
 export interface Tag extends Newtype<{ readonly Tag: unique symbol }, string> {}
 const _isoTag = iso<Tag>()
 export const isoTag = {
@@ -41,8 +45,8 @@ export const isoTag = {
     cssClass: (t: Tag): string =>
         `tag--${_isoTag.unwrap(t).replace(/\s+/g, '-')}`,
 }
-const TAG_PREFIX = '❧'
-const TAG_PATTERN = new RegExp(`${TAG_PREFIX}`, 'g')
+export const NO_TAGS = isoTag.wrap('no tags')
+export const NO_TAGS_SET = Set([NO_TAGS])
 
 export class Choice extends Record({
     tracks: List<Track>(),
@@ -120,23 +124,20 @@ export class TimefillSelector extends Record({
     choices: List<Choice>(),
     ambientSelected: Map<TrackId, ChoiceTrackSelection>(),
     savingPlaylists: false,
-    keyboardAvailable: true,
-    keysDown: Map<string, boolean>(),
 }) {
-    currentSelection(): ChoiceTrackSelection {
-        if (this.keysDown.get('a')) {
+    currentSelection(keysDown: Map<string, boolean>): ChoiceTrackSelection {
+        if (keysDown.get('a')) {
             return 'bless'
-        } else if (this.keysDown.get('s')) {
+        } else if (keysDown.get('s')) {
             return 'curse'
-        } else if (this.keysDown.get('z')) {
+        } else if (keysDown.get('z')) {
             return 'include'
-        } else if (this.keysDown.get('x')) {
+        } else if (keysDown.get('x')) {
             return 'exclude'
         } else {
             return undefined
         }
     }
-
     condensedSelection(): Map<TrackId, ChoiceTrackSelection> {
         const pairs = this.choices
             .toSeq()
@@ -175,7 +176,7 @@ export class TimefillSelector extends Record({
             voteSeq: List<string>
         }[]
     } {
-        const tags = this.seenTags()
+        const tags = this.seenTags().add(NO_TAGS)
         const hasher = new SkeletonRendezvousHasher({
             hashAlgorithm: 'sha512',
             sites: [...colors],
@@ -229,21 +230,19 @@ export class TimefillSelector extends Record({
         }
     }
 
-    withArgv(j: { dest_playlist?: string; web_argv: string[] }): this {
+    withArgv(j: Argv): this {
         return this.merge({
             name: j.dest_playlist || '',
             criteria: List(j.web_argv),
         })
     }
 
-    withTracksResponse(j: RawTrack[][]): this {
+    withTracksResponse(j: Tracks): this {
         const orderedTracks = OrderedMap<TrackId, Track>().withMutations(
             (m) => {
-                for (const ts of j) {
-                    for (const t of ts) {
-                        const track = new Track(t)
-                        m.set(track.id, track)
-                    }
+                for (const t of j) {
+                    const track = new Track(t)
+                    m.set(track.id, track)
                 }
             },
         )
@@ -254,13 +253,13 @@ export class TimefillSelector extends Record({
         return this.merge({ tracks, albums })
     }
 
-    withPlaylistsResponse(j: { playlists: [string[], TrackId[]][] }): this {
+    withPlaylistsResponse(j: Playlists): this {
         var tags = this.tags
         const ambientSelected = Map<
             TrackId,
             ChoiceTrackSelection
         >().withMutations((ambientSelected) => {
-            for (const [segments, tracks] of j.playlists) {
+            for (const [segments, tracks] of j) {
                 if (
                     segments.length < 2 ||
                     segments[segments.length - 2] !== 'Tagged'

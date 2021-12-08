@@ -2,7 +2,6 @@ import { List, Map } from 'immutable'
 import { Random } from 'random-js'
 import { getType } from 'typesafe-actions'
 
-import * as baseActions from '../actions'
 import * as actions from './actions'
 import { AllActions, Choice, TimefillSelector } from './types'
 
@@ -51,8 +50,7 @@ export default function timefillReducer(
         }
 
         case getType(actions.toggleChoiceTrack): {
-            const { lens, track } = action.payload
-            const selection = state.currentSelection()
+            const { lens, track, selection } = action.payload
             const isAmbient = state.ambientSelected.has(track)
             return lens.modify((pl) =>
                 pl.update('selected', (m) =>
@@ -72,32 +70,14 @@ export default function timefillReducer(
             return state.withClearedSelection(track)
         }
 
-        case getType(baseActions.setKeyboardAvailability):
-            return state.merge({
-                keyboardAvailable: action.payload.available,
-                keysDown: Map(),
-            })
-
-        case getType(baseActions.changeKey):
-            if (state.keyboardAvailable) {
-                return state.update('keysDown', (m) =>
-                    m.set(action.payload.key, action.payload.down),
-                )
-            } else {
-                return state
-            }
-
-        case getType(baseActions.fetchArgv.success):
-            return state.withArgv(action.payload.json)
-
-        case getType(baseActions.fetchTracks.success):
-            return state.withTracksResponse(action.payload.tracks)
-
-        case getType(baseActions.fetchPlaylists.success):
-            return state.withPlaylistsResponse(action.payload.json)
-
-        case getType(baseActions.finishedLoading):
-            return state.withReconciledAmbientSelections()
+        case getType(actions.initialFetched): {
+            const { argv, tracks, playlists } = action.payload
+            return state
+                .withArgv(argv)
+                .withTracksResponse(tracks)
+                .withPlaylistsResponse(playlists)
+                .withReconciledAmbientSelections()
+        }
 
         case getType(actions.runTimefill.success):
             return state.withTimefillResponse(

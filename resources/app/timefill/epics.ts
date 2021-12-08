@@ -4,7 +4,6 @@ import { from, of } from 'rxjs'
 import { catchError, filter, map, switchMap } from 'rxjs/operators'
 import { isActionOf } from 'typesafe-actions'
 
-import * as baseActions from '../actions'
 import { postJSON } from '../funcs'
 import { RemoteError, TrackId } from '../types'
 import * as actions from './actions'
@@ -56,12 +55,7 @@ const runTimefillEpic: Epic<AllActions, AllActions> = (action$) =>
                         return actions.runTimefill.success({ json, replace })
                     }
                 }),
-                catchError((err) =>
-                    of(
-                        actions.runTimefill.failure(err),
-                        baseActions.showError(err),
-                    ),
-                ),
+                catchError((err) => of(actions.runTimefill.failure(err))),
             )
         }),
     )
@@ -84,12 +78,7 @@ const modifyPlaylistsEpic: Epic<AllActions, AllActions> = (action$) =>
                         return actions.modifyPlaylists.success({ json })
                     }
                 }),
-                catchError((err) =>
-                    of(
-                        actions.modifyPlaylists.failure(err),
-                        baseActions.showError(err),
-                    ),
-                ),
+                catchError((err) => of(actions.modifyPlaylists.failure(err))),
             )
         }),
     )

@@ -5,15 +5,19 @@ import { useDispatch, useSelector } from 'react-redux'
 import PulseLoader from 'react-spinners/PulseLoader'
 import { Dispatch, bindActionCreators } from 'redux'
 
-import * as baseActions from '../actions'
 import { lensFromImplicitAccessors } from '../extlens'
-import { InitialFetchedContext } from '../meta'
-import { Track, TrackId, keyboardEvents } from '../types'
+import {
+    InitialFetchedContext,
+    TopPlatformContext,
+    useKeyboardEvents,
+} from '../meta'
+import { Track, TrackId } from '../types'
 import * as actions from './actions'
 import {
     AllActions,
     Choice,
     ChoiceTrackSelection,
+    NO_TAGS_SET,
     Tag,
     TimefillSelector,
     isoTag,
@@ -67,16 +71,17 @@ const ChoiceTrackComponent: React.FC<{
     }, [props.track, props.selected, props.ambient])
 
 const ChoiceComponent: React.FC<{ idxTop: number }> = (props) => {
+    const { keyboard, savePlaylist } = React.useContext(TopPlatformContext)
     const top = useSelector((top: TimefillSelector) => top)
     const { ambientSelected } = top
     const choice = top.choices.get(props.idxTop)
+    const selection = top.currentSelection(keyboard.keysDown)
     const dispatch = bindActionCreators(
         {
             onToggle: actions.toggleChoiceTrack,
             onReroll: actions.runTimefill.request,
             onLoading: actions.setLoading,
             onShuffle: actions.shuffleChoice,
-            onSave: baseActions.savePlaylist.request,
         },
         useDispatch(),
     )
@@ -90,7 +95,8 @@ const ChoiceComponent: React.FC<{ idxTop: number }> = (props) => {
     )
 
     const bound = {
-        onToggle: (track: TrackId) => () => dispatch.onToggle({ lens, track }),
+        onToggle: (track: TrackId) => () =>
+            dispatch.onToggle({ lens, track, selection }),
         onReroll: () => {
             const selections = top.reversedTotalSelection()
             dispatch.onLoading({ lens, loading: true })
@@ -105,7 +111,7 @@ const ChoiceComponent: React.FC<{ idxTop: number }> = (props) => {
             dispatch.onShuffle({ lens })
         },
         onSave: () => {
-            dispatch.onSave({ name: top.name, tracks: choice.tracks })
+            savePlaylist(choice.tracks.map((t) => t.id).toArray(), top.name)
         },
     }
     if (choice.loading) {
@@ -141,7 +147,7 @@ const ChoiceComponent: React.FC<{ idxTop: number }> = (props) => {
                     return (
                         <ChoiceTrackComponent
                             key={e}
-                            tags={top.tags.get(track.id, undefined)}
+                            tags={top.tags.get(track.id, NO_TAGS_SET)}
                             {...{ track, selected, ambient, onToggle }}
                         />
                     )
@@ -169,10 +175,10 @@ const CriteriaComponent: React.FC<{}> = () => {
             onAddCriterion: actions.addCriterion,
             onRemoveCriterion: actions.removeCriterion,
             onChangeControl: actions.changeControl,
-            onKeyboardAvailable: baseActions.setKeyboardAvailability,
         },
         useDispatch(),
     )
+    const keyboardEvents = useKeyboardEvents()
     return (
         <section className="criteria">
             <button
@@ -196,7 +202,7 @@ const CriteriaComponent: React.FC<{}> = () => {
                                     value: ev.target.value,
                                 })
                             }}
-                            {...keyboardEvents(dispatch)}
+                            {...keyboardEvents}
                         />
                         <button
                             className="remove-criterion"
@@ -334,6 +340,8 @@ const StyleTagsComponent: React.FC<{
 
 const TimefillSelectorComponent: React.FC<{}> = () => {
     const { tracks, argv, playlists } = React.useContext(InitialFetchedContext)
+    const { keyboard, makeKeyboardEvents } =
+        React.useContext(TopPlatformContext)
     const top = useSelector((top: TimefillSelector) => top)
     const { name, choices } = top
     const _selectionMap = top
@@ -349,35 +357,20 @@ const TimefillSelectorComponent: React.FC<{}> = () => {
     )
     const dispatch = bindActionCreators(
         {
+            onInitialFetched: actions.initialFetched,
             onChangeControl: actions.changeControl,
-            onKeyboardAvailable: baseActions.setKeyboardAvailability,
-            onSetHash: baseActions.setHash,
             onLoading: actions.clearAllForLoading,
             onSelect: actions.runTimefill.request,
-            gotArgv: baseActions.fetchArgv.success,
-            gotTracks: baseActions.fetchTracks.success,
-            gotPlaylists: baseActions.fetchPlaylists.success,
         },
         useDispatch<Dispatch<AllActions>>(),
     )
+    const keyboardEvents = makeKeyboardEvents()
     React.useEffect(() => {
-        if (argv) {
-            dispatch.gotArgv({ json: argv })
-        }
-    }, [argv])
-    React.useEffect(() => {
-        if (tracks) {
-            dispatch.gotTracks({ tracks: [tracks.toArray()] })
-        }
-    }, [tracks])
-    React.useEffect(() => {
-        if (playlists) {
-            dispatch.gotPlaylists({ json: { playlists } })
-        }
-    }, [playlists])
+        dispatch.onInitialFetched({ argv, tracks, playlists })
+    }, [argv !== undefined && tracks !== undefined && playlists !== undefined])
 
     const classes: string[] = []
-    const selectState = top.currentSelection()
+    const selectState = top.currentSelection(keyboard.keysDown)
     if (selectState !== undefined) {
         classes.push(`set--${selectState}`)
     }
@@ -400,7 +393,7 @@ const TimefillSelectorComponent: React.FC<{}> = () => {
                         })
                     }
                     value={name}
-                    {...keyboardEvents(dispatch)}
+                    {...keyboardEvents}
                 />
                 <button
                     onClick={() => {
@@ -410,7 +403,6 @@ const TimefillSelectorComponent: React.FC<{}> = () => {
                             selections: top.reversedTotalSelection(),
                             narrow: false,
                         })
-                        dispatch.onSetHash()
                     }}
                 >
                     Select new

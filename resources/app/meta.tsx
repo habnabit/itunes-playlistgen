@@ -1,8 +1,8 @@
 import axios from 'axios'
 import { AnimatePresence, motion } from 'framer-motion'
-import { List, Set } from 'immutable'
+import { List, Map, Record, Set } from 'immutable'
 import * as React from 'react'
-import { useInfiniteQuery, useQuery } from 'react-query'
+import { useInfiniteQuery, useMutation, useQuery } from 'react-query'
 import PulseLoader from 'react-spinners/PulseLoader'
 
 import { RawTrack, Track, TrackId } from './types'
@@ -47,22 +47,69 @@ export const ConnectedTrackArtworkComponent: React.FC<{
     )
 }
 
-export type Argv = { dest_playlist?: string; web_argv?: string[] }
+export type Tracks = RawTrack[]
+export type Argv = { dest_playlist?: string; web_argv: string[] }
 export type Playlists = [string[], TrackId[]][]
 export const InitialFetchedContext = React.createContext(
     {} as {
-        tracks?: List<RawTrack>
+        tracks?: Tracks
         argv?: Argv
         playlists?: Playlists
     },
 )
 InitialFetchedContext.displayName = 'InitialFetchedContext'
 
+type KeyboardAction =
+    | { type: 'changeKey'; key: string; down: boolean }
+    | { type: 'changeAvailable'; available: boolean }
+
+export class KeyboardState extends Record({
+    available: true,
+    keysDown: Map<string, boolean>(),
+}) {
+    reduce(action: KeyboardAction): this {
+        switch (action.type) {
+            case 'changeAvailable':
+                return this.set('available', action.available)
+            case 'changeKey':
+                return this.available
+                    ? this.update('keysDown', (m) =>
+                          m.set(action.key, action.down),
+                      )
+                    : this
+            default:
+                return this
+        }
+    }
+}
+
+export type KeyboardEvents = { onFocus: () => void; onBlur: () => void }
+const makeKeyboardEvents = (
+    dispatch: (a: KeyboardAction) => void,
+): KeyboardEvents => {
+    return {
+        onFocus: () => dispatch({ type: 'changeAvailable', available: false }),
+        onBlur: () => dispatch({ type: 'changeAvailable', available: true }),
+    }
+}
+
+export const useKeyboardEvents = (): KeyboardEvents =>
+    React.useContext(TopPlatformContext).makeKeyboardEvents()
+
 export const defaultPlatform: {
+    keyboard: KeyboardState
+    makeKeyboardEvents: () => KeyboardEvents
+    savePlaylist: (tracks: TrackId[], name?: string) => void
     isTrackArtworkMissing: (id: TrackId) => boolean
     trackArtworkMissing: (id: TrackId) => void
     showError: (e: Error) => void
 } = {
+    keyboard: new KeyboardState(),
+    makeKeyboardEvents: () => ({
+        onFocus: () => {},
+        onBlur: () => {},
+    }),
+    savePlaylist: () => {},
     isTrackArtworkMissing: () => true,
     trackArtworkMissing: (t) => {
         console.log('track artwork missing', t)
@@ -88,6 +135,7 @@ const TopComponent: React.FC<TopProps> = (props) => {
             axios.get<{ tracks: RawTrack[] }>('/_api/tracks', {
                 params: {
                     offset: pageParam,
+                    count: 25,
                 },
             }),
         {
@@ -157,6 +205,49 @@ const TopComponent: React.FC<TopProps> = (props) => {
         }
     }
 
+    const savePlaylist = useMutation(
+        (data: { tracks: TrackId[]; name?: string }) =>
+            axios.post<{}>('/_api/save', data),
+    )
+    var savePlaylistInfo
+    switch (savePlaylist.status) {
+        case 'loading':
+            savePlaylistInfo = (
+                <PulseLoader color="darkslateblue" size="0.3em" />
+            )
+            break
+        case 'success':
+            savePlaylistInfo = '✅'
+    }
+
+    const [keyboard, dispatchKeyboard] = React.useReducer(
+        (state, action) => state.reduce(action),
+        new KeyboardState(),
+    )
+
+    React.useEffect(() => {
+        const onKeydown = (ev: KeyboardEvent) =>
+            dispatchKeyboard({
+                type: 'changeKey',
+                key: ev.key.toLowerCase(),
+                down: true,
+            })
+
+        const onKeyup = (ev: KeyboardEvent) =>
+            dispatchKeyboard({
+                type: 'changeKey',
+                key: ev.key.toLowerCase(),
+                down: false,
+            })
+
+        addEventListener('keydown', onKeydown)
+        addEventListener('keyup', onKeyup)
+        return () => {
+            removeEventListener('keydown', onKeydown)
+            removeEventListener('keyup', onKeyup)
+        }
+    })
+
     const [errors, setErrors] = React.useState(List<Error>())
     const [missingArtwork, setMissingArtwork] = React.useState(Set<TrackId>())
 
@@ -166,6 +257,11 @@ const TopComponent: React.FC<TopProps> = (props) => {
             <motion.div {...fadeInOut}>
                 <TopPlatformContext.Provider
                     value={{
+                        keyboard: keyboard,
+                        makeKeyboardEvents: () =>
+                            makeKeyboardEvents(dispatchKeyboard),
+                        savePlaylist: (tracks: TrackId[], name?: string) =>
+                            savePlaylist.mutate({ tracks, name }),
                         isTrackArtworkMissing: (t) => missingArtwork.has(t),
                         trackArtworkMissing: (t) => {
                             setMissingArtwork(missingArtwork.add(t))
@@ -175,9 +271,9 @@ const TopComponent: React.FC<TopProps> = (props) => {
                 >
                     <InitialFetchedContext.Provider
                         value={{
-                            tracks: List(tracksQuery.data?.pages).flatMap(
-                                ({ data }) => data.tracks,
-                            ),
+                            tracks: List(tracksQuery.data?.pages)
+                                .flatMap(({ data }) => data.tracks)
+                                .toArray(),
                             argv: argv.data?.data,
                             playlists: playlists.data?.data.playlists,
                         }}
@@ -233,19 +329,22 @@ const TopComponent: React.FC<TopProps> = (props) => {
 
     return (
         <AnimatePresence>
-            {errors.map((err, e) => {
-                return (
-                    <motion.div key={e} className="error" {...fadeInOut}>
-                        <button onClick={() => console.log('dismiss', { e })}>
-                            X
-                        </button>
-                        {err}
-                    </motion.div>
-                )
-            })}
+            {errors.map((err, e) => (
+                <motion.div key={e} className="error" {...fadeInOut}>
+                    <button onClick={() => console.log('dismiss', { e })}>
+                        X
+                    </button>
+                    {err}
+                </motion.div>
+            ))}
             <div id="console" key="console">
                 {(consoleQuery.data?.data?.screen ?? []).join('\n')}
             </div>
+            {savePlaylistInfo && (
+                <div id="playlist-saving" key="playlist-saving">
+                    playlist: {savePlaylistInfo}
+                </div>
+            )}
             {body}
         </AnimatePresence>
     )

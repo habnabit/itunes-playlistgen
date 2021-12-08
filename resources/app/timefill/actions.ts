@@ -2,6 +2,7 @@ import { List, Map, Set } from 'immutable'
 import { Lens } from 'monocle-ts'
 import { createAction, createAsyncAction } from 'typesafe-actions'
 
+import { Argv, Playlists, Tracks } from '../meta'
 import { TrackId } from '../types'
 import {
     Choice,
@@ -9,6 +10,14 @@ import {
     PlaylistModification,
     TimefillSelector,
 } from './types'
+
+export const initialFetched = createAction(
+    'playlistgen/timefill/initialFetched',
+)<{
+    argv: Argv
+    tracks: Tracks
+    playlists: Playlists
+}>()
 
 export const performSearch = createAction(
     'playlistgen/timefill/performSearch',
@@ -53,6 +62,7 @@ export const shuffleChoice = createAction('playlistgen/shuffleChoice')<{
 export const toggleChoiceTrack = createAction('playlistgen/toggleChoiceTrack')<{
     lens: Lens<TimefillSelector, Choice>
     track: TrackId
+    selection: ChoiceTrackSelection
 }>()
 
 export const clearChoiceTrack = createAction('playlistgen/clearChoiceTrack')<{

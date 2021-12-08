@@ -2,8 +2,6 @@ import { List, Map, Record } from 'immutable'
 import { Newtype, iso } from 'newtype-ts'
 import { CustomError } from 'ts-custom-error'
 
-import * as actions from './actions'
-
 export type SubsetKeys<T, S> = {
     [P in keyof T]: T[P] extends S ? P : never
 }[keyof T]
@@ -94,16 +92,6 @@ export function collateAlbums(
             )
         }
     })
-}
-
-export type KeyboardEvents = { onFocus: () => void; onBlur: () => void }
-export function keyboardEvents(dispatch: {
-    onKeyboardAvailable: typeof actions.setKeyboardAvailability
-}): KeyboardEvents {
-    return {
-        onFocus: () => dispatch.onKeyboardAvailable({ available: false }),
-        onBlur: () => dispatch.onKeyboardAvailable({ available: true }),
-    }
 }
 
 function messageFrom(response: Response, json: any): string {
