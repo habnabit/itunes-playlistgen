@@ -30,11 +30,17 @@ on nested_playlist(plns)
 end nested_playlist
 
 on delete_playlists(pls)
+	set failed_on to {}
 	tell application "iTunes"
 		repeat with pl in pls
-			delete (the first playlist whose persistent ID is pl)
+			try
+				delete (the first playlist whose persistent ID is pl)
+			on error e number n
+			set the end of failed_on to {pl, e, n}
+			end try
 		end repeat
 	end tell
+	return failed_on
 end delete_playlists
 
 on fill_tracks(plns, tl, ctrl)

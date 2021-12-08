@@ -60,7 +60,8 @@ class TrackContext(object):
                 click.echo('  .. not actually deleting: {!r}'.format(to_delete))
             else:
                 to_delete = [ppis(playlist_map[name]) for name in to_delete]
-                scripts.call('delete_playlists', to_delete)
+                click.echo('got back from delete: {!r}'.format(
+                    scripts.call('delete_playlists', to_delete)))
         return ret
 
     @reify
@@ -1012,18 +1013,6 @@ def search_and_choose(f):
                 break
             else:
                 return results[e - 1]
-
-
-def delete_older(tracks, pattern, max_age):
-    *container, pattern = pattern.splitlines()
-    min_date = datetime.datetime.now() - max_age
-    to_delete = []
-    for name, pl in tracks.playlist_children(container).items():
-        playlist_date = datetime.datetime.strptime(name, pattern)
-        if playlist_date < min_date:
-            to_delete.append(ppis(pl))
-    click.echo('Deleting {} old playlists.'.format(len(to_delete)))
-    scripts.call('delete_playlists', to_delete)
 
 
 @click.group(context_settings=dict(help_option_names=('-h', '--help')))
