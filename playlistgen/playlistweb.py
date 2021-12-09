@@ -21,7 +21,7 @@ from cornice import Service
 from cornice.validators import marshmallow_validator
 from marshmallow import Schema, ValidationError, fields, validate
 from pyramid.config import Configurator
-from pyramid.httpexceptions import HTTPException, HTTPNotFound, HTTPNotImplemented
+from pyramid.httpexceptions import HTTPException, HTTPFound, HTTPNotFound, HTTPNotImplemented
 from pyramid.request import Request
 from pyramid.response import Response
 from pyramid.renderers import JSON
@@ -129,6 +129,10 @@ def track_methods(tracks, argv):
 
 @view_config(route_name='index')
 def index(request):
+    return HTTPFound(location='/app/')
+
+@view_config(route_name='app')
+def app(request):
     subreq = Request.blank('/_static/site.html')
     response = request.invoke_subrequest(subreq)
     return response
@@ -605,6 +609,7 @@ def build_app(tracks, argv):
         config.scan(playlistweb)
 
         config.add_route('index', '')
+        config.add_route('app', 'app/*_')
         config.add_static_view(name='_static', path='playlistgen:static')
 
         with config.route_prefix_context('_api'):

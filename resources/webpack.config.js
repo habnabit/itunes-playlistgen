@@ -2,12 +2,15 @@ const ESLintWebpackPlugin = require('eslint-webpack-plugin')
 const MiniCssExtractPlugin = require('mini-css-extract-plugin')
 const path = require('path')
 
+const STATIC = path.resolve(__dirname, '../playlistgen/static')
+
 module.exports = {
     mode: 'development',
     entry: './app/index.tsx',
     output: {
         filename: 'site.js',
-        path: path.resolve(__dirname, '../playlistgen/static'),
+        path: STATIC,
+        publicPath: '/_static',
     },
     resolve: {
         extensions: ['.ts', '.tsx', '.js', '.json'],
@@ -18,7 +21,6 @@ module.exports = {
             vm: require.resolve('vm-browserify'),
         },
     },
-    devtool: 'inline-source-map',
     module: {
         rules: [
             {
@@ -56,4 +58,22 @@ module.exports = {
         }),
     ],
     externals: {},
+    devServer: {
+        static: STATIC,
+        compress: true,
+        client: {
+            overlay: {
+                errors: true,
+                warnings: false,
+            },
+        },
+        proxy: {
+            '/_api': {
+                target: 'http://[::1]:9091',
+            },
+            '/app': {
+                target: 'http://[::1]:9091',
+            },
+        },
+    },
 }

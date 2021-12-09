@@ -1,11 +1,12 @@
-import axios from 'axios'
+import * as React from 'react'
+
 import { AnimatePresence, motion } from 'framer-motion'
 import { List, Map, Record, Set } from 'immutable'
-import * as React from 'react'
-import { useInfiniteQuery, useMutation, useQuery } from 'react-query'
-import PulseLoader from 'react-spinners/PulseLoader'
-
 import { RawTrack, Track, TrackId } from './types'
+import axios, { AxiosResponse } from 'axios'
+import { useInfiniteQuery, useMutation, useQuery } from 'react-query'
+
+import PulseLoader from 'react-spinners/PulseLoader'
 
 export type InitialFetch = {
     argv?: {}
@@ -126,6 +127,11 @@ type TopProps = {
     initialFetch: InitialFetch
 }
 
+const arePagesFull = (pages: AxiosResponse<{ tracks: {}[] }>[]): boolean =>
+    pages.length > 0 && pages[pages.length - 1].data.tracks.length > 0
+
+var TOO_MANY_SUCCESS = 0
+
 const TopComponent: React.FC<TopProps> = (props) => {
     const { children, initialFetch } = props
 
@@ -142,14 +148,15 @@ const TopComponent: React.FC<TopProps> = (props) => {
             refetchOnReconnect: false,
             enabled: initialFetch.tracks !== undefined,
             getNextPageParam: (lastPage, pages) =>
-                lastPage.data.tracks.length > 0
+                !arePagesFull(pages)
                     ? List(pages).reduce(
                           (sum, { data }) => sum + data.tracks.length,
                           0,
                       )
                     : undefined,
             onSuccess: ({ pages }) => {
-                if (tracksQuery.hasNextPage || pages.length < 2) {
+                console.assert(++TOO_MANY_SUCCESS < 10000)
+                if (!arePagesFull(pages)) {
                     tracksQuery.fetchNextPage()
                 }
             },
