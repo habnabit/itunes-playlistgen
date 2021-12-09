@@ -31,7 +31,7 @@ const makeRootElement = () => (
                     }
                 />
                 <Route
-                    path="app/timefill"
+                    path="app/timefill/*"
                     element={
                         <ConnectedTopComponent
                             initialFetch={{

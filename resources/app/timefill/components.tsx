@@ -1,18 +1,6 @@
-import { List, Map, Set } from 'immutable'
-import { Lens } from 'monocle-ts'
 import * as React from 'react'
-import { useDispatch, useSelector } from 'react-redux'
-import PulseLoader from 'react-spinners/PulseLoader'
-import { Dispatch, bindActionCreators } from 'redux'
-
-import { lensFromImplicitAccessors } from '../extlens'
-import {
-    InitialFetchedContext,
-    TopPlatformContext,
-    useKeyboardEvents,
-} from '../meta'
-import { Track, TrackId } from '../types'
 import * as actions from './actions'
+
 import {
     AllActions,
     Choice,
@@ -22,6 +10,20 @@ import {
     TimefillSelector,
     isoTag,
 } from './types'
+import { Dispatch, bindActionCreators } from 'redux'
+import {
+    InitialFetchedContext,
+    TopPlatformContext,
+    useKeyboardEvents,
+} from '../meta'
+import { List, Map, Set } from 'immutable'
+import { NavLink, Route, Routes } from 'react-router-dom'
+import { Track, TrackId } from '../types'
+import { useDispatch, useSelector } from 'react-redux'
+
+import { Lens } from 'monocle-ts'
+import PulseLoader from 'react-spinners/PulseLoader'
+import { lensFromImplicitAccessors } from '../extlens'
 
 const DurationComponent: React.FC<{ duration: number }> = (props) => {
     const minutes = Math.floor(props.duration / 60)
@@ -380,12 +382,6 @@ const TimefillSelectorComponent: React.FC<{}> = () => {
     }
     return (
         <div className={classes.join(' ')}>
-            {React.useMemo(
-                () => (
-                    <StyleTagsComponent top={top} />
-                ),
-                [top.tags, top.tracks],
-            )}
             <CriteriaComponent />
             <section className="controls">
                 <textarea
@@ -432,4 +428,35 @@ const TimefillSelectorComponent: React.FC<{}> = () => {
     )
 }
 
-export const ConnectedTimefillSelectorComponent = TimefillSelectorComponent
+const TimefillRouter: React.FC<{}> = () => {
+    const top = useSelector((top: TimefillSelector) => top)
+    return (
+        <>
+            <ul className="navbar">
+                <li>
+                    <NavLink to="">select</NavLink>
+                </li>
+                <li>
+                    <NavLink to="tags">tags</NavLink>
+                </li>
+                <li>
+                    <NavLink to="previous">previous selections</NavLink>
+                </li>
+            </ul>
+            <Routes>
+                <Route path="" element={<TimefillSelectorComponent />} />
+                <Route
+                    path="tags"
+                    element={React.useMemo(
+                        () => (
+                            <StyleTagsComponent top={top} />
+                        ),
+                        [top.tags, top.tracks],
+                    )}
+                />
+            </Routes>
+        </>
+    )
+}
+
+export const ConnectedTimefillSelectorComponent = TimefillRouter
