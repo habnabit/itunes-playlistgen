@@ -1,17 +1,17 @@
 import './site.sass'
 
+import * as promiseFinally from 'promise.prototype.finally'
 import * as React from 'react'
 import * as ReactDOM from 'react-dom'
-import * as promiseFinally from 'promise.prototype.finally'
-import * as stores from './redux'
-
-import { BrowserRouter, Link, Route, Routes } from 'react-router-dom'
+import { ErrorBoundary } from 'react-error-boundary'
 import { QueryClient, QueryClientProvider } from 'react-query'
-import { TimefillSelector, selectionPlaylists } from './timefill/types'
-
-import { ConnectedTimefillSelectorComponent } from './timefill/components'
-import { ConnectedTopComponent } from './meta'
 import { Provider } from 'react-redux'
+import { BrowserRouter, Link, Route, Routes } from 'react-router-dom'
+
+import { ConnectedTopComponent } from './meta'
+import * as stores from './redux'
+import { ConnectedTimefillSelectorComponent } from './timefill/components'
+import { TimefillSelector, selectionPlaylists } from './timefill/types'
 
 const makeRootElement = () => (
     <BrowserRouter>
@@ -60,4 +60,18 @@ const makeRootElement = () => (
 const queryClient = new QueryClient()
 
 promiseFinally.shim()
-ReactDOM.render(makeRootElement(), document.getElementById('react-root'))
+ReactDOM.render(
+    <ErrorBoundary
+        fallbackRender={({ error }) => (
+            <>
+                <h2>welp</h2>
+                <pre>{error.name}</pre>
+                <pre>{error.message}</pre>
+                <pre>{error.stack}</pre>
+            </>
+        )}
+    >
+        {makeRootElement()}
+    </ErrorBoundary>,
+    document.getElementById('react-root'),
+)
