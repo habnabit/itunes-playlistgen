@@ -350,6 +350,7 @@ playlists_service = Service(name='playlists', path='/_api/playlists')
 
 class PlaylistsBodySchema(Schema):
     names = fields.List(PlaylistField(), missing=())
+    include_previous_selections = fields.Boolean(missing=False)
 
 
 class PlaylistsSchema(Schema):
@@ -368,8 +369,10 @@ def _default_playlists(tracks):
         and not pl.name().startswith('<')
     ]
 
+def _playlists_response(playlists, tracks, include_previous_selections=False):
+    def _tracks_of(name):
+        return [ppis(t) for t in tracks.nested_playlist(name).items()]
 
-def _playlists_response(playlists, tracks):
     all_names = set()
     ret = []
     to_add = set(playlists)
@@ -378,14 +381,27 @@ def _playlists_response(playlists, tracks):
         all_names.update(names_to_add)
         to_add = set()
         for name in names_to_add:
-            ret.append(
-                (name, [ppis(t) for t in tracks.nested_playlist(name).items()]))
+            ret.append({
+                'name': name,
+                'tracks': _tracks_of(name),
+                'was_selection': False,
+            })
             try:
                 children = tracks.playlist_children(name)
             except KeyError:
                 continue
             to_add.update(children.values())
         to_add.difference_update(all_names)
+
+    if include_previous_selections:
+        ret.extend(
+            {
+                'name': name,
+                'tracks': _tracks_of(name),
+                'was_selection': True,
+            }
+            for name in tracks.dest_playlist.filter_matching(
+                tracks.playlists_by_nested_name.keys()))
 
     return {
         'playlists': ret,
@@ -399,8 +415,8 @@ def get_playlists(request):
 
 @playlists_service.post(schema=PlaylistsSchema, validators=(marshmallow_validator,))
 def get_specific_playlists(request):
-    playlists = request.validated['body']['names']
-    return _playlists_response(playlists, request.tracks)
+    playlists = list(request.validated['body']['names'])
+    return _playlists_response(playlists, request.tracks, request.validated['body']['include_previous_selections'])
 
 
 tracks_service = Service(name='tracks', path='/_api/tracks')
@@ -426,7 +442,7 @@ def tracks(request):
         tracks = parsed['by_id']
     else:
         offset = parsed['offset']
-        tracks = request.tracks.tracklist[offset : offset + parsed['count']]
+        tracks = request.tracks.full_tracklist[offset : offset + parsed['count']]
     return {'tracks': tracks}
 
 

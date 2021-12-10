@@ -39,6 +39,7 @@ const makeRootElement = () => (
                                 tracks: true,
                                 playlists: {
                                     names: ['Tagged'],
+                                    include_previous_selections: true,
                                 },
                             }}
                         >

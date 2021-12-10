@@ -1,17 +1,17 @@
-import * as React from 'react'
-
+import axios, { AxiosResponse } from 'axios'
 import { AnimatePresence, motion } from 'framer-motion'
 import { List, Map, Record, Set } from 'immutable'
-import { RawTrack, Track, TrackId } from './types'
-import axios, { AxiosResponse } from 'axios'
+import * as React from 'react'
 import { useInfiniteQuery, useMutation, useQuery } from 'react-query'
-
 import PulseLoader from 'react-spinners/PulseLoader'
+
+import { RawTrack, Track, TrackId } from './types'
 
 export type InitialFetch = {
     argv?: {}
     tracks?: {}
     playlists?: {
+        include_previous_selections?: boolean
         names?: string[]
     }
 }
@@ -50,7 +50,11 @@ export const ConnectedTrackArtworkComponent: React.FC<{
 
 export type Tracks = RawTrack[]
 export type Argv = { dest_playlist?: string; web_argv: string[] }
-export type Playlists = [string[], TrackId[]][]
+export type Playlists = {
+    name: string[]
+    tracks: TrackId[]
+    was_selection: boolean
+}[]
 export const InitialFetchedContext = React.createContext(
     {} as {
         tracks?: Tracks

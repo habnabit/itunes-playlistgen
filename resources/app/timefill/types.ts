@@ -48,7 +48,13 @@ export const isoTag = {
 export const NO_TAGS = isoTag.wrap('no tags')
 export const NO_TAGS_SET = Set([NO_TAGS])
 
+export class OldChoice extends Record({
+    name: [] as string[],
+    tracks: List<TrackId>(),
+}) {}
+
 export class Choice extends Record({
+    name: [] as string[],
     tracks: List<Track>(),
     selected: Map<TrackId, ChoiceTrackSelection>(),
     score: '',
@@ -122,6 +128,7 @@ export class TimefillSelector extends Record({
     albums: OrderedMap<AlbumId, Album>(),
     weights: List<[AlbumId, string]>(),
     choices: List<Choice>(),
+    oldChoices: List<OldChoice>(),
     ambientSelected: Map<TrackId, ChoiceTrackSelection>(),
     savingPlaylists: false,
 }) {
@@ -270,30 +277,41 @@ export class TimefillSelector extends Record({
     }
 
     withPlaylistsResponse(j: Playlists): this {
-        var tags = this.tags
+        var { tags, oldChoices } = this
         const ambientSelected = Map<
             TrackId,
             ChoiceTrackSelection
         >().withMutations((ambientSelected) => {
-            for (const [segments, tracks] of j) {
+            for (const {
+                name: segments,
+                tracks,
+                was_selection: wasSelection,
+            } of j) {
                 if (
-                    segments.length < 2 ||
-                    segments[segments.length - 2] !== 'Tagged'
-                )
-                    continue
-                const tag = segments[segments.length - 1]
-                const selection = reverseSelectionPlaylists.get(tag)
-                for (const track of tracks) {
-                    tags = tags.update(track, Set(), (s) =>
-                        s.add(isoTag.wrap(tag)),
-                    )
-                    if (selection !== undefined) {
-                        ambientSelected.set(track, selection)
+                    segments.length >= 2 &&
+                    segments[segments.length - 2] === 'Tagged'
+                ) {
+                    const tagString = segments[segments.length - 1]
+                    const selection = reverseSelectionPlaylists.get(tagString)
+                    const tag = isoTag.wrap(tagString)
+                    for (const track of tracks) {
+                        tags = tags.update(track, Set(), (s) => s.add(tag))
+                        if (selection !== undefined) {
+                            ambientSelected.set(track, selection)
+                        }
                     }
+                }
+                if (wasSelection) {
+                    oldChoices = oldChoices.push(
+                        new OldChoice({
+                            name: segments,
+                            tracks: List(tracks),
+                        }),
+                    )
                 }
             }
         })
-        return this.merge({ ambientSelected, tags })
+        return this.merge({ ambientSelected, tags, oldChoices })
     }
 
     withReconciledAmbientSelections(): this {

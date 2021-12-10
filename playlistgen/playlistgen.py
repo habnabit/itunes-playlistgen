@@ -127,21 +127,27 @@ class TrackContext(object):
         *container, name = names
         return self.playlist_children(container)[name]
 
-    def get_tracklist(self, batch_size=125):
+    @reify
+    def _trackset(self):
         click.echo('Pulling tracks from {!r}.'.format(self.source_playlists))
         ret = set()
         for name in self.source_playlists:
             ret.update(self.playlists_by_name[name].items())
+        return ret
+
+    @reify
+    def full_tracklist(self):
+        return sorted(self._trackset, key=by_album)
+
+    @reify
+    def tracklist(self):
+        ret = self._trackset
         try:
             if self.remove_previous:
                 ret.difference_update(self.prev_selection())
         except NoDestination:
             pass
         return sorted(ret, key=by_album)
-
-    @reify
-    def tracklist(self):
-        return self.get_tracklist()
 
     @reify
     def criteria(self):
