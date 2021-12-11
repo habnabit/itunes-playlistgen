@@ -27,6 +27,10 @@ export type ChoiceTrackSelection =
     | 'exclude'
     | '_cleared'
 
+export type SelectionMap = {
+    [K in ChoiceTrackSelection]: List<Track>
+}
+
 export type PlaylistModification = {
     name: string
     add: TrackId[]
@@ -49,12 +53,12 @@ export const NO_TAGS = isoTag.wrap('no tags')
 export const NO_TAGS_SET = Set([NO_TAGS])
 
 export class OldChoice extends Record({
-    name: [] as string[],
+    name: '',
+    segments: [] as string[],
     tracks: List<TrackId>(),
 }) {}
 
 export class Choice extends Record({
-    name: [] as string[],
     tracks: List<Track>(),
     selected: Map<TrackId, ChoiceTrackSelection>(),
     score: '',
@@ -120,6 +124,22 @@ const playlistSelectionsToClear: Set<ChoiceTrackSelection> =
         .flatMap((x) => x)
         .toSet()
 
+export const selectionForKeys = (
+    keysDown: Map<string, boolean>,
+): ChoiceTrackSelection | undefined => {
+    if (keysDown.get('a')) {
+        return 'bless'
+    } else if (keysDown.get('s')) {
+        return 'curse'
+    } else if (keysDown.get('z')) {
+        return 'include'
+    } else if (keysDown.get('x')) {
+        return 'exclude'
+    } else {
+        return undefined
+    }
+}
+
 export class TimefillSelector extends Record({
     tracks: Map<TrackId, Track>(),
     tags: Map<TrackId, Set<Tag>>(),
@@ -130,21 +150,9 @@ export class TimefillSelector extends Record({
     choices: List<Choice>(),
     oldChoices: List<OldChoice>(),
     ambientSelected: Map<TrackId, ChoiceTrackSelection>(),
+    currentSelection: undefined as ChoiceTrackSelection | undefined,
     savingPlaylists: false,
 }) {
-    currentSelection(keysDown: Map<string, boolean>): ChoiceTrackSelection {
-        if (keysDown.get('a')) {
-            return 'bless'
-        } else if (keysDown.get('s')) {
-            return 'curse'
-        } else if (keysDown.get('z')) {
-            return 'include'
-        } else if (keysDown.get('x')) {
-            return 'exclude'
-        } else {
-            return undefined
-        }
-    }
     condensedSelection(): Map<TrackId, ChoiceTrackSelection> {
         const pairs = this.choices
             .toSeq()
@@ -304,7 +312,8 @@ export class TimefillSelector extends Record({
                 if (wasSelection) {
                     oldChoices = oldChoices.push(
                         new OldChoice({
-                            name: segments,
+                            name: segments[segments.length - 1],
+                            segments,
                             tracks: List(tracks),
                         }),
                     )

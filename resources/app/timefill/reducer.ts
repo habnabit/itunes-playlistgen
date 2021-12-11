@@ -3,7 +3,7 @@ import { Random } from 'random-js'
 import { getType } from 'typesafe-actions'
 
 import * as actions from './actions'
-import { AllActions, Choice, TimefillSelector } from './types'
+import { AllActions, Choice, TimefillSelector, selectionForKeys } from './types'
 
 export default function timefillReducer(
     state = new TimefillSelector(),
@@ -49,13 +49,20 @@ export default function timefillReducer(
             )(state)
         }
 
+        case getType(actions.updateKeys): {
+            const { keysDown } = action.payload
+            return state.set('currentSelection', selectionForKeys(keysDown))
+        }
+
         case getType(actions.toggleChoiceTrack): {
             const { lens, track, selection } = action.payload
             const isAmbient = state.ambientSelected.has(track)
             return lens.modify((pl) =>
                 pl.update('selected', (m) =>
                     m.update(track, (cur) =>
-                        cur === selection
+                        selection === '_current'
+                            ? state.currentSelection
+                            : cur === selection
                             ? isAmbient
                                 ? '_cleared'
                                 : undefined

@@ -59,10 +59,14 @@ export const shuffleChoice = createAction('playlistgen/shuffleChoice')<{
     lens: Lens<TimefillSelector, Choice>
 }>()
 
+export const updateKeys = createAction('playlistgen/updateKeys')<{
+    keysDown: Map<string, boolean>
+}>()
+
 export const toggleChoiceTrack = createAction('playlistgen/toggleChoiceTrack')<{
     lens: Lens<TimefillSelector, Choice>
     track: TrackId
-    selection: ChoiceTrackSelection
+    selection: ChoiceTrackSelection | '_current'
 }>()
 
 export const clearChoiceTrack = createAction('playlistgen/clearChoiceTrack')<{

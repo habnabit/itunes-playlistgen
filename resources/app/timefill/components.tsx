@@ -20,6 +20,7 @@ import {
     ChoiceTrackSelection,
     NO_TAGS_SET,
     OldChoice,
+    SelectionMap,
     Tag,
     TimefillSelector,
     isoTag,
@@ -63,7 +64,7 @@ const ChoiceTrackComponent: React.FC<{
             classes.push('ambient')
         }
         return (
-            <li className={classes.join(' ')} onClick={props.onToggle}>
+            <li className={classes.join(' ')} onClick={() => props.onToggle()}>
                 <DurationComponent duration={props.track.totalTime} />
                 &nbsp;
                 {props.track.title} ({props.track.album}; {props.track.artist})
@@ -72,11 +73,9 @@ const ChoiceTrackComponent: React.FC<{
         )
     }, [props.track, props.selected, props.ambient])
 
-const boundDispatchForChoice = (choice: Choice, idxTop: number) => {
-    const { keyboard, savePlaylist } = React.useContext(TopPlatformContext)
+const useBoundDispatchForChoice = () => {
+    const { savePlaylist } = React.useContext(TopPlatformContext)
     const top = useSelector((top: TimefillSelector) => top)
-    const { ambientSelected } = top
-    const selection = top.currentSelection(keyboard.keysDown)
     const dispatch = bindActionCreators(
         {
             onToggle: actions.toggleChoiceTrack,
@@ -91,40 +90,42 @@ const boundDispatchForChoice = (choice: Choice, idxTop: number) => {
         TimefillSelector,
         List<Choice>
     > = lensFromImplicitAccessors('choices')
-    const lens: Lens<TimefillSelector, Choice> = lens1_.compose(
-        lensFromImplicitAccessors(idxTop),
-    )
 
-    return {
-        onToggle: (track: TrackId) => () =>
-            dispatch.onToggle({ lens, track, selection }),
-        onReroll: () => {
-            const selections = top.reversedTotalSelection()
-            dispatch.onLoading({ lens, loading: true })
-            dispatch.onReroll({
-                criteria: top.allCriteria(),
-                selections,
-                narrow: true,
-                replace: lens,
-            })
-        },
-        onShuffle: () => {
-            dispatch.onShuffle({ lens })
-        },
-        onSave: () => {
-            savePlaylist(choice.tracks.map((t) => t.id).toArray(), top.name)
-        },
+    return (choice: Choice, idxTop: number) => {
+        const lens: Lens<TimefillSelector, Choice> = lens1_.compose(
+            lensFromImplicitAccessors(idxTop),
+        )
+
+        return {
+            onToggle: (track: TrackId) => () =>
+                dispatch.onToggle({ lens, track, selection: '_current' }),
+            onReroll: () => {
+                const selections = top.reversedTotalSelection()
+                dispatch.onLoading({ lens, loading: true })
+                dispatch.onReroll({
+                    criteria: top.allCriteria(),
+                    selections,
+                    narrow: true,
+                    replace: lens,
+                })
+            },
+            onShuffle: () => {
+                dispatch.onShuffle({ lens })
+            },
+            onSave: () => {
+                savePlaylist(choice.tracks.map((t) => t.id).toArray(), top.name)
+            },
+        }
     }
 }
 
 const ChoiceComponent: React.FC<{
     choice: Choice
-    idxTop?: number
-}> = ({ choice, idxTop }) => {
-    const { keyboard } = React.useContext(TopPlatformContext)
+    topBar: {}
+    onToggle: (t: TrackId) => () => void
+}> = ({ choice, topBar, onToggle }) => {
     const top = useSelector((top: TimefillSelector) => top)
     const { ambientSelected } = top
-    const bound = boundDispatchForChoice(choice, idxTop)
     if (choice.loading) {
         return (
             <div className="choice loading">
@@ -140,15 +141,10 @@ const ChoiceComponent: React.FC<{
     )
     return (
         <div className="choice">
-            <div className="actions">
-                <button onClick={() => bound.onReroll()}>Reroll</button>
-                <button onClick={() => bound.onShuffle()}>Shuffle</button>
-                <button onClick={() => bound.onSave()}>Save</button>
-            </div>
+            {topBar}
             <ol className="fuller tracklist selectable fade">
                 {choice.tracks.map((track, e) => {
                     if (!track) return
-                    const onToggle = bound.onToggle(track.id)
                     var selected = choice.selected.get(track.id)
                     var ambient = false
                     if (
@@ -161,7 +157,8 @@ const ChoiceComponent: React.FC<{
                         <ChoiceTrackComponent
                             key={e}
                             tags={top.tags.get(track.id, NO_TAGS_SET)}
-                            {...{ track, selected, ambient, onToggle }}
+                            onToggle={onToggle(track.id)}
+                            {...{ track, selected, ambient }}
                         />
                     )
                 })}
@@ -315,19 +312,13 @@ const PersistSelectionsComponent: React.FC<{
 
 export const ConnectedPersistSelectionsComponent = PersistSelectionsComponent
 
-const TimefillSelectorComponent: React.FC<{ top: TimefillSelector }> = ({
-    top,
-}) => {
-    const { keyboard, makeKeyboardEvents } =
-        React.useContext(TopPlatformContext)
+const TimefillSelectorComponent: React.FC<{
+    top: TimefillSelector
+    selectionMap: SelectionMap
+}> = ({ top, selectionMap }) => {
+    const { makeKeyboardEvents } = React.useContext(TopPlatformContext)
     const { name, choices } = top
-    const _selectionMap = top
-        .reversedSelection()
-        .map((tracks) => tracks.toList().map((t) => top.tracks.get(t)))
-        .toObject()
-    const selectionMap = _selectionMap as {
-        [K in ChoiceTrackSelection]: List<Track>
-    }
+
     const lens: Lens<TimefillSelector, string> = new Lens(
         (o) => o.get('name', undefined),
         (v) => (o) => o.set('name', v),
@@ -342,14 +333,9 @@ const TimefillSelectorComponent: React.FC<{ top: TimefillSelector }> = ({
         useDispatch<Dispatch<AllActions>>(),
     )
     const keyboardEvents = makeKeyboardEvents()
-
-    const classes: string[] = []
-    const selectState = top.currentSelection(keyboard.keysDown)
-    if (selectState !== undefined) {
-        classes.push(`set--${selectState}`)
-    }
+    const boundDispatchForChoice = useBoundDispatchForChoice()
     return (
-        <div className={classes.join(' ')}>
+        <>
             <CriteriaComponent />
             <section className="controls">
                 <textarea
@@ -388,11 +374,36 @@ const TimefillSelectorComponent: React.FC<{ top: TimefillSelector }> = ({
                     },
                 )}
                 <ConnectedPersistSelectionsComponent {...{ selectionMap }} />
-                {choices.map((pl, e) => (
-                    <ChoiceComponent key={e} choice={pl} idxTop={e} />
-                ))}
+                {choices.map((pl, e) => {
+                    const bound = boundDispatchForChoice(pl, e)
+                    return (
+                        <React.Fragment key={e}>
+                            <ChoiceComponent
+                                choice={pl}
+                                onToggle={bound.onToggle}
+                                topBar={
+                                    <div className="actions">
+                                        <button
+                                            onClick={() => bound.onReroll()}
+                                        >
+                                            Reroll
+                                        </button>
+                                        <button
+                                            onClick={() => bound.onShuffle()}
+                                        >
+                                            Shuffle
+                                        </button>
+                                        <button onClick={() => bound.onSave()}>
+                                            Save
+                                        </button>
+                                    </div>
+                                }
+                            />
+                        </React.Fragment>
+                    )
+                })}
             </section>
-        </div>
+        </>
     )
 }
 
@@ -438,21 +449,24 @@ const TagDescriptionComponent: React.FC<{
 
 const OldChoicesComponent: React.FC<{
     top: TimefillSelector
-}> = ({ top }) => {
+    selectionMap: SelectionMap
+}> = ({ top, selectionMap }) => {
     const { oldChoices, tracks } = top
     return (
         <section className="choices">
+            <ConnectedPersistSelectionsComponent {...{ selectionMap }} />
             {oldChoices
-                .sortBy((c) => c.name[2])
+                .sortBy((c) => c.name)
                 .map((c, e) => (
                     <ChoiceComponent
                         key={e}
+                        onToggle={(tid) => () => {}}
                         choice={
                             new Choice({
-                                name: c.name,
                                 tracks: c.tracks.map((tid) => tracks.get(tid)),
                             })
                         }
+                        topBar={<h3 className="previous">{c.name}</h3>}
                     />
                 ))}
         </section>
@@ -461,22 +475,38 @@ const OldChoicesComponent: React.FC<{
 
 const TimefillRouter: React.FC<{}> = () => {
     const { tracks, argv, playlists } = React.useContext(InitialFetchedContext)
+    const { keyboard } = React.useContext(TopPlatformContext)
     const dispatch = bindActionCreators(
         {
             onInitialFetched: actions.initialFetched,
+            onUpdatedKeys: actions.updateKeys,
         },
         useDispatch<Dispatch<AllActions>>(),
     )
     React.useEffect(() => {
         dispatch.onInitialFetched({ argv, tracks, playlists })
     }, [argv !== undefined && tracks !== undefined && playlists !== undefined])
+    React.useEffect(() => {
+        dispatch.onUpdatedKeys({ keysDown: keyboard.keysDown })
+    }, [keyboard.keysDown])
     const top = useSelector((top: TimefillSelector) => top)
     const { tagColors, roundHistory } = React.useMemo(
         () => top.matchTagsToColors(),
         [top.tags, top.tracks],
     )
+    const _selectionMap = top
+        .reversedSelection()
+        .map((tracks) => tracks.toList().map((t) => top.tracks.get(t)))
+        .toObject()
+    const selectionMap = _selectionMap as SelectionMap
+
+    const classes: string[] = []
+    const selectState = top.currentSelection
+    if (selectState !== undefined) {
+        classes.push(`set--${selectState}`)
+    }
     return (
-        <>
+        <div className={classes.join(' ')}>
             <TagsStyleComponent tagColors={tagColors} />
             <ul className="navbar">
                 <li>
@@ -492,7 +522,12 @@ const TimefillRouter: React.FC<{}> = () => {
             <Routes>
                 <Route
                     path=""
-                    element={<TimefillSelectorComponent top={top} />}
+                    element={
+                        <TimefillSelectorComponent
+                            top={top}
+                            selectionMap={selectionMap}
+                        />
+                    }
                 />
                 <Route
                     path="tags"
@@ -504,13 +539,16 @@ const TimefillRouter: React.FC<{}> = () => {
                     path="previous"
                     element={React.useMemo(
                         () => (
-                            <OldChoicesComponent top={top} />
+                            <OldChoicesComponent
+                                top={top}
+                                selectionMap={selectionMap}
+                            />
                         ),
                         [top.oldChoices, top.tracks],
                     )}
                 />
             </Routes>
-        </>
+        </div>
     )
 }
 
