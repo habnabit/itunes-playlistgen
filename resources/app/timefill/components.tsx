@@ -53,25 +53,28 @@ const ChoiceTrackComponent: React.FC<{
     tags?: Set<Tag>
     selected: ChoiceTrackSelection
     ambient?: boolean
-    onToggle: () => void
+    onToggle?: () => void
 }> = (props) =>
-    React.useMemo(() => {
-        const classes = []
-        if (props.selected !== undefined && props.selected !== '_cleared') {
-            classes.push(`sel--${props.selected}`)
-        }
-        if (props.ambient) {
-            classes.push('ambient')
-        }
-        return (
-            <li className={classes.join(' ')} onClick={() => props.onToggle()}>
+    React.useMemo(
+        () => (
+            <li
+                className={[
+                    ...(props.selected !== undefined &&
+                    props.selected !== '_cleared'
+                        ? [`sel--${props.selected}`]
+                        : []),
+                    ...(props.ambient ? ['ambient'] : []),
+                ].join(' ')}
+                onClick={() => (props.onToggle ? props.onToggle() : undefined)}
+            >
                 <DurationComponent duration={props.track.totalTime} />
                 &nbsp;
                 {props.track.title} ({props.track.album}; {props.track.artist})
                 {props.tags && <TagsComponent tags={props.tags} />}
             </li>
-        )
-    }, [props.track, props.selected, props.ambient])
+        ),
+        [props.track, props.selected, props.ambient],
+    )
 
 const useBoundDispatchForChoice = () => {
     const { savePlaylist } = React.useContext(TopPlatformContext)
@@ -121,8 +124,8 @@ const useBoundDispatchForChoice = () => {
 
 const ChoiceComponent: React.FC<{
     choice: Choice
-    topBar: {}
-    onToggle: (t: TrackId) => () => void
+    topBar: JSX.Element
+    onToggle?: (t: TrackId) => () => void
 }> = ({ choice, topBar, onToggle }) => {
     const top = useSelector((top: TimefillSelector) => top)
     const { ambientSelected } = top
@@ -142,7 +145,14 @@ const ChoiceComponent: React.FC<{
     return (
         <div className="choice">
             {topBar}
-            <ol className="fuller tracklist selectable fade">
+            <ol
+                className={[
+                    'fuller',
+                    'tracklist',
+                    'fade',
+                    ...(onToggle ? ['selectable'] : []),
+                ].join(' ')}
+            >
                 {choice.tracks.map((track, e) => {
                     if (!track) return
                     var selected = choice.selected.get(track.id)
@@ -157,7 +167,7 @@ const ChoiceComponent: React.FC<{
                         <ChoiceTrackComponent
                             key={e}
                             tags={top.tags.get(track.id, NO_TAGS_SET)}
-                            onToggle={onToggle(track.id)}
+                            onToggle={onToggle ? onToggle(track.id) : undefined}
                             {...{ track, selected, ambient }}
                         />
                     )
@@ -314,8 +324,8 @@ export const ConnectedPersistSelectionsComponent = PersistSelectionsComponent
 
 const TimefillSelectorComponent: React.FC<{
     top: TimefillSelector
-    selectionMap: SelectionMap
-}> = ({ top, selectionMap }) => {
+    selectionElement: JSX.Element
+}> = ({ top, selectionElement }) => {
     const { makeKeyboardEvents } = React.useContext(TopPlatformContext)
     const { name, choices } = top
 
@@ -363,17 +373,7 @@ const TimefillSelectorComponent: React.FC<{
                 </button>
             </section>
             <section className="choices">
-                {Object.entries(selectionDescriptions).map(
-                    ([_selected, _], key) => {
-                        const selected = _selected as ChoiceTrackSelection
-                        return (
-                            <ConnectedSelectionsComponent
-                                {...{ key, selected, selectionMap }}
-                            />
-                        )
-                    },
-                )}
-                <ConnectedPersistSelectionsComponent {...{ selectionMap }} />
+                {selectionElement}
                 {choices.map((pl, e) => {
                     const bound = boundDispatchForChoice(pl, e)
                     return (
@@ -449,18 +449,15 @@ const TagDescriptionComponent: React.FC<{
 
 const OldChoicesComponent: React.FC<{
     top: TimefillSelector
-    selectionMap: SelectionMap
-}> = ({ top, selectionMap }) => {
+}> = ({ top }) => {
     const { oldChoices, tracks } = top
     return (
         <section className="choices">
-            <ConnectedPersistSelectionsComponent {...{ selectionMap }} />
             {oldChoices
                 .sortBy((c) => c.name)
                 .map((c, e) => (
                     <ChoiceComponent
                         key={e}
-                        onToggle={(tid) => () => {}}
                         choice={
                             new Choice({
                                 tracks: c.tracks.map((tid) => tracks.get(tid)),
@@ -494,19 +491,37 @@ const TimefillRouter: React.FC<{}> = () => {
         () => top.matchTagsToColors(),
         [top.tags, top.tracks],
     )
-    const _selectionMap = top
-        .reversedSelection()
-        .map((tracks) => tracks.toList().map((t) => top.tracks.get(t)))
-        .toObject()
-    const selectionMap = _selectionMap as SelectionMap
 
-    const classes: string[] = []
+    const reversedSelection = top.reversedSelection()
+    const selectionElement = React.useMemo(() => {
+        const _selectionMap = reversedSelection
+            .map((tracks) => tracks.toList().map((t) => top.tracks.get(t)))
+            .toObject()
+        const selectionMap = _selectionMap as SelectionMap
+        return (
+            <>
+                {Object.entries(selectionDescriptions).map(
+                    ([_selected, _], key) => {
+                        const selected = _selected as ChoiceTrackSelection
+                        return (
+                            <ConnectedSelectionsComponent
+                                {...{ key, selected, selectionMap }}
+                            />
+                        )
+                    },
+                )}
+                <ConnectedPersistSelectionsComponent {...{ selectionMap }} />
+            </>
+        )
+    }, [reversedSelection])
+
     const selectState = top.currentSelection
-    if (selectState !== undefined) {
-        classes.push(`set--${selectState}`)
-    }
     return (
-        <div className={classes.join(' ')}>
+        <div
+            className={[...(selectState ? [`set--${selectState}`] : [])].join(
+                ' ',
+            )}
+        >
             <TagsStyleComponent tagColors={tagColors} />
             <ul className="navbar">
                 <li>
@@ -525,7 +540,7 @@ const TimefillRouter: React.FC<{}> = () => {
                     element={
                         <TimefillSelectorComponent
                             top={top}
-                            selectionMap={selectionMap}
+                            selectionElement={selectionElement}
                         />
                     }
                 />
@@ -539,10 +554,7 @@ const TimefillRouter: React.FC<{}> = () => {
                     path="previous"
                     element={React.useMemo(
                         () => (
-                            <OldChoicesComponent
-                                top={top}
-                                selectionMap={selectionMap}
-                            />
+                            <OldChoicesComponent top={top} />
                         ),
                         [top.oldChoices, top.tracks],
                     )}
