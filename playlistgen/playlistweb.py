@@ -3,6 +3,7 @@ from __future__ import print_function
 import arrow
 import attr
 import datetime
+import eliot
 import functools
 import io
 import iTunesLibrary
@@ -164,6 +165,22 @@ def screen(request):
         'screen': display,
         'hashed': str(hashed),
     }
+
+
+@view_config(route_name='messages', renderer='json')
+def messages(request):
+    return {'eliot': request.eliot_messages.messages}
+
+
+@view_config(route_name='get_reset_messages', renderer='json', request_method='POST')
+def get_reset_messages(request):
+    ret = []
+    while not ret:
+        ret = request.eliot_messages.messages
+        if not ret:
+            time.sleep(0.25)
+    request.eliot_messages.reset()
+    return {'eliot': ret}
 
 
 artwork_content_types = {
@@ -614,10 +631,13 @@ def build_app(tracks, argv):
     screen.set_mode(pyte.modes.LNM)
     stream = pyte.Stream(screen)
     sys.stderr = sys.stdout = StreamFeeder(stream)
+    eliot_messages = eliot.MemoryLogger()
+    eliot.add_destinations(eliot_messages.write)
 
     from . import playlistweb
     with Configurator() as config:
         config.add_request_method(lambda _: screen, name='screen', reify=True)
+        config.add_request_method(lambda _: eliot_messages, name='eliot_messages', reify=True)
 
         config.include('cornice')
         config.include(track_methods(tracks, argv))
@@ -631,6 +651,8 @@ def build_app(tracks, argv):
         with config.route_prefix_context('_api'):
             config.add_route('web_argv', 'argv')
             config.add_route('screen', 'screen')
+            config.add_route('messages', 'messages')
+            config.add_route('get_reset_messages', 'messages/with-reset')
             config.add_route('genius_albums', 'genius-albums')
             config.add_route('track_artwork', 'track/{id}/artwork')
             config.add_route('unconfirmed_albums', 'unconfirmed/albums')

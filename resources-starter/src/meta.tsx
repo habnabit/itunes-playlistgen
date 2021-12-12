@@ -1,11 +1,13 @@
-import axios, { AxiosResponse } from 'axios'
+import * as React from 'react'
+
 import { AnimatePresence, motion } from 'framer-motion'
 import { List, Map, Record, Set } from 'immutable'
-import * as React from 'react'
-import { useInfiniteQuery, useMutation, useQuery } from 'react-query'
-import PulseLoader from 'react-spinners/PulseLoader'
-
 import { RawTrack, Track, TrackId } from './types'
+import axios, { AxiosResponse } from 'axios'
+import { useInfiniteQuery, useMutation, useQuery } from 'react-query'
+
+import { LogComponent } from './eliot'
+import PulseLoader from 'react-spinners/PulseLoader'
 
 export type InitialFetch = {
     argv?: {}
@@ -352,6 +354,7 @@ const TopComponent: React.FC<TopProps> = (props) => {
                     {err}
                 </motion.div>
             ))}
+            <LogComponent key="log" />
             <div id="console" key="console">
                 {(consoleQuery.data?.data?.screen ?? []).join('\n')}
             </div>

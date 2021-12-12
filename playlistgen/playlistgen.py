@@ -6,6 +6,7 @@ import bisect
 import click
 import collections
 import datetime
+import eliot
 import Foundation
 import functools
 import heapq
@@ -833,6 +834,52 @@ def select_by_iterations(selections):
         threshold += 1
 
 
+SEARCH_ACTION = eliot.ActionType(
+    'plg:search_criteria',
+    eliot.fields(),
+    eliot.fields(),
+    'a playlist search is running',
+)
+
+SEARCH_ITERATION_ACTION = eliot.ActionType(
+    'plg:search_criteria:iter',
+    eliot.fields(n=int),
+    eliot.fields(),
+    'a playlist search iteration is running',
+)
+
+PRUNE_ACTION = eliot.ActionType(
+    'plg:search_criteria:prune',
+    eliot.fields(starting_n_results=int),
+    eliot.fields(ending_n_results=int),
+    'a prune step is running',
+)
+
+PRUNE_SCAN_MESSAGE = eliot.MessageType(
+    'plg:search_criteria:prune:scan',
+    eliot.fields(scores=list),
+    'scored everything; about to prune',
+)
+
+VIABLE_MESSAGE = eliot.MessageType(
+    'plg:search_criteria:viable',
+    eliot.fields(candidates=int),
+    'some candidates improved scores',
+)
+
+READD_MESSAGE = eliot.MessageType(
+    'plg:search_criteria:readd',
+    eliot.fields(readds=int, mercy=bool),
+    'readd; did the mercy rule end the search?',
+)
+
+RECENT_WINNER_MESSAGE = eliot.MessageType(
+    'plg:search_criteria:winner',
+    eliot.fields(modified_in=list),
+    'describe the most recent winner',
+)
+
+
 def search_criteria(tracks, tracklist=None, pull_prev=None, keep=None, n_options=None, iterations=None, mercy=None):
     rng = tracks.rng
     pull_prev = pull_prev or 25
@@ -859,16 +906,23 @@ def search_criteria(tracks, tracklist=None, pull_prev=None, keep=None, n_options
         return rng.sample(pool, min(len(pool), n))
 
     def prune():
-        results_by_track_sets = {frozenset(s.track_indices): s for s in results}
-        selections = list(results_by_track_sets.values())
-        context = ReducerContext.from_parts(tracklist, scorers, selections)
-        explanations = Explanations()
-        [reduced] = explanations.collect(reducer.reduce(context))
-        for e, ([r], sel) in enumerate(zip(reduced, selections)):
-            sel.score = ReducedScore(explanations, e, r, sel.score, reducer)
-        results[:] = sorted(selections, reverse=True, key=lambda s: s.score)
-        results[:] = select_by_iterations(results)
-        del results[keep:]
+        with PRUNE_ACTION(starting_n_results=len(results)) as action:
+            results_by_track_sets = {frozenset(s.track_indices): s for s in results}
+            selections = list(results_by_track_sets.values())
+            context = ReducerContext.from_parts(tracklist, scorers, selections)
+            explanations = Explanations()
+            [reduced] = explanations.collect(reducer.reduce(context))
+            for e, ([r], sel) in enumerate(zip(reduced, selections)):
+                sel.score = ReducedScore(explanations, e, r, sel.score, reducer)
+            results[:] = sorted(selections, reverse=True, key=lambda s: s.score)
+            PRUNE_SCAN_MESSAGE.log(
+                scores=[sel.score.sort_key for sel in results],
+            )
+            results[:] = select_by_iterations(results)
+            del results[keep:]
+            action.add_success_fields(
+                ending_n_results=len(results),
+            )
 
     def an_option(prev):
         relevant_indices = all_indices.difference(prev.track_indices)
@@ -883,28 +937,36 @@ def search_criteria(tracks, tracklist=None, pull_prev=None, keep=None, n_options
     previous = [score_tracks(())] * pull_prev
     readds = 0
 
-    for n in tqdm.trange(iterations):
-        if not previous:
-            prune()
-            previous = safe_sample(results, pull_prev)
-        prev_selection = previous.pop()
-        options = [an_option(prev_selection) for _ in range(n_options)]
-        options = [s for s in options
-                   if s.track_indices != prev_selection.track_indices
-                   and s.score >= prev_selection.score]
-        if options:
-            results.append(rng.choice(options).with_iteration(n))
-            readds = 0
-        else:
-            results.append(prev_selection.with_explanation(
-                'readded after beating all {n_options} of its successors',
-                n_options=n_options,
-            ))
-            readds += 1
-            if readds >= mercy:
-                break
+    with SEARCH_ACTION():
+        for n in tqdm.trange(iterations):
+            with SEARCH_ITERATION_ACTION(n=n) as iter_action:
+                if not previous:
+                    prune()
+                    previous = safe_sample(results, pull_prev)
+                prev_selection = previous.pop()
+                options = [an_option(prev_selection) for _ in range(n_options)]
+                options = [s for s in options
+                        if s.track_indices != prev_selection.track_indices
+                        and s.score >= prev_selection.score]
+                if options:
+                    VIABLE_MESSAGE.log(candidates=len(options))
+                    results.append(rng.choice(options).with_iteration(n))
+                    readds = 0
+                else:
+                    results.append(prev_selection.with_explanation(
+                        'readded after beating all {n_options} of its successors',
+                        n_options=n_options,
+                    ))
+                    readds += 1
+                    READD_MESSAGE.log(readds=readds, mercy=readds >= mercy)
+                    if readds >= mercy:
+                        break
 
-    prune()
+                winner = results[-1]
+                RECENT_WINNER_MESSAGE.log(modified_in=winner.modified_in)
+
+        prune()
+
     return results
 
 
@@ -1040,7 +1102,8 @@ def search_and_choose(f):
               help="remove previously-selected tracks")
 @click.option('-t', '--discogs-token', metavar='TOKEN', envvar='DISCOGS_TOKEN',
               help='Discogs user token.')
-def main(ctx, source_playlist, criterion, debug, **kw):
+@click.option('--eliot-logfile', type=click.File('a'))
+def main(ctx, source_playlist, criterion, debug, eliot_logfile, **kw):
     """
     Generate iTunes playlists in smarter ways than iTunes can.
     """
@@ -1048,6 +1111,9 @@ def main(ctx, source_playlist, criterion, debug, **kw):
     if debug:
         import signal, pdb
         signal.signal(signal.SIGINFO, lambda *a: pdb.set_trace())
+
+    if eliot_logfile is not None:
+        eliot.to_file(eliot_logfile)
 
     rng = random.Random()
     ctx.obj = TrackContext(
