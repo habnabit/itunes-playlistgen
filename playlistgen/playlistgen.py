@@ -34,6 +34,21 @@ class NoDestination(Exception):
     pass
 
 
+SAVE_PLAYLIST_ACTION = eliot.ActionType(
+    'plg:save_selection',
+    eliot.fields(name=list),
+    eliot.fields(),
+    'saving a playlist is being attempted',
+)
+
+SAVE_PLAYLIST_ITER_ACTION = eliot.ActionType(
+    'plg:save_selection:iter',
+    eliot.fields(attempt=int, of_n=int),
+    eliot.fields(done=bool),
+    'one attempt at calling into applescript',
+)
+
+
 @attr.s
 class TrackContext(object):
     source_playlists = attr.ib()
@@ -172,27 +187,31 @@ class TrackContext(object):
     def save_selection(self, selection):
         persistent_tracks = list(selection.track_persistent_ids)
         splut = self.dest_playlist.next()
-        click.echo('Putting {} tracks into {!r}.'.format(
-            len(persistent_tracks), splut))
-        if self.dry_run:
-            click.echo('  .. not actually committing the playlist though')
-            return
-        self._save_selection_loop(splut, persistent_tracks)
-        click.echo('  .. done')
+        with SAVE_PLAYLIST_ACTION(name=splut):
+            click.echo('Putting {} tracks into {!r}.'.format(
+                len(persistent_tracks), splut))
+            if self.dry_run:
+                click.echo('  .. not actually committing the playlist though')
+                return
+            self._save_selection_loop(splut, persistent_tracks)
+            click.echo('  .. done')
 
     def _save_selection_loop(self, splut, persistent_tracks):
         for n in range(5):
-            try:
-                scripts.call(
-                    'fill_tracks', splut, persistent_tracks, self.start_playing)
-            except applescript.ScriptError as e:
-                # "AppleEvent timed out."
-                if e.number != -1712:
-                    raise
-                e_ = e
-            else:
-                return
-            click.echo('.. attempt {} timed out'.format(n))
+            with SAVE_PLAYLIST_ITER_ACTION(attempt=n, of_n=5) as action:
+                try:
+                    scripts.call(
+                        'fill_tracks', splut, persistent_tracks, self.start_playing)
+                except applescript.ScriptError as e:
+                    # "AppleEvent timed out."
+                    if e.number != -1712:
+                        raise
+                    e_ = e
+                    action.add_success_fields(done=False)
+                else:
+                    action.add_success_fields(done=True)
+                    return
+                click.echo('.. attempt {} timed out'.format(n))
         raise SaveFailed(splut) from e_
 
     def search_with_criteria(self, **kw):

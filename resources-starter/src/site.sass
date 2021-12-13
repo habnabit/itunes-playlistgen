@@ -15,15 +15,18 @@ body
   .progress
     width: 100%
     background: #222
+    border-radius: 0.5em
     > div
+      border-radius: inherit
       background: aliceblue
       text-align: right
       height: 2em
       display: flex
       justify-content: flex-end
       align-items: center
+      transition: width 0.25s ease-in-out
       > span
-        padding-right: 0.2em
+        padding-right: 0.5em
 
 .loading
   margin-bottom: 1em

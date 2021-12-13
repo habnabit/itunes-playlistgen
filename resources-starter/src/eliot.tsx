@@ -5,6 +5,7 @@ import { Newtype, iso } from 'newtype-ts'
 import axios, { AxiosResponse } from 'axios'
 
 import { CustomError } from 'ts-custom-error'
+import PulseLoader from 'react-spinners/PulseLoader'
 import { useQuery } from 'react-query'
 
 export interface Uuid
@@ -67,14 +68,23 @@ type SpecificTask =
 
 export class TaskRecord extends Record({
     key: new TaskKeyRecord(),
-    _raw: {} as any,
+    uuid: undefined as Uuid,
+    level: List<number>(),
+    when: undefined as Date,
+    _raw: undefined as Task,
 }) {
     constructor(task: Task) {
-        super({ key: new TaskKeyRecord(task), _raw: task })
+        super({
+            key: new TaskKeyRecord(task),
+            uuid: task.task_uuid,
+            level: List(task.task_level),
+            when: new Date(task.timestamp * 1000),
+            _raw: task,
+        })
     }
 
     asSpecificTask(): SpecificTask {
-        return this._raw
+        return this._raw as any
     }
 
     asElement(): JSX.Element {
@@ -128,20 +138,106 @@ export class TaskRecord extends Record({
     }
 }
 
+var UGH_COUNTER = 0
+
+export class PendingAction extends Record({
+    currentLevel: 0,
+    source: undefined as TaskRecord | undefined,
+    ended: false,
+    lastOf: Map<TaskKeyRecord, TaskRecord>(),
+    // zero or one
+    innerActions: List<PendingAction>(),
+}) {
+    constructor(task?: TaskRecord) {
+        if (task) {
+            super({ source: task, currentLevel: task.level.size })
+        } else {
+            super()
+        }
+    }
+
+    gotNewTask(task: TaskRecord): this {
+        const lastOf = this.lastOf.set(task.key, task)
+        var { innerActions } = this
+        var ended = false
+        innerActions = innerActions.flatMap((i) => {
+            const ret = i.gotNewTask(task)
+            return !ret.ended ? [ret] : []
+        })
+        switch (task.key.action_status) {
+            case 'started': {
+                if (
+                    (!this.source || this.source.uuid === task.uuid) &&
+                    task.level.size === this.currentLevel + 1
+                ) {
+                    innerActions = innerActions.push(new PendingAction(task))
+                }
+                break
+            }
+            case 'failed':
+            case 'succeeded': {
+                if (
+                    this.source &&
+                    this.source.uuid === task.uuid &&
+                    task.level.size === this.currentLevel
+                ) {
+                    // this action has ended
+                    ended = true
+                }
+                break
+            }
+            default: {
+            }
+        }
+        return this.merge({ lastOf, innerActions, ended })
+    }
+
+    asElement({ showLastOfDepth } = { showLastOfDepth: 1 }): JSX.Element {
+        return (
+            <div className="pending">
+                {showLastOfDepth > 0 && (
+                    <dl>
+                        {this.lastOf
+                            .keySeq()
+                            .sort()
+                            .map((taskKey, key) => {
+                                const m = this.lastOf.get(taskKey)
+                                return (
+                                    <React.Fragment key={key}>
+                                        <dt>{taskKey.name()}</dt>
+                                        <dd>{m.asElement()}</dd>
+                                    </React.Fragment>
+                                )
+                            })}
+                    </dl>
+                )}
+                <ul>
+                    {this.innerActions.map((pending, key) => (
+                        <li key={key}>
+                            {pending.source.key.name()}:&nbsp;
+                            {pending.source.asElement()}
+                            {pending.asElement({
+                                showLastOfDepth: showLastOfDepth - 1,
+                            })}
+                        </li>
+                    ))}
+                </ul>
+            </div>
+        )
+    }
+}
+
 export class OpenLog extends Record({
     linesSeen: 0,
-    lastOf: Map<TaskKeyRecord, TaskRecord>(),
+    pending: new PendingAction(),
 }) {
     gotNewLines(lines: Task[]): this {
-        var { linesSeen } = this
-        const lastOf = this.lastOf.withMutations((lastOf) => {
-            for (const m of lines) {
-                ++linesSeen
-                const rec = new TaskRecord(m)
-                lastOf.set(rec.key, rec)
-            }
-        })
-        return this.merge({ linesSeen, lastOf })
+        var { linesSeen, pending } = this
+        for (const m of lines) {
+            ++linesSeen
+            pending = pending.gotNewTask(new TaskRecord(m))
+        }
+        return this.merge({ linesSeen, pending })
     }
 }
 
@@ -161,21 +257,11 @@ export const LogComponent: React.FC<{}> = () => {
     )
 
     return (
-        <dl>
-            <dt>lines seen</dt>
-            <dd>{logLines.linesSeen} lines</dd>
-            {logLines.lastOf
-                .keySeq()
-                .sort()
-                .map((taskKey, key) => {
-                    const m = logLines.lastOf.get(taskKey)
-                    return (
-                        <React.Fragment key={key}>
-                            <dt>{taskKey.name()}</dt>
-                            <dd>{m.asElement()}</dd>
-                        </React.Fragment>
-                    )
-                })}
-        </dl>
+        <>
+            <ul>
+                <li>lines seen: {logLines.linesSeen}</li>
+            </ul>
+            {logLines.pending.asElement()}
+        </>
     )
 }
