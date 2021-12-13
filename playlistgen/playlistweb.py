@@ -11,7 +11,6 @@ import json
 import logging
 import marshmallow
 import numpy
-import pyte
 import random
 import simplejson
 import sys
@@ -601,42 +600,12 @@ def api_exception_view(exc, request):
     }
 
 
-@attr.s
-class StreamFeeder(io.IOBase):
-    stream = attr.ib()
-    encoding = 'utf-8'
-    errors = 'strict'
-
-    def fileno(self):
-        raise NotImplementedError()
-
-    def seek(self, a, b=None):
-        raise NotImplementedError()
-
-    def truncate(self, a):
-        raise NotImplementedError()
-
-    def read(self, a=None):
-        raise NotImplementedError()
-
-    def write(self, x):
-        if isinstance(x, bytes):
-            raise TypeError('as demanded by click')
-        self.stream.feed(x)
-        sys.__stderr__.write(x)
-
-
 def build_app(tracks, argv):
-    screen = pyte.Screen(80, 24)
-    screen.set_mode(pyte.modes.LNM)
-    stream = pyte.Stream(screen)
-    sys.stderr = sys.stdout = StreamFeeder(stream)
     eliot_messages = eliot.MemoryLogger()
     eliot.add_destinations(eliot_messages.write)
 
     from . import playlistweb
     with Configurator() as config:
-        config.add_request_method(lambda _: screen, name='screen', reify=True)
         config.add_request_method(lambda _: eliot_messages, name='eliot_messages', reify=True)
 
         config.include('cornice')

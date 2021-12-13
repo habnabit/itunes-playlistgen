@@ -231,7 +231,7 @@ export class OpenLog extends Record({
     linesSeen: 0,
     pending: new PendingAction(),
 }) {
-    gotNewLines(lines: Task[]): this {
+    gotNewTasks(lines: Task[]): this {
         var { linesSeen, pending } = this
         for (const m of lines) {
             ++linesSeen
@@ -243,7 +243,7 @@ export class OpenLog extends Record({
 
 export const LogComponent: React.FC<{}> = () => {
     const [logLines, dispatch] = React.useReducer(
-        (openLog: OpenLog, newLines) => openLog.gotNewLines(newLines),
+        (openLog: OpenLog, tasks: Task[]) => openLog.gotNewTasks(tasks),
         new OpenLog(),
     )
 
