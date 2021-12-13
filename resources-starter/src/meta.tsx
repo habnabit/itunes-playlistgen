@@ -329,21 +329,6 @@ const TopComponent: React.FC<TopProps> = (props) => {
         )
     }
 
-    const [screenHashed, setScreenHashed] = React.useState(undefined)
-    const consoleQuery = useQuery(
-        'console',
-        () =>
-            axios.get<{ screen: string[]; hashed: string }>('/_api/screen', {
-                params: { poll_interval: 0.1, hashed: screenHashed },
-            }),
-        {
-            refetchInterval: 250,
-            onSuccess: ({ data }) => {
-                setScreenHashed(data.hashed)
-            },
-        },
-    )
-
     return (
         <AnimatePresence>
             {errors.map((err, e) => (
@@ -354,9 +339,8 @@ const TopComponent: React.FC<TopProps> = (props) => {
                     {err}
                 </motion.div>
             ))}
-            <LogComponent key="log" />
             <div id="console" key="console">
-                {(consoleQuery.data?.data?.screen ?? []).join('\n')}
+                <LogComponent />
             </div>
             {savePlaylistInfo && (
                 <div id="playlist-saving" key="playlist-saving">

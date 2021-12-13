@@ -843,7 +843,7 @@ SEARCH_ACTION = eliot.ActionType(
 
 SEARCH_ITERATION_ACTION = eliot.ActionType(
     'plg:search_criteria:iter',
-    eliot.fields(n=int),
+    eliot.fields(n=int, of_n=int),
     eliot.fields(),
     'a playlist search iteration is running',
 )
@@ -939,7 +939,7 @@ def search_criteria(tracks, tracklist=None, pull_prev=None, keep=None, n_options
 
     with SEARCH_ACTION():
         for n in tqdm.trange(iterations):
-            with SEARCH_ITERATION_ACTION(n=n) as iter_action:
+            with SEARCH_ITERATION_ACTION(n=n, of_n=iterations) as iter_action:
                 if not previous:
                     prune()
                     previous = safe_sample(results, pull_prev)

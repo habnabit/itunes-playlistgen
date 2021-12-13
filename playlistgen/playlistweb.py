@@ -175,7 +175,7 @@ def messages(request):
 @view_config(route_name='get_reset_messages', renderer='json', request_method='POST')
 def get_reset_messages(request):
     ret = []
-    while not ret:
+    for n in range(5):
         ret = request.eliot_messages.messages
         if not ret:
             time.sleep(0.25)

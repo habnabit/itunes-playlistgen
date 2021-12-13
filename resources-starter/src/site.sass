@@ -7,11 +7,23 @@ body
   font-family: sans-serif
 
 #console
-  white-space: pre
-  font-family: monospace
+  width: 40vw
   float: right
   background: rgba(175, 175, 175, 0.5)
   padding: 0.5em
+
+  .progress
+    width: 100%
+    background: #222
+    > div
+      background: aliceblue
+      text-align: right
+      height: 2em
+      display: flex
+      justify-content: flex-end
+      align-items: center
+      > span
+        padding-right: 0.2em
 
 .loading
   margin-bottom: 1em

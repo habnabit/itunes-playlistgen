@@ -13,31 +13,41 @@ type TaskCommon = {
 
 export type ActionStatus = 'started' | 'succeeded' | 'failed'
 
-type Action = TaskCommon & {
+type ActionKey = {
     action_status: ActionStatus
     action_type: string
 }
 
-type Message = TaskCommon & {
+type MessageKey = {
     message_type: string
 }
 
-export type Task = Action | Message
+export type TaskKey = ActionKey | MessageKey
+export type Task = TaskCommon & TaskKey
+
+export class TaskKeyRecord extends Record({
+    action_status: undefined as ActionStatus,
+    action_type: undefined as string,
+    message_type: undefined as string,
+}) {
+    name(): string {
+        if (this.action_type !== undefined) {
+            return `${this.action_type}(${this.action_status})`
+        }
+        return this.message_type ?? '¿unknown?'
+    }
+}
 
 export class OpenLog extends Record({
     linesSeen: 0,
-    lastOf: Map<string, Task>(),
+    lastOf: Map<TaskKeyRecord, Task>(),
 }) {
     gotNewLines(lines: Task[]): this {
         var { linesSeen } = this
         const lastOf = this.lastOf.withMutations((lastOf) => {
             for (const m of lines) {
                 ++linesSeen
-                if ('action_type' in m) {
-                    lastOf.set(m.action_type, m)
-                } else if ('message_type' in m) {
-                    lastOf.set(m.message_type, m)
-                }
+                lastOf.set(new TaskKeyRecord(m), m)
             }
         })
         return this.merge({ linesSeen, lastOf })
@@ -57,8 +67,18 @@ const stringifyTask = (t: Task): JSX.Element => {
     if ('action_type' in t) {
         switch (t.action_type) {
             case 'plg:search_criteria:iter': {
-                const payload = t as any as { n: number }
-                return <>iter {payload.n}</>
+                const payload = t as any as { n: number; of_n: number }
+                return (
+                    <div className="progress">
+                        <div
+                            style={{
+                                width: `${(payload.n * 100) / payload.of_n}%`,
+                            }}
+                        >
+                            <span>{payload.n}</span>
+                        </div>
+                    </div>
+                )
             }
         }
     } else if ('message_type' in t) {
@@ -106,6 +126,7 @@ export const LogComponent: React.FC<{}> = () => {
             onSuccess: ({ data }) => dispatch(data.eliot),
         },
     )
+
     return (
         <dl>
             <dt>lines seen</dt>
@@ -113,11 +134,11 @@ export const LogComponent: React.FC<{}> = () => {
             {logLines.lastOf
                 .keySeq()
                 .sort()
-                .map((name, key) => {
-                    const m = logLines.lastOf.get(name)
+                .map((taskKey, key) => {
+                    const m = logLines.lastOf.get(taskKey)
                     return (
                         <React.Fragment key={key}>
-                            <dt>{name}</dt>
+                            <dt>{taskKey.name()}</dt>
                             <dd>{stringifyTask(m)}</dd>
                         </React.Fragment>
                     )
