@@ -27,12 +27,29 @@ body
       transition: width 0.25s ease-in-out
       > span
         padding-right: 0.5em
+    &.mercied > div
+      background: rebeccapurple
+      color: white
+    &.full > div
+      background: greenyellow
 
 .loading
   margin-bottom: 1em
   > div
     display: inline-block
     padding-left: 0.25em
+
+.loading-circle
+  width: 1em
+  height: 1em
+  &, & *
+    display: inline-block
+
+  span > span
+    transition: background 0.25s ease-in-out
+
+    // &::after
+    //   content: '●'
 
 .error
   float: right

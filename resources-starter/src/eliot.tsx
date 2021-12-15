@@ -4,8 +4,8 @@ import { List, Map, Record, Set } from 'immutable'
 import { Newtype, iso } from 'newtype-ts'
 import axios, { AxiosResponse } from 'axios'
 
+import BounceLoader from 'react-spinners/BounceLoader'
 import { CustomError } from 'ts-custom-error'
-import PulseLoader from 'react-spinners/PulseLoader'
 import { useQuery } from 'react-query'
 
 export interface Uuid
@@ -65,6 +65,12 @@ type SpecificTask =
           of_n: number
       }
     | { message_type: 'plg:search_criteria:prune:scan'; scores: number[] }
+    | {
+          message_type: 'plg:search_criteria:readd'
+          readds: number
+          of_n: number
+          mercy: boolean
+      }
 
 export class TaskRecord extends Record({
     key: new TaskKeyRecord(),
@@ -92,14 +98,20 @@ export class TaskRecord extends Record({
         if ('action_type' in t) {
             switch (t.action_type) {
                 case 'plg:search_criteria:iter': {
+                    const n = t.n + 1
                     return (
-                        <div className="progress">
+                        <div
+                            className={[
+                                'progress',
+                                ...(n == t.of_n ? ['full'] : []),
+                            ].join(' ')}
+                        >
                             <div
                                 style={{
-                                    width: `${(t.n * 100) / t.of_n}%`,
+                                    width: `${(n * 100) / t.of_n}%`,
                                 }}
                             >
-                                <span>{t.n}</span>
+                                <span>{n}</span>
                             </div>
                         </div>
                     )
@@ -128,6 +140,24 @@ export class TaskRecord extends Record({
                         </>
                     )
                 }
+                case 'plg:search_criteria:readd': {
+                    return (
+                        <div
+                            className={[
+                                'progress',
+                                ...(t.mercy ? ['mercied'] : []),
+                            ].join(' ')}
+                        >
+                            <div
+                                style={{
+                                    width: `${(t.readds * 100) / t.of_n}%`,
+                                }}
+                            >
+                                <span>{t.readds}</span>
+                            </div>
+                        </div>
+                    )
+                }
             }
         }
         const entries = Object.entries(t).filter(
@@ -142,27 +172,26 @@ var UGH_COUNTER = 0
 
 export class PendingAction extends Record({
     currentLevel: 0,
-    source: undefined as TaskRecord | undefined,
-    ended: false,
+    source: undefined as TaskRecord,
+    doneAsOf: undefined as TaskRecord | undefined,
     lastOf: Map<TaskKeyRecord, TaskRecord>(),
-    // zero or one
     innerActions: List<PendingAction>(),
+    nActionsToPreserve: 5,
 }) {
-    constructor(task?: TaskRecord) {
-        if (task) {
-            super({ source: task, currentLevel: task.level.size })
-        } else {
-            super()
-        }
+    constructor(task: TaskRecord, currentLevel?: number) {
+        super({ source: task, currentLevel: currentLevel ?? task.level.size })
     }
 
     gotNewTask(task: TaskRecord): this {
         const lastOf = this.lastOf.set(task.key, task)
-        var { innerActions } = this
-        var ended = false
+        var { innerActions, doneAsOf, nActionsToPreserve } = this
         innerActions = innerActions.flatMap((i) => {
-            const ret = i.gotNewTask(task)
-            return !ret.ended ? [ret] : []
+            if (i.doneAsOf === undefined) {
+                i = i.gotNewTask(task)
+            }
+            return i.doneAsOf === undefined || --nActionsToPreserve >= 0
+                ? [i]
+                : []
         })
         switch (task.key.action_status) {
             case 'started': {
@@ -170,7 +199,7 @@ export class PendingAction extends Record({
                     (!this.source || this.source.uuid === task.uuid) &&
                     task.level.size === this.currentLevel + 1
                 ) {
-                    innerActions = innerActions.push(new PendingAction(task))
+                    innerActions = innerActions.unshift(new PendingAction(task))
                 }
                 break
             }
@@ -179,22 +208,27 @@ export class PendingAction extends Record({
                 if (
                     this.source &&
                     this.source.uuid === task.uuid &&
-                    task.level.size === this.currentLevel
+                    task.level.size <= this.currentLevel
                 ) {
+                    if (this.source.key.action_type !== task.key.action_type) {
+                        // this means that we lost some events; i.e. this event is resolving one whose started event was lost. but.. do nothing at the moment
+                    }
                     // this action has ended
-                    ended = true
+                    doneAsOf = task
                 }
                 break
             }
             default: {
             }
         }
-        return this.merge({ lastOf, innerActions, ended })
+        return this.merge({ lastOf, innerActions, doneAsOf })
     }
 
     asElement({ showLastOfDepth } = { showLastOfDepth: 1 }): JSX.Element {
         return (
             <div className="pending">
+                me is {this.currentLevel} {(this.source?.level ?? List()).size}{' '}
+                {this.source?.uuid}
                 {showLastOfDepth > 0 && (
                     <dl>
                         {this.lastOf
@@ -214,6 +248,7 @@ export class PendingAction extends Record({
                 <ul>
                     {this.innerActions.map((pending, key) => (
                         <li key={key}>
+                            {pending.asIcon()}&nbsp;
                             {pending.source.key.name()}:&nbsp;
                             {pending.source.asElement()}
                             {pending.asElement({
@@ -225,17 +260,50 @@ export class PendingAction extends Record({
             </div>
         )
     }
+
+    asIcon(): JSX.Element {
+        const loaderProps =
+            this.doneAsOf === undefined
+                ? {
+                      color: 'orange',
+                  }
+                : this.doneAsOf.key.action_status === 'succeeded'
+                ? {
+                      color: 'olivedrab',
+                      speedMultiplier: 0,
+                  }
+                : this.doneAsOf.key.action_status === 'failed'
+                ? {
+                      color: 'orangered',
+                      speedMultiplier: 0,
+                  }
+                : {
+                      color: 'gray',
+                      speedMultiplier: 1.5,
+                  }
+        return (
+            <div className="loading-circle">
+                <BounceLoader size="100%" {...loaderProps} />
+            </div>
+        )
+    }
 }
 
 export class OpenLog extends Record({
     linesSeen: 0,
-    pending: new PendingAction(),
+    pending: Map<Uuid, PendingAction>(),
 }) {
     gotNewTasks(lines: Task[]): this {
         var { linesSeen, pending } = this
         for (const m of lines) {
             ++linesSeen
-            pending = pending.gotNewTask(new TaskRecord(m))
+            const rec = new TaskRecord(m)
+            pending = pending.update(
+                rec.uuid,
+                undefined,
+                // pin the root depth to 1, because this might be the first event _seen_ with this uuid, but not actually the root event. by setting the depth, this controls which nested tasks are picked up and which resolve it.
+                (i = new PendingAction(rec, 1)) => i.gotNewTask(rec),
+            )
         }
         return this.merge({ linesSeen, pending })
     }
@@ -251,7 +319,7 @@ export const LogComponent: React.FC<{}> = () => {
         'lastLog',
         () => axios.post<{ eliot: Task[] }>('/_api/messages/with-reset'),
         {
-            refetchInterval: 250,
+            refetchInterval: 50,
             onSuccess: ({ data }) => dispatch(data.eliot),
         },
     )
@@ -260,8 +328,15 @@ export const LogComponent: React.FC<{}> = () => {
         <>
             <ul>
                 <li>lines seen: {logLines.linesSeen}</li>
+                {logLines.pending
+                    .entrySeq()
+                    .sortBy(([_, i]) => i.source.when)
+                    .map(([uuid, i], key) => (
+                        <li key={key}>
+                            {i.asIcon()} {uuid}: {i.asElement()}
+                        </li>
+                    ))}
             </ul>
-            {logLines.pending.asElement()}
         </>
     )
 }

@@ -146,26 +146,6 @@ def web_argv(request):
     }
 
 
-@view_config(route_name='screen', renderer='json')
-def screen(request):
-    display = request.screen.display
-    hashed = hash(tuple(display))
-    hashed_was = request.params.get('hashed')
-    interval = request.params.get('poll_interval')
-    if interval is not None and str(hashed) == hashed_was:
-        interval = float(interval)
-        display_was = request.screen.display
-        while display == display_was:
-            time.sleep(interval)
-            display = request.screen.display
-        hashed = hash(tuple(display))
-
-    return {
-        'screen': display,
-        'hashed': str(hashed),
-    }
-
-
 @view_config(route_name='messages', renderer='json')
 def messages(request):
     return {'eliot': request.eliot_messages.messages}
@@ -174,7 +154,7 @@ def messages(request):
 @view_config(route_name='get_reset_messages', renderer='json', request_method='POST')
 def get_reset_messages(request):
     ret = []
-    for n in range(5):
+    for n in range(125):
         ret = request.eliot_messages.messages
         if not ret:
             time.sleep(0.25)
@@ -619,7 +599,6 @@ def build_app(tracks, argv):
 
         with config.route_prefix_context('_api'):
             config.add_route('web_argv', 'argv')
-            config.add_route('screen', 'screen')
             config.add_route('messages', 'messages')
             config.add_route('get_reset_messages', 'messages/with-reset')
             config.add_route('genius_albums', 'genius-albums')

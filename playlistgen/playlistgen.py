@@ -888,7 +888,7 @@ VIABLE_MESSAGE = eliot.MessageType(
 
 READD_MESSAGE = eliot.MessageType(
     'plg:search_criteria:readd',
-    eliot.fields(readds=int, mercy=bool),
+    eliot.fields(readds=int, of_n=int, mercy=bool),
     'readd; did the mercy rule end the search?',
 )
 
@@ -977,7 +977,8 @@ def search_criteria(tracks, tracklist=None, pull_prev=None, keep=None, n_options
                         n_options=n_options,
                     ))
                     readds += 1
-                    READD_MESSAGE.log(readds=readds, mercy=readds >= mercy)
+                    READD_MESSAGE.log(
+                        readds=readds, of_n=mercy, mercy=readds >= mercy)
                     if readds >= mercy:
                         break
 
