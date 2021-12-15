@@ -14,6 +14,10 @@ export interface Uuid
     extends Newtype<{ readonly Uuid: unique symbol }, string> {}
 export const isoUuid = iso<Uuid>()
 
+export interface TaskType
+    extends Newtype<{ readonly TaskType: unique symbol }, string> {}
+export const isoTaskType = iso<TaskType>()
+
 type TaskCommon = {
     task_uuid: Uuid
     task_level: number[]
@@ -24,11 +28,11 @@ export type ActionStatus = 'started' | 'succeeded' | 'failed'
 
 type ActionKey = {
     action_status: ActionStatus
-    action_type: string
+    action_type: TaskType
 }
 
 type MessageKey = {
-    message_type: string
+    message_type: TaskType
 }
 
 export type TaskKey = ActionKey | MessageKey
@@ -45,14 +49,19 @@ const knownKeys = Set<string>([
 
 export class TaskKeyRecord extends Record({
     action_status: undefined as ActionStatus,
-    action_type: undefined as string,
-    message_type: undefined as string,
+    action_type: undefined as TaskType,
+    message_type: undefined as TaskType,
+    type: undefined as TaskType,
 }) {
+    constructor(task?: Task) {
+        super({ ...task, type: task?.action_type ?? task?.message_type })
+    }
+
     name(): string {
         if (this.action_type !== undefined) {
             return `${this.action_type}(${this.action_status})`
         }
-        return this.message_type ?? '¿unknown?'
+        return isoTaskType.unwrap(this.message_type) ?? '¿unknown?'
     }
 
     asKey(): TaskKey {
@@ -185,7 +194,10 @@ export class PendingAction extends Record({
     }
 
     gotNewTask(task: TaskRecord): this {
-        const lastOf = this.lastOf.set(task.key, task)
+        const lastOf =
+            task.level.size === this.currentLevel
+                ? this.lastOf.set(task.key, task)
+                : this.lastOf
         var { innerActions, doneAsOf, nActionsToPreserve } = this
         innerActions = innerActions.flatMap((i) => {
             if (i.doneAsOf === undefined) {
@@ -226,38 +238,46 @@ export class PendingAction extends Record({
         return this.merge({ lastOf, innerActions, doneAsOf })
     }
 
-    asElement({ showLastOfDepth } = { showLastOfDepth: 1 }): JSX.Element {
+    asElement({ showLastOfDepth } = { showLastOfDepth: 2 }): JSX.Element {
+        var toShow = this.innerActions.map((pending) => ({
+            task: pending.source,
+            element: (
+                <>
+                    {pending.asIcon()}&nbsp;
+                    {pending.source.key.name()}: {pending.asDateSpan()}
+                    {pending.asElement({
+                        showLastOfDepth: showLastOfDepth - 1,
+                    })}
+                </>
+            ),
+        }))
+        const typesSeen = toShow.map(({ task }) => task.key.type).toSet()
+        toShow = toShow.concat(
+            this.lastOf.valueSeq().flatMap((task) =>
+                typesSeen.has(task.key.type)
+                    ? []
+                    : [
+                          {
+                              task,
+                              element: (
+                                  <>
+                                      {task.key.name()}: {task.asElement()}
+                                  </>
+                              ),
+                          },
+                      ],
+            ),
+        )
+
         return (
             <div className="pending">
-                me is {this.currentLevel} {(this.source?.level ?? List()).size}{' '}
-                {this.source?.uuid}
-                {showLastOfDepth > 0 && (
-                    <dl>
-                        {this.lastOf
-                            .keySeq()
-                            .sort()
-                            .map((taskKey, key) => {
-                                const m = this.lastOf.get(taskKey)
-                                return (
-                                    <React.Fragment key={key}>
-                                        <dt>{taskKey.name()}</dt>
-                                        <dd>{m.asElement()}</dd>
-                                    </React.Fragment>
-                                )
-                            })}
-                    </dl>
-                )}
+                {this.source && this.source.asElement()}
                 <ul>
-                    {this.innerActions.map((pending, key) => (
-                        <li key={key}>
-                            {pending.asIcon()}&nbsp;
-                            {pending.source.key.name()}:&nbsp;
-                            {pending.source.asElement()}
-                            {pending.asElement({
-                                showLastOfDepth: showLastOfDepth - 1,
-                            })}
-                        </li>
-                    ))}
+                    {toShow
+                        .sortBy(({ task }) => task.when)
+                        .map(({ task, element }, key) => {
+                            return <li key={key}>{element}</li>
+                        })}
                 </ul>
             </div>
         )
@@ -288,15 +308,15 @@ export class PendingAction extends Record({
                 <div className="loading-circle">
                     <BounceLoader size="100%" {...loaderProps} />
                 </div>
-                {this.doneAsOf === undefined ? (
-                    <CountUpFrom when={this.source.when} />
-                ) : (
-                    <DateBetween
-                        from={this.source.when}
-                        to={this.doneAsOf.when}
-                    />
-                )}
             </>
+        )
+    }
+
+    asDateSpan(): JSX.Element {
+        return this.doneAsOf === undefined ? (
+            <CountUpFrom when={this.source.when} />
+        ) : (
+            <DateBetween from={this.source.when} to={this.doneAsOf.when} />
         )
     }
 }
