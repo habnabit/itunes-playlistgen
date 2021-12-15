@@ -13,48 +13,51 @@ import { ConnectedTimefillSelectorComponent } from './timefill/components'
 import { ConnectedTopComponent } from './meta'
 import { ErrorBoundary } from 'react-error-boundary'
 import { Provider } from 'react-redux'
+import { TimerProvider } from './timer'
 
 const makeRootElement = () => (
     <BrowserRouter>
         <QueryClientProvider client={queryClient}>
-            <Routes>
-                <Route
-                    path=""
-                    element={
-                        <>
-                            <h1>playlistgen</h1>
-                            <ul>
-                                <li>
-                                    <Link to="app/timefill">timefill</Link>
-                                </li>
-                            </ul>
-                        </>
-                    }
-                />
-                <Route
-                    path="app/timefill/*"
-                    element={
-                        <ConnectedTopComponent
-                            initialFetch={{
-                                argv: true,
-                                tracks: true,
-                                playlists: {
-                                    names: ['Tagged'],
-                                    include_previous_selections: true,
-                                },
-                            }}
-                        >
-                            <Provider
-                                store={stores.timefillStore(
-                                    new TimefillSelector(),
-                                )}
+            <TimerProvider>
+                <Routes>
+                    <Route
+                        path=""
+                        element={
+                            <>
+                                <h1>playlistgen</h1>
+                                <ul>
+                                    <li>
+                                        <Link to="app/timefill">timefill</Link>
+                                    </li>
+                                </ul>
+                            </>
+                        }
+                    />
+                    <Route
+                        path="app/timefill/*"
+                        element={
+                            <ConnectedTopComponent
+                                initialFetch={{
+                                    argv: true,
+                                    tracks: true,
+                                    playlists: {
+                                        names: ['Tagged'],
+                                        include_previous_selections: true,
+                                    },
+                                }}
                             >
-                                <ConnectedTimefillSelectorComponent />
-                            </Provider>
-                        </ConnectedTopComponent>
-                    }
-                />
-            </Routes>
+                                <Provider
+                                    store={stores.timefillStore(
+                                        new TimefillSelector(),
+                                    )}
+                                >
+                                    <ConnectedTimefillSelectorComponent />
+                                </Provider>
+                            </ConnectedTopComponent>
+                        }
+                    />
+                </Routes>
+            </TimerProvider>
         </QueryClientProvider>
     </BrowserRouter>
 )

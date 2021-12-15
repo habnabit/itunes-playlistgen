@@ -1,11 +1,13 @@
 import * as React from 'react'
 
+import { CountUpFrom, DateBetween } from './timer'
 import { List, Map, Record, Set } from 'immutable'
 import { Newtype, iso } from 'newtype-ts'
 import axios, { AxiosResponse } from 'axios'
 
 import BounceLoader from 'react-spinners/BounceLoader'
 import { CustomError } from 'ts-custom-error'
+import { DateTime } from 'luxon'
 import { useQuery } from 'react-query'
 
 export interface Uuid
@@ -76,7 +78,7 @@ export class TaskRecord extends Record({
     key: new TaskKeyRecord(),
     uuid: undefined as Uuid,
     level: List<number>(),
-    when: undefined as Date,
+    when: undefined as DateTime,
     _raw: undefined as Task,
 }) {
     constructor(task: Task) {
@@ -84,7 +86,7 @@ export class TaskRecord extends Record({
             key: new TaskKeyRecord(task),
             uuid: task.task_uuid,
             level: List(task.task_level),
-            when: new Date(task.timestamp * 1000),
+            when: DateTime.fromSeconds(task.timestamp),
             _raw: task,
         })
     }
@@ -282,9 +284,19 @@ export class PendingAction extends Record({
                       speedMultiplier: 1.5,
                   }
         return (
-            <div className="loading-circle">
-                <BounceLoader size="100%" {...loaderProps} />
-            </div>
+            <>
+                <div className="loading-circle">
+                    <BounceLoader size="100%" {...loaderProps} />
+                </div>
+                {this.doneAsOf === undefined ? (
+                    <CountUpFrom when={this.source.when} />
+                ) : (
+                    <DateBetween
+                        from={this.source.when}
+                        to={this.doneAsOf.when}
+                    />
+                )}
+            </>
         )
     }
 }
