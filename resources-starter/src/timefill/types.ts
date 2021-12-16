@@ -1,12 +1,7 @@
-import * as d3 from 'd3-scale-chromatic'
-import { List, Map, OrderedMap, Record, Seq, Set } from 'immutable'
-import { enumerate, izipMany } from 'itertools'
-import { Lens } from 'monocle-ts'
-import { Newtype, iso } from 'newtype-ts'
 import * as SkeletonRendezvousHasher from 'skeleton-rendezvous'
-import { ActionType } from 'typesafe-actions'
+import * as actions from './actions'
+import * as d3 from 'd3-scale-chromatic'
 
-import { Argv, Playlists, Tracks } from '../meta'
 import {
     Album,
     AlbumId,
@@ -16,7 +11,15 @@ import {
     collateAlbums,
     isoTrackId,
 } from '../types'
-import * as actions from './actions'
+import { Argv, Playlists, Tracks } from '../meta'
+import { List, Map, OrderedMap, Record, Seq, Set } from 'immutable'
+import { Newtype, iso } from 'newtype-ts'
+import { enumerate, izipMany } from 'itertools'
+
+import { ActionType } from 'typesafe-actions'
+import { Lens } from 'monocle-ts'
+import URLON from 'urlon'
+import { URLSearchParamsInit } from 'react-router-dom'
 
 export type AllActions = ActionType<typeof actions>
 
@@ -152,6 +155,7 @@ export class TimefillSelector extends Record({
     ambientSelected: Map<TrackId, ChoiceTrackSelection>(),
     currentSelection: undefined as ChoiceTrackSelection | undefined,
     savingPlaylists: false,
+    lastSearchParams: new URLSearchParams(),
 }) {
     condensedSelection(): Map<TrackId, ChoiceTrackSelection> {
         const pairs = this.choices
@@ -398,5 +402,24 @@ export class TimefillSelector extends Record({
                     remove,
                 }
             })
+    }
+
+    withSearchParams(params: URLSearchParams): this {
+        var parsed: { criteria?: string[] }
+        var ret = this
+        try {
+            parsed = URLON.parse(decodeURIComponent(params.toString()))
+        } catch (error) {
+            console.error('error during parsing URLON', error)
+            return ret
+        }
+        if (parsed.criteria) {
+            ret = ret.set('criteria', List(parsed.criteria))
+        }
+        return ret
+    }
+
+    asSearchParams(): string {
+        return URLON.stringify({ criteria: this.criteria.toArray() })
     }
 }

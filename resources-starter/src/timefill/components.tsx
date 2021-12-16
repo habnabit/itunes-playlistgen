@@ -19,7 +19,7 @@ import {
     useKeyboardEvents,
 } from '../meta'
 import { List, Map, Set } from 'immutable'
-import { NavLink, Route, Routes } from 'react-router-dom'
+import { NavLink, Route, Routes, useSearchParams } from 'react-router-dom'
 import { Track, TrackId } from '../types'
 import { useDispatch, useSelector } from 'react-redux'
 
@@ -557,22 +557,27 @@ const OldChoicesComponent: React.FC<{
 }
 
 const TimefillRouter: React.FC<{}> = () => {
+    const [searchParams, setSearchParams] = useSearchParams()
     const { tracks, argv, playlists } = React.useContext(InitialFetchedContext)
     const { keyboard } = React.useContext(TopPlatformContext)
     const dispatch = bindActionCreators(
         {
             onInitialFetched: actions.initialFetched,
             onUpdatedKeys: actions.updateKeys,
+            onMustUpdateSearchParams: actions.mustUpdateSearchParams,
         },
         useDispatch<Dispatch<AllActions>>(),
     )
     React.useEffect(() => {
-        dispatch.onInitialFetched({ argv, tracks, playlists })
+        dispatch.onInitialFetched({ argv, tracks, playlists, searchParams })
     }, [argv !== undefined && tracks !== undefined && playlists !== undefined])
     React.useEffect(() => {
         dispatch.onUpdatedKeys({ keysDown: keyboard.keysDown })
     }, [keyboard.keysDown])
     const top = useSelector((top: TimefillSelector) => top)
+    React.useEffect(() => {
+        dispatch.onMustUpdateSearchParams({ setSearchParams })
+    }, [top.criteria])
     const { tagColors, roundHistory } = React.useMemo(
         () => top.matchTagsToColors(),
         [top.tags, top.tracks],

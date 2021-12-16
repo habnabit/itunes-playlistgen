@@ -1,9 +1,10 @@
+import * as actions from './actions'
+
+import { AllActions, Choice, TimefillSelector, selectionForKeys } from './types'
 import { List, Map } from 'immutable'
+
 import { Random } from 'random-js'
 import { getType } from 'typesafe-actions'
-
-import * as actions from './actions'
-import { AllActions, Choice, TimefillSelector, selectionForKeys } from './types'
 
 export default function timefillReducer(
     state = new TimefillSelector(),
@@ -78,11 +79,12 @@ export default function timefillReducer(
         }
 
         case getType(actions.initialFetched): {
-            const { argv, tracks, playlists } = action.payload
+            const { argv, tracks, playlists, searchParams } = action.payload
             return state
                 .withArgv(argv)
                 .withTracksResponse(tracks)
                 .withPlaylistsResponse(playlists)
+                .withSearchParams(searchParams)
                 .withReconciledAmbientSelections()
         }
 
@@ -100,6 +102,12 @@ export default function timefillReducer(
                 .withPlaylistsResponse(action.payload.json)
                 .afterPlaylistsUpdated()
                 .set('savingPlaylists', false)
+
+        case getType(actions.mustUpdateSearchParams): {
+            const params = new URLSearchParams(state.asSearchParams())
+            action.payload.setSearchParams(params)
+            return state.set('lastSearchParams', params)
+        }
 
         default:
             return state

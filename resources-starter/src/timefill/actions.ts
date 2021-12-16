@@ -10,6 +10,7 @@ import { createAction, createAsyncAction } from 'typesafe-actions'
 
 import { Lens } from 'monocle-ts'
 import { TrackId } from '../types'
+import { URLSearchParamsInit } from 'react-router-dom'
 
 export const initialFetched = createAction(
     'playlistgen/timefill/initialFetched',
@@ -17,6 +18,7 @@ export const initialFetched = createAction(
     argv: Argv
     tracks: Tracks
     playlists: Playlists
+    searchParams: URLSearchParams
 }>()
 
 export const performSearch = createAction(
@@ -104,3 +106,9 @@ export const modifyPlaylists = createAsyncAction(
     },
     Error
 >()
+
+export const mustUpdateSearchParams = createAction(
+    'playlistgen/timefill/mustUpdateSearchParams',
+)<{
+    setSearchParams: (p: URLSearchParamsInit) => void
+}>()

@@ -103,6 +103,7 @@
         "string-similarity": "^4.0.2",
         "ts-custom-error": "^3.2.0",
         "typesafe-actions": "^5.1.0",
+        "urlon": "^3.1.0",
         "vm-browserify": "^1.1.2"
     }
 }
