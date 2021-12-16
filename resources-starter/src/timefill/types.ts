@@ -155,7 +155,6 @@ export class TimefillSelector extends Record({
     ambientSelected: Map<TrackId, ChoiceTrackSelection>(),
     currentSelection: undefined as ChoiceTrackSelection | undefined,
     savingPlaylists: false,
-    lastSearchParams: new URLSearchParams(),
 }) {
     condensedSelection(): Map<TrackId, ChoiceTrackSelection> {
         const pairs = this.choices
@@ -419,7 +418,7 @@ export class TimefillSelector extends Record({
         return ret
     }
 
-    asSearchParams(): string {
+    asSearchParams(): URLSearchParamsInit {
         return URLON.stringify({ criteria: this.criteria.toArray() })
     }
 }

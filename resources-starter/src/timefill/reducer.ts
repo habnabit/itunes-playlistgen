@@ -104,9 +104,8 @@ export default function timefillReducer(
                 .set('savingPlaylists', false)
 
         case getType(actions.mustUpdateSearchParams): {
-            const params = new URLSearchParams(state.asSearchParams())
-            action.payload.setSearchParams(params)
-            return state.set('lastSearchParams', params)
+            action.payload.setSearchParams(state.asSearchParams())
+            return state
         }
 
         default:
