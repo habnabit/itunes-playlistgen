@@ -72,6 +72,7 @@ export class TaskKeyRecord extends Record({
 type SpecificTask =
     | {
           action_type: 'plg:search_criteria:iter'
+          action_status: 'started'
           n: number
           of_n: number
       }
@@ -106,7 +107,7 @@ export class TaskRecord extends Record({
 
     asElement(): JSX.Element {
         const t = this.asSpecificTask()
-        if ('action_type' in t) {
+        if ('action_type' in t && t.action_status === 'started') {
             switch (t.action_type) {
                 case 'plg:search_criteria:iter': {
                     const n = t.n + 1
@@ -114,6 +115,7 @@ export class TaskRecord extends Record({
                         <div
                             className={[
                                 'progress',
+                                ...(n / t.of_n < 0.1 ? ['short'] : []),
                                 ...(n == t.of_n ? ['full'] : []),
                             ].join(' ')}
                         >
@@ -156,6 +158,7 @@ export class TaskRecord extends Record({
                         <div
                             className={[
                                 'progress',
+                                ...(t.readds / t.of_n < 0.1 ? ['short'] : []),
                                 ...(t.mercy ? ['mercied'] : []),
                             ].join(' ')}
                         >
@@ -175,7 +178,9 @@ export class TaskRecord extends Record({
             ([key, _]) => !knownKeys.has(key),
         )
         entries.sort(([a, _], [b, __]) => a.localeCompare(b))
-        return <>{JSON.stringify(Object.fromEntries(entries))}</>
+        return entries.length > 0 ? (
+            <>{JSON.stringify(Object.fromEntries(entries))}</>
+        ) : null
     }
 }
 

@@ -1,18 +1,19 @@
-import { List, Map, Seq, Set } from 'immutable'
-import { Epic, combineEpics } from 'redux-observable'
-import { from, of } from 'rxjs'
-import { catchError, filter, map, switchMap } from 'rxjs/operators'
-import { isActionOf } from 'typesafe-actions'
-
-import { postJSON } from '../funcs'
-import { RemoteError, TrackId } from '../types'
 import * as actions from './actions'
+
 import { AllActions, ChoiceTrackSelection } from './types'
+import { Epic, combineEpics } from 'redux-observable'
+import { List, Map, Seq, Set } from 'immutable'
+import { RemoteError, TrackId } from '../types'
+import { catchError, filter, map, switchMap } from 'rxjs/operators'
+import { from, of } from 'rxjs'
+
+import { isActionOf } from 'typesafe-actions'
+import { postJSON } from '../funcs'
 
 function buildData(
     criteriaList: List<string>,
     selections: Map<ChoiceTrackSelection, Set<TrackId>>,
-    narrow: boolean,
+    type: 'wide' | 'narrow' | 'daily',
 ): any {
     const exclude = [
         ...selections.get('curse', Set()).toArray(),
@@ -30,9 +31,18 @@ function buildData(
         ...criteriaList.toArray(),
     ]
     const ret: any = { criteria, exclude }
-    if (narrow) {
-        ret['n_options'] = 17
-        ret['keep'] = 50
+    switch (type) {
+        case 'narrow': {
+            ret['n_options'] = 17
+            ret['keep'] = 50
+            break
+        }
+        case 'daily': {
+            ret['n_options'] = 1
+            ret['keep'] = 1
+            ret['pull_prev'] = 1
+            break
+        }
     }
     return ret
 }
@@ -41,8 +51,8 @@ const runTimefillEpic: Epic<AllActions, AllActions> = (action$) =>
     action$.pipe(
         filter(isActionOf(actions.runTimefill.request)),
         switchMap((action) => {
-            const { criteria, selections, narrow, replace } = action.payload
-            const data = buildData(criteria, selections, narrow)
+            const { criteria, selections, type, replace } = action.payload
+            const data = buildData(criteria, selections, type)
             return from(
                 fetch('/_api/timefill-criteria', postJSON(data)).then((resp) =>
                     resp.json().then((json) => ({ resp, json })),

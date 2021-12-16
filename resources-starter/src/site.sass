@@ -17,6 +17,8 @@ body
     background: #222
     border-radius: 0.5em
     > div
+      container-name: progress
+      container-type: inline-size
       border-radius: inherit
       background: aliceblue
       text-align: right
@@ -27,6 +29,11 @@ body
       transition: width 0.25s ease-in-out
       > span
         padding-right: 0.5em
+    &.short > div
+      justify-content: flex-start
+      > span
+        color: white
+        padding-left: 0.5em
     &.mercied > div
       background: rebeccapurple
       color: white
@@ -47,9 +54,6 @@ body
 
   span > span
     transition: background 0.25s ease-in-out
-
-    // &::after
-    //   content: '●'
 
 .error
   float: right

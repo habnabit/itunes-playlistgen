@@ -1,15 +1,15 @@
-import { List, Map, Set } from 'immutable'
-import { Lens } from 'monocle-ts'
-import { createAction, createAsyncAction } from 'typesafe-actions'
-
 import { Argv, Playlists, Tracks } from '../meta'
-import { TrackId } from '../types'
 import {
     Choice,
     ChoiceTrackSelection,
     PlaylistModification,
     TimefillSelector,
 } from './types'
+import { List, Map, Set } from 'immutable'
+import { createAction, createAsyncAction } from 'typesafe-actions'
+
+import { Lens } from 'monocle-ts'
+import { TrackId } from '../types'
 
 export const initialFetched = createAction(
     'playlistgen/timefill/initialFetched',
@@ -81,7 +81,7 @@ export const runTimefill = createAsyncAction(
     {
         criteria: List<string>
         selections: Map<ChoiceTrackSelection, Set<TrackId>>
-        narrow: boolean
+        type: 'wide' | 'narrow' | 'daily'
         replace?: Lens<TimefillSelector, Choice>
     },
     {

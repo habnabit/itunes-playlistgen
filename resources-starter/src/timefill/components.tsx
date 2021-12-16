@@ -1,19 +1,6 @@
-import { List, Map, Set } from 'immutable'
-import { Lens } from 'monocle-ts'
 import * as React from 'react'
-import { useDispatch, useSelector } from 'react-redux'
-import { NavLink, Route, Routes } from 'react-router-dom'
-import PulseLoader from 'react-spinners/PulseLoader'
-import { Dispatch, bindActionCreators } from 'redux'
-
-import { lensFromImplicitAccessors } from '../extlens'
-import {
-    InitialFetchedContext,
-    TopPlatformContext,
-    useKeyboardEvents,
-} from '../meta'
-import { Track, TrackId } from '../types'
 import * as actions from './actions'
+
 import {
     AllActions,
     Choice,
@@ -25,6 +12,20 @@ import {
     TimefillSelector,
     isoTag,
 } from './types'
+import { Dispatch, bindActionCreators } from 'redux'
+import {
+    InitialFetchedContext,
+    TopPlatformContext,
+    useKeyboardEvents,
+} from '../meta'
+import { List, Map, Set } from 'immutable'
+import { NavLink, Route, Routes } from 'react-router-dom'
+import { Track, TrackId } from '../types'
+import { useDispatch, useSelector } from 'react-redux'
+
+import { Lens } from 'monocle-ts'
+import PulseLoader from 'react-spinners/PulseLoader'
+import { lensFromImplicitAccessors } from '../extlens'
 
 const DurationComponent: React.FC<{ duration: number }> = (props) => {
     const minutes = Math.floor(props.duration / 60)
@@ -106,9 +107,9 @@ const useBoundDispatchForChoice = () => {
                 const selections = top.reversedTotalSelection()
                 dispatch.onLoading({ lens, loading: true })
                 dispatch.onReroll({
+                    type: 'narrow',
                     criteria: top.allCriteria(),
                     selections,
-                    narrow: true,
                     replace: lens,
                 })
             },
@@ -365,7 +366,92 @@ const TimefillSelectorComponent: React.FC<{
                         dispatch.onSelect({
                             criteria: top.allCriteria(),
                             selections: top.reversedTotalSelection(),
-                            narrow: false,
+                            type: 'wide',
+                        })
+                    }}
+                >
+                    Select new
+                </button>
+            </section>
+            <section className="choices">
+                {selectionElement}
+                {choices.map((pl, e) => {
+                    const bound = boundDispatchForChoice(pl, e)
+                    return (
+                        <React.Fragment key={e}>
+                            <ChoiceComponent
+                                choice={pl}
+                                onToggle={bound.onToggle}
+                                topBar={
+                                    <div className="actions">
+                                        <button
+                                            onClick={() => bound.onReroll()}
+                                        >
+                                            Reroll
+                                        </button>
+                                        <button
+                                            onClick={() => bound.onShuffle()}
+                                        >
+                                            Shuffle
+                                        </button>
+                                        <button onClick={() => bound.onSave()}>
+                                            Save
+                                        </button>
+                                    </div>
+                                }
+                            />
+                        </React.Fragment>
+                    )
+                })}
+            </section>
+        </>
+    )
+}
+
+const TimefillDailyComponent: React.FC<{
+    top: TimefillSelector
+    selectionElement: JSX.Element
+}> = ({ top, selectionElement }) => {
+    const { makeKeyboardEvents } = React.useContext(TopPlatformContext)
+    const { name, choices } = top
+
+    const lens: Lens<TimefillSelector, string> = new Lens(
+        (o) => o.get('name', undefined),
+        (v) => (o) => o.set('name', v),
+    )
+    const dispatch = bindActionCreators(
+        {
+            onInitialFetched: actions.initialFetched,
+            onChangeControl: actions.changeControl,
+            onLoading: actions.clearAllForLoading,
+            onSelect: actions.runTimefill.request,
+        },
+        useDispatch<Dispatch<AllActions>>(),
+    )
+    const keyboardEvents = makeKeyboardEvents()
+    const boundDispatchForChoice = useBoundDispatchForChoice()
+    return (
+        <>
+            <CriteriaComponent />
+            <section className="controls">
+                <textarea
+                    placeholder="Playlist name…"
+                    onChange={(ev) =>
+                        dispatch.onChangeControl({
+                            lens,
+                            value: ev.target.value,
+                        })
+                    }
+                    value={name}
+                    {...keyboardEvents}
+                />
+                <button
+                    onClick={() => {
+                        dispatch.onLoading()
+                        dispatch.onSelect({
+                            criteria: top.allCriteria(),
+                            selections: top.reversedTotalSelection(),
+                            type: 'daily',
                         })
                     }}
                 >
@@ -528,6 +614,9 @@ const TimefillRouter: React.FC<{}> = () => {
                     <NavLink to="">select</NavLink>
                 </li>
                 <li>
+                    <NavLink to="daily">daily</NavLink>
+                </li>
+                <li>
                     <NavLink to="tags">tags</NavLink>
                 </li>
                 <li>
@@ -539,6 +628,15 @@ const TimefillRouter: React.FC<{}> = () => {
                     path=""
                     element={
                         <TimefillSelectorComponent
+                            top={top}
+                            selectionElement={selectionElement}
+                        />
+                    }
+                />
+                <Route
+                    path="daily"
+                    element={
+                        <TimefillDailyComponent
                             top={top}
                             selectionElement={selectionElement}
                         />
