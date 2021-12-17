@@ -30,6 +30,28 @@ from . import _album_shuffle, _criteria_parser
 zeroth = operator.itemgetter(0)
 
 
+def applescript_as_json(obj):
+    if isinstance(obj, (list, tuple, set, frozenset)):
+        return [applescript_as_json(x) for x in obj]
+    elif isinstance(obj, dict):
+        return {applescript_as_json(k): applescript_as_json(v)
+                for k, v in obj.items()}
+    elif isinstance(obj, applescript.AEType):
+        return 'T_{}'.format(obj.code.strip().decode())
+    elif isinstance(obj, applescript.AEEnum):
+        if obj.code == 'kNon':
+            return None
+        else:
+            return 'E_{}'.format(obj.code.strip().decode())
+    elif isinstance(obj, datetime.datetime):
+        return (arrow.get(obj)
+                .replace(tzinfo='local')
+                .to('utc')
+                .strftime('%Y-%m-%dT%H:%M:%SZ'))
+    else:
+        return obj
+
+
 class NoDestination(Exception):
     pass
 
@@ -46,6 +68,13 @@ SAVE_PLAYLIST_ITER_ACTION = eliot.ActionType(
     eliot.fields(attempt=int, of_n=int),
     eliot.fields(done=bool),
     'one attempt at calling into applescript',
+)
+
+DELETE_OLD_PLAYLISTS_ACTION = eliot.ActionType(
+    'plg:delete_old_playlists',
+    eliot.fields(which=list),
+    eliot.fields(errors=list),
+    'deleting old playlists is being attempted',
 )
 
 
@@ -75,11 +104,10 @@ class TrackContext(object):
             if self.dry_run:
                 click.echo('  .. not actually deleting: {!r}'.format(to_delete))
             else:
-                to_delete = [ppis(playlist_map[name]) for name in to_delete]
-                import pprint
-                click.echo('got back from delete:\n{}'.format(
-                    pprint.pformat(
-                        scripts.call('delete_playlists', to_delete))))
+                ppis_to_delete = [ppis(playlist_map[name]) for name in to_delete]
+                with DELETE_OLD_PLAYLISTS_ACTION(which=to_delete) as action:
+                    script_errors = scripts.call('delete_playlists', ppis_to_delete)
+                    action.add_success_fields(errors=applescript_as_json(script_errors))
         return ret
 
     @reify
