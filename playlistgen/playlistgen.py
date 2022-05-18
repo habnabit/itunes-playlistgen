@@ -1266,11 +1266,18 @@ def volume(tracks, outfile, n_q):
 
 @main.command()
 @click.pass_obj
-@click.option('-f', '--format', type=click.Choice('spectrogram cd'.split()))
+@click.option('-f', '--format', type=click.Choice('spectrogram cd yt-split'.split()))
 @click.argument('outdir', type=click.Path(file_okay=False, dir_okay=True, writable=True))
 def export(tracks, format, outdir):
     from . import _xport
-    _xport.run(tracks, format, pathlib.Path(outdir))
+    outdir = pathlib.Path(outdir)
+    [playlist] = tracks.source_playlists
+    track_iter = tracks.playlists_by_name[playlist].items()
+    if format == 'yt-split':
+        for e, t in enumerate(track_iter, start=1):
+            _xport.run(tracks, [t], 'spectrogram', outdir / str(e))
+    else:
+        _xport.run(tracks, track_iter, format, outdir)
 
 
 if __name__ == '__main__':

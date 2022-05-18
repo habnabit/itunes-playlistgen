@@ -144,7 +144,7 @@ class SpectrogramRenderer:
     def playlist_desc_out(self):
         return self.outdir / 'youtube-playlist.txt'
 
-    def playlist_desc_text(self):        
+    def playlist_desc_text(self):
         at = datetime.timedelta(0)
         ret = []
         for et in self.songs:
@@ -231,12 +231,11 @@ renderers = {
 }
 
 
-def run(tracks, format, outdir: pathlib.Path):
-    [playlist] = tracks.source_playlists
-    outdir.mkdir(exist_ok=True)
+def run(tracks, track_iter, format, outdir: pathlib.Path):
+    outdir.mkdir(parents=True, exist_ok=True)
     songs_in_order = []
     songs_by_extension = collections.defaultdict(list)
-    for e, t in enumerate(tracks.playlists_by_name[playlist].items(), start=1):
+    for e, t in enumerate(track_iter, start=1):
         et = ExportedTrack(e, t)
         try:
             loc = et.location
@@ -287,7 +286,7 @@ def run(tracks, format, outdir: pathlib.Path):
             concat,
         ], stdin=subprocess.DEVNULL, stdout=subprocess.PIPE)
         p2 = subprocess.Popen(
-            renderer.ffmpeg_args(concat), 
+            renderer.ffmpeg_args(concat),
             stdin=subprocess.DEVNULL, stdout=subprocess.PIPE)
 
         sel = selectors.DefaultSelector()

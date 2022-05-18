@@ -141,7 +141,7 @@ def app(request):
 @view_config(route_name='web_argv', renderer='json')
 def web_argv(request):
     return {
-        'dest_playlist': '',#request.tracks.dest_playlist,
+        'dest_playlist': request.tracks._dest_playlist,
         'web_argv': request.web_argv,
     }
 
