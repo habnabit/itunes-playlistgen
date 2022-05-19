@@ -27,7 +27,7 @@ from pyramid.response import Response
 from pyramid.renderers import JSON
 from pyramid.view import view_config
 
-from . import _discogs_match, playlistgen
+from . import playlistgen
 from .playlistgen import ppis
 
 log = logging.getLogger(__name__)

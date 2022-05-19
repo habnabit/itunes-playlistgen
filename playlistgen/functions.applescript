@@ -1,7 +1,7 @@
 -- -*- coding: mac-roman -*-
 
 on get_playlist(pln, isf, plp)
-	tell application "iTunes"
+	tell application "Music"
 		if isf then
 			try
 				return the first folder playlist whose name is pln
@@ -19,7 +19,7 @@ on get_playlist(pln, isf, plp)
 end get_playlist
 
 on nested_playlist(plns)
-	tell application "iTunes"
+	tell application "Music"
 		set prev to null
 		repeat with n from 1 to count of plns
 			set pln to item n of plns
@@ -31,12 +31,12 @@ end nested_playlist
 
 on delete_playlists(pls)
 	set failed_on to {}
-	tell application "iTunes"
+	tell application "Music"
 		repeat with pl in pls
 			try
 				delete (the first playlist whose persistent ID is pl)
 			on error e number n
-			set the end of failed_on to {pl, e, n}
+				set the end of failed_on to {pl, e, n}
 			end try
 		end repeat
 	end tell
@@ -44,7 +44,7 @@ on delete_playlists(pls)
 end delete_playlists
 
 on fill_tracks(plns, tl, ctrl)
-	tell application "iTunes"
+	tell application "Music"
 		set pl to my nested_playlist(plns)
 		delete tracks of pl
 		my append_tracks(pl's persistent ID, tl, true)
@@ -52,7 +52,7 @@ on fill_tracks(plns, tl, ctrl)
 end fill_tracks
 
 on append_tracks(pp, tl, dupes)
-	tell application "iTunes"
+	tell application "Music"
 		set pl to the first playlist whose persistent ID is pp
 		repeat with tid in tl
 			set track_ok to true
@@ -67,7 +67,7 @@ on append_tracks(pp, tl, dupes)
 end append_tracks
 
 on remove_tracks(pp, tl)
-	tell application "iTunes"
+	tell application "Music"
 		set pl to the first playlist whose persistent ID is pp
 		repeat with tid in tl
 			delete (every track of pl whose persistent ID is tid)
@@ -76,7 +76,7 @@ on remove_tracks(pp, tl)
 end remove_tracks
 
 on rename_tracks(tl)
-	tell application "iTunes"
+	tell application "Music"
 		repeat with pair in tl
 			set tid to the first item of pair
 			set tnam to the second item of pair
