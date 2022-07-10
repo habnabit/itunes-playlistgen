@@ -330,6 +330,12 @@ export class OpenLog extends Record({
     linesSeen: 0,
     pending: Map<Uuid, PendingAction>(),
 }) {
+    clear(): this {
+        return this.merge({
+            pending: Map(),
+        })
+    }
+
     gotNewTasks(lines: Task[]): this {
         var { linesSeen, pending } = this
         for (const m of lines) {
@@ -348,7 +354,13 @@ export class OpenLog extends Record({
 
 export const LogComponent: React.FC<{}> = () => {
     const [logLines, dispatch] = React.useReducer(
-        (openLog: OpenLog, tasks: Task[]) => openLog.gotNewTasks(tasks),
+        (openLog: OpenLog, action: 'clear' | Task[]) => {
+            if (action === 'clear') {
+                return openLog.clear()
+            } else {
+                return openLog.gotNewTasks(action)
+            }
+        },
         new OpenLog(),
     )
 
@@ -364,6 +376,15 @@ export const LogComponent: React.FC<{}> = () => {
     return (
         <>
             <ul>
+                <li>
+                    <button
+                        onClick={() => {
+                            dispatch('clear')
+                        }}
+                    >
+                        clear display
+                    </button>
+                </li>
                 <li>lines seen: {logLines.linesSeen}</li>
                 {logLines.pending
                     .entrySeq()
