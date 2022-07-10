@@ -393,6 +393,7 @@ class CriterionAlbums(object):
     name = 'albums'
     spread = attr.ib()
     power = attr.ib(default=1)
+    limit = attr.ib(default=1)
     _track_albums = attr.ib(factory=dict)
 
     def prepare(self, tracks):
@@ -415,7 +416,12 @@ class CriterionAlbums(object):
             return tracks_per_album ** self.power
 
         elif self.spread == 'distinct':
-            return 0 if len(albums) != len(tracks) else 1
+            album_counts = collections.Counter(self._track_albums[t] for t in tracks)
+            for count in album_counts.values():
+                if count > self.limit:
+                    return 0
+            else:
+                return 1
 
 
 @implementer(IScorerCriterion)
